@@ -38,7 +38,7 @@ Sistema de inventario fisico multi-loja para uma rede de **11 lojas de varejo** 
 
 - API producao: `https://inventario-api-bc1p.onrender.com`
 - Repo backend: `https://github.com/eduar742/inventario-api`
-- Repo app: (a criar)
+- Repo app: `https://github.com/eduar742/inventario-app`
 - Admin de teste: `admin@inventario.local` / `admin123`
 
 ---
@@ -243,7 +243,7 @@ Telas registradas (em `src/navigation/AppNavigator.js`):
 
 ### Pendente (curto prazo)
 
-- [ ] Criar repositorio GitHub do app mobile + push
+- [x] Repositorio GitHub do app mobile criado e publicado
 - [ ] Apresentacao para o time de TI
 - [ ] Populat loja_id para gestores existentes no banco de producao
 
