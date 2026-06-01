@@ -30,10 +30,13 @@ function confirmar(titulo, mensagem, aoConfirmar) {
 }
 
 function avisar(titulo, mensagem) {
+  // Garante que mensagem e sempre string (evita [object Object])
+  const msg = typeof mensagem === 'string' ? mensagem
+    : mensagem ? JSON.stringify(mensagem) : '';
   if (Platform.OS === 'web') {
-    window.alert(mensagem ? `${titulo}\n\n${mensagem}` : titulo);
+    window.alert(msg ? `${titulo}\n\n${msg}` : titulo);
   } else {
-    Alert.alert(titulo, mensagem);
+    Alert.alert(titulo, msg || undefined);
   }
 }
 

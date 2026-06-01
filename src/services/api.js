@@ -42,6 +42,18 @@ export async function pegarUsuario() {
 
 // No browser usa o fetch nativo (evita polyfill do React Native que pode
 // ter comportamento diferente com CORS em ambiente web)
+// Extrai mensagem legivel do campo 'detail' da API.
+// detail pode ser string (FastAPI simples) ou array (erros de validacao Pydantic).
+function _extrairMensagem(detail, status) {
+  if (!detail) return `Erro ${status}`;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map(e => e.msg || e.message || JSON.stringify(e)).join('; ');
+  }
+  if (typeof detail === 'object') return JSON.stringify(detail);
+  return String(detail);
+}
+
 const _fetch = typeof window !== 'undefined' && window.fetch
   ? window.fetch.bind(window)
   : fetch;
@@ -78,7 +90,7 @@ export async function chamarAPI(caminho, opcoes = {}) {
     }
 
     if (!resposta.ok) {
-      const erro = new Error(dados?.detail || `Erro ${resposta.status}`);
+      const erro = new Error(_extrairMensagem(dados?.detail, resposta.status));
       erro.status = resposta.status;
       erro.dados = dados;
       throw erro;
@@ -179,12 +191,18 @@ export async function listarDivergencias(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/divergencias`);
 }
 
-export async function aprovarDivergencia(divergenciaId) {
-  return await chamarAPI(`/api/v1/divergencias/${divergenciaId}/aprovar`, { method: 'PATCH' });
+export async function aprovarDivergencia(divergenciaId, acao = 'ajustar_para_contado') {
+  return await chamarAPI(`/api/v1/divergencias/${divergenciaId}/aprovar`, {
+    method: 'PATCH',
+    body: JSON.stringify({ acao }),
+  });
 }
 
-export async function rejeitarDivergencia(divergenciaId) {
-  return await chamarAPI(`/api/v1/divergencias/${divergenciaId}/rejeitar`, { method: 'PATCH' });
+export async function rejeitarDivergencia(divergenciaId, motivo = 'Rejeitado pelo gestor') {
+  return await chamarAPI(`/api/v1/divergencias/${divergenciaId}/rejeitar`, {
+    method: 'PATCH',
+    body: JSON.stringify({ motivo }),
+  });
 }
 
 export async function listarRecontagemNecessaria(sessaoId) {
@@ -309,7 +327,7 @@ export async function importarPlanilha({ lojaId, mesReferencia, arquivo, modo = 
     try { dados = texto ? JSON.parse(texto) : null; } catch (_) {}
 
     if (!resposta.ok) {
-      const erro = new Error(dados?.detail || `Erro ${resposta.status}`);
+      const erro = new Error(_extrairMensagem(dados?.detail, resposta.status));
       erro.status = resposta.status;
       throw erro;
     }
@@ -387,7 +405,7 @@ export async function baixarRelatorio({ sessaoId, formato, perfil, abas }) {
     let mensagem = `Erro ${resposta.status}`;
     try {
       const dados = JSON.parse(texto);
-      mensagem = dados?.detail || mensagem;
+      mensagem = _extrairMensagem(dados?.detail, resposta.status) || mensagem;
     } catch (_) {}
     const erro = new Error(mensagem);
     erro.status = resposta.status;
