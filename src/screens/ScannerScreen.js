@@ -21,8 +21,15 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 
+// Sufixos de ordinal feminino (contagem)
+const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
+
 export default function ScannerScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
+  // rodada: 1 = primeira contagem, 2 = recontagem, 3 = desempate
+  const rodada = route.params?.rodada ?? 1;
+  // Lista de itens que precisam ser contados nesta rodada (vazia na 1a)
+  const itensPendentes = route.params?.itensPendentes ?? [];
 
   const [permissao, solicitarPermissao] = useCameraPermissions();
   const [escaneado, setEscaneado] = useState(false);
@@ -31,6 +38,14 @@ export default function ScannerScreen({ navigation, route }) {
   const [modalVisivel, setModalVisivel] = useState(false);
   const [codigoManual, setCodigoManual] = useState('');
   const [contagens, setContagens] = useState([]);
+
+  // Reseta a lista de contagens quando uma nova rodada começa
+  useEffect(() => {
+    if (route.params?.resetContagens) {
+      setContagens([]);
+      navigation.setParams({ resetContagens: undefined });
+    }
+  }, [route.params?.resetContagens]);
 
   function adicionarContagem(novaContagem) {
     setContagens(prev => [...prev, novaContagem]);
@@ -62,7 +77,7 @@ export default function ScannerScreen({ navigation, route }) {
   }
 
   function handleFinalizar() {
-    navigation.navigate('Resumo', { contagens, sessao, loja });
+    navigation.navigate('Resumo', { contagens, sessao, loja, rodada });
   }
 
   const skusUnicos = new Set(contagens.map(c => c.codigoQr)).size;
@@ -189,6 +204,26 @@ export default function ScannerScreen({ navigation, route }) {
         </View>
 
         <SafeAreaView style={estilos.rodape}>
+          {/* Painel de itens pendentes (rodadas 2 e 3) */}
+          {itensPendentes.length > 0 && (
+            <View style={estilos.painelPendentes}>
+              <Text style={estilos.painelPendentesTitle}>
+                {ORDINAL[rodada] || `${rodada}ª`} contagem — {itensPendentes.length} produto(s):
+              </Text>
+              {itensPendentes.slice(0, 4).map((item, i) => (
+                <Text key={i} style={estilos.painelPendentesItem} numberOfLines={1}>
+                  · {item.sku || item.codigoQr} — {item.descricao || ''}
+                </Text>
+              ))}
+              {itensPendentes.length > 4 && (
+                <Text style={estilos.painelPendentesItem}>
+                  ...e mais {itensPendentes.length - 4}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Barra com contagem e botão de encerrar */}
           {contagens.length > 0 && (
             <View style={estilos.barraContagem}>
               <View style={estilos.barraTotais}>
@@ -200,7 +235,9 @@ export default function ScannerScreen({ navigation, route }) {
                 </Text>
               </View>
               <TouchableOpacity style={estilos.botaoFinalizar} onPress={handleFinalizar}>
-                <Text style={estilos.botaoFinalizarTexto}>Finalizar inventario</Text>
+                <Text style={estilos.botaoFinalizarTexto}>
+                  Encerrar {ORDINAL[rodada] || `${rodada}ª`} contagem
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -392,6 +429,23 @@ const estilos = StyleSheet.create({
   },
   rodape: {
     backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  painelPendentes: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.15)',
+  },
+  painelPendentesTitle: {
+    color: colors.warning,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  painelPendentesItem: {
+    color: colors.white,
+    fontSize: 11,
+    opacity: 0.85,
   },
   barraContagem: {
     flexDirection: 'row',

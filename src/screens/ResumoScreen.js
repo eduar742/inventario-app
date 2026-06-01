@@ -17,17 +17,17 @@ import Button from '../components/Button';
 import { registrarContagem, encerrarSessao, gerarDivergencias } from '../services/api';
 import { exportarSessao } from '../services/exportacao';
 
+const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
+
 export default function ResumoScreen({ navigation, route }) {
   const { contagens, sessao, loja } = route.params;
+  const rodada = route.params?.rodada ?? 1;
 
   const [processando, setProcessando] = useState(true);
   const [confirmados, setConfirmados] = useState([]);
   const [pendentes, setPendentes] = useState([]);
   const [erroGeral, setErroGeral] = useState('');
   const [sessaoEncerrada, setSessaoEncerrada] = useState(false);
-  const [itemAtivoIdx, setItemAtivoIdx] = useState(null);
-  const [quantidade, setQuantidade] = useState('');
-  const [registrando, setRegistrando] = useState(false);
   const [exportando, setExportando] = useState(false);
 
   useEffect(() => {
@@ -111,24 +111,24 @@ export default function ResumoScreen({ navigation, route }) {
       return;
     }
 
-    // Pelo menos 1 item registrado: encerra a sessao automaticamente
-    try {
-      console.log('[ResumoScreen] Encerrando sessao automaticamente...');
-      await encerrarSessao(sessao.id);
-      await gerarDivergencias(sessao.id);
-      setSessaoEncerrada(true);
-      console.log('[ResumoScreen] Sessao encerrada. Divergencias geradas.');
-    } catch (err) {
-      const msg = err.message || '';
-      // Sessao ja encerrada anteriormente: nao e erro, apenas registra
-      if (msg.includes('aguardando') || msg.includes('concluida') || msg.includes('cancelada') || err.status === 400) {
-        console.log('[ResumoScreen] Sessao ja estava encerrada:', msg);
+    // Encerra a sessao automaticamente apenas quando:
+    // - Nao ha mais pendentes de recontagem (todos resolvidos)
+    // - OU chegou na 3a rodada (limite das 3 contagens)
+    const deveEncerrar = novosPendentes.length === 0 || rodada >= 3;
+
+    if (deveEncerrar) {
+      try {
+        console.log('[ResumoScreen] Encerrando sessao (rodada=%d, pendentes=%d)', rodada, novosPendentes.length);
+        await encerrarSessao(sessao.id);
+        await gerarDivergencias(sessao.id);
         setSessaoEncerrada(true);
-      } else {
-        // Erro real ao encerrar: avisa mas contagens ja foram salvas
-        console.error('[ResumoScreen] Erro ao encerrar sessao:', msg);
-        setSessaoEncerrada(false);
-        // Nao bloqueia — contagens foram salvas mas sessao pode ser encerrada manualmente
+      } catch (err) {
+        const msg = err.message || '';
+        if (msg.includes('aguardando') || msg.includes('concluida') || err.status === 400) {
+          setSessaoEncerrada(true); // ja encerrada
+        } else {
+          console.error('[ResumoScreen] Erro ao encerrar:', msg);
+        }
       }
     }
 
@@ -137,52 +137,20 @@ export default function ResumoScreen({ navigation, route }) {
     setProcessando(false);
   }
 
-  function selecionarItem(idx) {
-    if (itemAtivoIdx === idx) {
-      setItemAtivoIdx(null);
-      setQuantidade('');
-    } else {
-      setItemAtivoIdx(idx);
-      setQuantidade('');
-    }
-  }
-
-  async function handleRecontagem() {
-    const qtd = parseFloat(quantidade.replace(',', '.'));
-    if (isNaN(qtd) || qtd < 0) {
-      Alert.alert('Quantidade invalida', 'Digite um numero valido (ex: 60 ou 12,5)');
-      return;
-    }
-
-    const entrada = pendentes[itemAtivoIdx];
-    setRegistrando(true);
-
-    try {
-      const resp = await registrarContagem({
-        sessaoId: sessao.id,
-        codigoQr: entrada.item.codigoQr,
-        quantidadeContada: qtd,
-        observacoes: null,
-      });
-
-      if (resp.status_produto === 'aguardando_recontagem') {
-        // Ainda precisa de mais uma contagem — atualiza o item na lista
-        setPendentes(prev => prev.map((p, i) =>
-          i === itemAtivoIdx ? { item: entrada.item, resp } : p
-        ));
-      } else {
-        // Confirmado — move para a lista de confirmados
-        setPendentes(prev => prev.filter((_, i) => i !== itemAtivoIdx));
-        setConfirmados(prev => [...prev, { item: entrada.item, resp, erro: null }]);
-      }
-
-      setItemAtivoIdx(null);
-      setQuantidade('');
-    } catch (err) {
-      Alert.alert('Erro ao registrar', err.message || 'Tente novamente');
-    } finally {
-      setRegistrando(false);
-    }
+  function iniciarProximaRodada() {
+    // Navega de volta ao Scanner com a proxima rodada e lista de pendentes
+    navigation.navigate('Scanner', {
+      sessao,
+      loja,
+      rodada: rodada + 1,
+      itensPendentes: pendentes.map(p => ({
+        codigoQr: p.item.codigoQr,
+        sku: p.item.sku,
+        descricao: p.item.descricao,
+        unidadeMedida: p.item.unidadeMedida,
+      })),
+      resetContagens: true,
+    });
   }
 
   if (processando) {
@@ -244,41 +212,61 @@ export default function ResumoScreen({ navigation, route }) {
             </View>
           ) : null}
 
+          {/* Cabecalho da rodada */}
           <View style={estilos.cabecalho}>
             <Text style={estilos.cabecalhoTitulo}>
-              {pendentes.length > 0
-                ? `${pendentes.length} produto(s) para recontagem`
-                : 'Inventario concluido!'}
+              {sessaoEncerrada
+                ? 'Inventario finalizado!'
+                : pendentes.length > 0
+                  ? `${ORDINAL[rodada] || `${rodada}ª`} contagem concluida`
+                  : 'Tudo conferido!'}
             </Text>
             <Text style={estilos.cabecalhoSubtitulo}>
-              {confirmados.length + pendentes.length} SKU(s) processado(s)
+              {confirmados.filter(c => !c.erro).length} ok · {pendentes.length} para recontar · {confirmados.filter(c => c.erro).length} erro(s)
             </Text>
           </View>
 
-          {pendentes.length > 0 && (
+          {/* Itens que precisam de proxima contagem */}
+          {pendentes.length > 0 && !sessaoEncerrada && (
             <View style={estilos.secao}>
-              <Text style={estilos.secaoTitulo}>Recontagem necessaria</Text>
-              <Text style={estilos.secaoSubtitulo}>
-                Toque no produto, conte fisicamente e informe a quantidade
+              <Text style={estilos.secaoTitulo}>
+                Precisam de {ORDINAL[rodada + 1] || `${rodada + 1}ª`} contagem ({pendentes.length})
               </Text>
-              {pendentes.map((entrada, idx) => (
-                <CardRecontagem
-                  key={entrada.item.codigoQr}
-                  entrada={entrada}
-                  ativo={itemAtivoIdx === idx}
-                  quantidade={itemAtivoIdx === idx ? quantidade : ''}
-                  onSetQuantidade={setQuantidade}
-                  onPress={() => selecionarItem(idx)}
-                  onConfirmar={handleRecontagem}
-                  registrando={registrando && itemAtivoIdx === idx}
-                />
+              {pendentes.map(({ item }) => (
+                <View key={item.codigoQr} style={estilos.cardPendente}>
+                  <View style={estilos.cardPendenteHeader}>
+                    <View style={estilos.cardTextos}>
+                      <Text style={estilos.cardNome} numberOfLines={1}>{item.descricao || item.codigoQr}</Text>
+                      <Text style={estilos.cardSku}>{item.sku || item.codigoQr}</Text>
+                    </View>
+                    <View style={estilos.badgeContagem}>
+                      <Text style={estilos.badgeContagemTexto}>{ORDINAL[rodada + 1] || `${rodada + 1}ª`}</Text>
+                    </View>
+                  </View>
+                </View>
               ))}
+
+              {/* Botao para iniciar proxima rodada (so aparece se rodada < 3) */}
+              {rodada < 3 && (
+                <>
+                  <View style={{ height: spacing.md }} />
+                  <Button
+                    titulo={`Iniciar ${ORDINAL[rodada + 1] || `${rodada + 1}ª`} contagem com o scanner`}
+                    onPress={iniciarProximaRodada}
+                  />
+                  <View style={{ height: spacing.xs }} />
+                  <Text style={estilos.dica}>
+                    Bipe novamente apenas os produtos listados acima.
+                  </Text>
+                </>
+              )}
             </View>
           )}
 
+          {/* Itens confirmados */}
           {confirmados.length > 0 && (
             <View style={estilos.secao}>
-              <Text style={estilos.secaoTitulo}>Confirmados</Text>
+              <Text style={estilos.secaoTitulo}>Confirmados ({confirmados.filter(c => !c.erro).length})</Text>
               {confirmados.map(({ item, resp, erro }) => (
                 <CardConfirmado key={item.codigoQr} item={item} resp={resp} erro={erro} />
               ))}
@@ -286,22 +274,29 @@ export default function ResumoScreen({ navigation, route }) {
           )}
 
           <View style={{ height: spacing.xl }} />
-          <Button
-            titulo={exportando ? 'Exportando...' : 'Exportar para Excel'}
-            variante="secondary"
-            carregando={exportando}
-            onPress={async () => {
-              setExportando(true);
-              try {
-                await exportarSessao(sessao.id, sessao.nome);
-              } catch (err) {
-                Alert.alert('Erro ao exportar', err.message || 'Tente novamente');
-              } finally {
-                setExportando(false);
-              }
-            }}
-          />
-          <View style={{ height: spacing.sm }} />
+
+          {/* Exportar so disponivel apos sessao encerrada */}
+          {sessaoEncerrada && (
+            <>
+              <Button
+                titulo={exportando ? 'Exportando...' : 'Exportar para Excel'}
+                variante="secondary"
+                carregando={exportando}
+                onPress={async () => {
+                  setExportando(true);
+                  try {
+                    await exportarSessao(sessao.id, sessao.nome);
+                  } catch (err) {
+                    Alert.alert('Erro ao exportar', err.message || 'Tente novamente');
+                  } finally {
+                    setExportando(false);
+                  }
+                }}
+              />
+              <View style={{ height: spacing.sm }} />
+            </>
+          )}
+
           <Button
             titulo="Voltar para sessoes"
             variante="secondary"
@@ -310,62 +305,6 @@ export default function ResumoScreen({ navigation, route }) {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
-  );
-}
-
-function CardRecontagem({ entrada, ativo, quantidade, onSetQuantidade, onPress, onConfirmar, registrando }) {
-  const { item, resp } = entrada;
-  const proximaContagem = resp ? resp.contagem.numero_contagem + 1 : 2;
-
-  return (
-    <View style={[estilos.cardPendente, ativo && estilos.cardPendenteAtivo]}>
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-        <View style={estilos.cardPendenteHeader}>
-          <View style={estilos.cardTextos}>
-            <Text style={estilos.cardNome} numberOfLines={2}>
-              {item.descricao || item.codigoQr}
-            </Text>
-            <Text style={estilos.cardSku}>
-              {item.sku || item.codigoQr}
-            </Text>
-          </View>
-          <View style={estilos.badgeContagem}>
-            <Text style={estilos.badgeContagemTexto}>{proximaContagem}ª contagem</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-
-      {ativo && (
-        <View style={estilos.areaRecontagem}>
-          <Text style={estilos.recontagemLabel}>
-            Quantidade ({proximaContagem}ª contagem)
-          </Text>
-          <TextInput
-            style={estilos.inputGrande}
-            value={quantidade}
-            onChangeText={onSetQuantidade}
-            placeholder="0"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="decimal-pad"
-            autoFocus
-          />
-          <View style={{ height: spacing.md }} />
-          <Button
-            titulo="Confirmar recontagem"
-            onPress={onConfirmar}
-            carregando={registrando}
-            desabilitado={!quantidade || registrando}
-          />
-          <View style={{ height: spacing.sm }} />
-          <Button
-            titulo="Cancelar"
-            variante="secondary"
-            onPress={onPress}
-            desabilitado={registrando}
-          />
-        </View>
-      )}
-    </View>
   );
 }
 
@@ -594,6 +533,12 @@ const estilos = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: '600',
     color: colors.text,
+  },
+  dica: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: spacing.xs,
   },
   textoErro: {
     fontSize: fontSize.sm,

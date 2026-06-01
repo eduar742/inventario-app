@@ -142,7 +142,8 @@ export default function SessoesScreen({ navigation, route }) {
   }
 
   function selecionarSessao(sessao) {
-    navigation.navigate('Scanner', { sessao, loja });
+    // rodada:1 = primeira contagem; ScannerScreen controla o avanco
+    navigation.navigate('Scanner', { sessao, loja, rodada: 1, itensPendentes: [] });
   }
 
   function formatarData(iso) {
