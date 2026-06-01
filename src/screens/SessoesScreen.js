@@ -54,8 +54,8 @@ export default function SessoesScreen({ navigation, route }) {
   const [cancelando, setCancelando] = useState(null);
   const [encerrando, setEncerrando] = useState(null);
   const [exportando, setExportando] = useState(false);
-  // 'ativas' = em_andamento + aguardando_aprovacao | 'concluidas' = concluida
-  const [filtroVisao, setFiltroVisao] = useState('ativas');
+  // Aceita filtroInicial via params (ex: apos concluir sessao via DivergenciasScreen)
+  const [filtroVisao, setFiltroVisao] = useState(route.params?.filtroInicial || 'ativas');
 
   // Recarrega ao montar e toda vez que o filtro mudar
   useEffect(() => {

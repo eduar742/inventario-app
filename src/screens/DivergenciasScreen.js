@@ -207,6 +207,18 @@ export default function DivergenciasScreen({ navigation, route }) {
         <ResumoItem valor={rejeitadas}          rotulo="Rejeitadas" cor={colors.danger} />
       </View>
 
+      {/* Banner: todas resolvidas, aguardando conclusao */}
+      {divergencias.length > 0 && pendentes === 0 && (
+        <View style={estilos.bannerProntoParaConcluir}>
+          <Text style={estilos.bannerProntoTitulo}>
+            Todas as divergencias foram resolvidas!
+          </Text>
+          <Text style={estilos.bannerProntoTexto}>
+            {aprovadas} aprovada(s) · {rejeitadas} rejeitada(s) · Clique abaixo para finalizar.
+          </Text>
+        </View>
+      )}
+
       {/* Concluir sessao quando todas divergencias resolvidas */}
       {divergencias.length > 0 && pendentes === 0 && (
         <TouchableOpacity
@@ -216,7 +228,8 @@ export default function DivergenciasScreen({ navigation, route }) {
             try {
               await concluirSessao(sessao.id);
               avisar('Sessao concluida!', 'O inventario foi finalizado com sucesso.');
-              navigation.goBack();
+              // Navega para Sessoes mostrando diretamente a aba "Concluidas"
+              navigation.navigate('Sessoes', { loja, filtroInicial: 'concluidas' });
             } catch (err) {
               avisar('Erro', err.message || 'Nao foi possivel concluir');
             } finally {
@@ -304,4 +317,28 @@ const estilos = StyleSheet.create({
   botaoRejeitarTexto: { fontSize: fontSize.sm, fontWeight: '700', color: colors.danger },
   vazio:        { alignItems: 'center', padding: spacing.xl },
   vazioTexto:   { fontSize: fontSize.md, color: colors.textMuted },
+  bannerProntoParaConcluir: {
+    backgroundColor: colors.successSoft,
+    padding: spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.success,
+  },
+  bannerProntoTitulo: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.success,
+    marginBottom: 4,
+  },
+  bannerProntoTexto: {
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  botaoConcluir: {
+    margin: spacing.md,
+    backgroundColor: colors.success,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  botaoConcluirTexto: { color: colors.white, fontWeight: '700', fontSize: fontSize.md },
 });
