@@ -1,5 +1,5 @@
 // Dashboard por loja e historico mes a mes.
-// Charts implementados com Views puras — sem biblioteca externa.
+// Exibe 3 dimensoes de acuracidade: Valor (R$), Unidades e Itens (SKUs).
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -15,84 +15,88 @@ const INTERVALO = 30000;
 function fmtMoeda(v) {
   if (!v && v !== 0) return '—';
   const n = parseFloat(v);
-  if (n >= 1000000) return `R$ ${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000)    return `R$ ${(n / 1000).toFixed(0)}k`;
-  return `R$ ${n.toFixed(0)}`;
+  if (n >= 1000000) return `R$ ${(n / 1000000).toFixed(2)}M`;
+  if (n >= 1000)    return `R$ ${(n / 1000).toFixed(1)}k`;
+  return `R$ ${n.toFixed(2)}`;
+}
+
+function fmtMoedaCompleto(v) {
+  if (!v && v !== 0) return '—';
+  return `R$ ${parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtNum(v, decimais = 0) {
+  if (!v && v !== 0) return '—';
+  return parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: decimais, maximumFractionDigits: decimais });
 }
 
 function corAcur(v) {
-  if (v >= 95) return colors.success;
-  if (v >= 85) return colors.warning;
-  if (v > 0)   return colors.danger;
-  return colors.textMuted;
+  if (v >= 98) return colors.success;
+  if (v >= 90) return colors.warning;
+  return colors.danger;
 }
 
-// ── Grafico de barras vertical simples ──────────────────────────────────────
-function BarChartSimples({ labels, data, cor, suffixo = '', altura = 120 }) {
-  if (!data || data.length === 0) return null;
-  const max = Math.max(...data, 1);
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: altura + 32, paddingHorizontal: 4, gap: 6 }}>
-        {data.map((val, i) => {
-          const h = Math.max((val / max) * altura, 4);
-          const c = typeof cor === 'function' ? cor(val) : (cor || colors.primary);
-          return (
-            <View key={i} style={{ alignItems: 'center', width: 44 }}>
-              <Text style={{ fontSize: 9, color: c, fontWeight: '700', marginBottom: 3 }}>
-                {typeof val === 'number' ? val.toFixed(0) : val}{suffixo}
-              </Text>
-              <View style={{ width: 28, height: h, backgroundColor: c, borderRadius: 4 }} />
-              <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 4, textAlign: 'center' }}
-                numberOfLines={1}>{labels[i]}</Text>
-            </View>
-          );
-        })}
-      </View>
-    </ScrollView>
-  );
-}
-
-// ── Grafico de linha (sparkline com segmentos) ───────────────────────────────
-function SparkLine({ labels, data, cor = colors.primary, suffixo = '', altura = 100 }) {
-  if (!data || data.length < 2) return null;
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data, 0);
-  const range = max - min || 1;
+// ── Painel de acuracidade (Valor / Unidades / Itens) ─────────────────────────
+function PainelAcuracidade({ titulo, dados, formatarTotal, formatarAdj, cor }) {
+  if (!dados) return null;
+  const corAcuracia = corAcur(dados.acuracidade);
+  const pct = Math.min(dados.acuracidade, 100);
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: altura + 36, gap: 0 }}>
-        {data.map((val, i) => {
-          const h = Math.max(((val - min) / range) * altura, 4);
-          const isLast = i === data.length - 1;
-          return (
-            <View key={i} style={{ alignItems: 'center', width: 52 }}>
-              <Text style={{ fontSize: 9, color: cor, fontWeight: '700', marginBottom: 2 }}>
-                {typeof val === 'number' ? val.toFixed(1) : val}{suffixo}
-              </Text>
-              <View style={{ height: altura, justifyContent: 'flex-end', alignItems: 'center' }}>
-                {/* Linha conectando ao proximo */}
-                {!isLast && (
-                  <View style={{
-                    position: 'absolute', bottom: h - 4, left: 26, right: -26,
-                    height: 2, backgroundColor: cor + '55', zIndex: 0,
-                  }} />
-                )}
-                {/* Ponto */}
-                <View style={{
-                  width: 12, height: 12, borderRadius: 6,
-                  backgroundColor: cor, borderWidth: 2, borderColor: colors.background,
-                  zIndex: 1, marginBottom: h - 6,
-                }} />
-              </View>
-              <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 4, textAlign: 'center' }}
-                numberOfLines={1}>{labels[i]}</Text>
-            </View>
-          );
-        })}
+    <View style={[estilos.painel, { borderTopColor: cor }]}>
+      <Text style={[estilos.painelTitulo, { color: cor }]}>{titulo}</Text>
+
+      <View style={estilos.painelLinha}>
+        <Text style={estilos.painelLabel}>Total no Sistema</Text>
+        <Text style={estilos.painelValorPrincipal}>{formatarTotal(dados.total_sistema ?? dados.total ?? dados.total_estoque)}</Text>
       </View>
-    </ScrollView>
+
+      <View style={estilos.separador} />
+
+      <View style={estilos.painelLinha}>
+        <Text style={estilos.painelLabel}>Acerto Positivo (+)</Text>
+        <Text style={[estilos.painelValorAdj, { color: colors.warning }]}>
+          +{formatarAdj(dados.acerto_positivo)}
+        </Text>
+      </View>
+      <View style={estilos.painelLinha}>
+        <Text style={estilos.painelLabel}>Acerto Negativo (−)</Text>
+        <Text style={[estilos.painelValorAdj, { color: colors.danger }]}>
+          −{formatarAdj(dados.acerto_negativo)}
+        </Text>
+      </View>
+      <View style={[estilos.painelLinha, estilos.painelLinhaDestaque]}>
+        <Text style={[estilos.painelLabel, { fontWeight: '700' }]}>Ajuste Líquido</Text>
+        <Text style={[estilos.painelValorAdj, {
+          color: (dados.ajuste_liquido ?? dados.diferenca_itens ?? 0) < 0 ? colors.danger : colors.warning,
+          fontWeight: '700',
+        }]}>
+          {formatarAdj(dados.ajuste_liquido ?? dados.diferenca_itens)}
+        </Text>
+      </View>
+
+      <View style={estilos.separador} />
+
+      <View style={estilos.painelLinha}>
+        <Text style={estilos.painelLabel}>Diferença</Text>
+        <Text style={[estilos.painelValorAdj, { color: colors.textSecondary }]}>
+          {fmtNum(dados.diferenca_pct, 2)}%
+        </Text>
+      </View>
+
+      {/* Barra de acuracidade */}
+      <View style={estilos.acuracidadeRow}>
+        <Text style={estilos.painelLabel}>Acuracidade</Text>
+        <View style={{ flex: 1, marginLeft: spacing.sm }}>
+          <View style={estilos.barraFundo}>
+            <View style={[estilos.barraFill, { width: `${pct}%`, backgroundColor: corAcuracia }]} />
+          </View>
+        </View>
+        <Text style={[estilos.acuracidadeValor, { color: corAcuracia }]}>
+          {fmtNum(dados.acuracidade, 2)}%
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -105,10 +109,8 @@ export default function DashboardLojasScreen({ navigation }) {
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
-    try {
-      const d = await buscarDashboardLojas();
-      setLojas(d);
-    } catch (_) {}
+    try { const d = await buscarDashboardLojas(); setLojas(d); }
+    catch (_) {}
     finally { setCarregando(false); setRefreshing(false); }
   }, []);
 
@@ -129,9 +131,7 @@ export default function DashboardLojasScreen({ navigation }) {
       >
         <View style={estilos.lojaTopo}>
           <View style={[estilos.lojaBadge, { backgroundColor: temAtiva ? colors.infoSoft : colors.backgroundSoft }]}>
-            <Text style={[estilos.lojaCodigo, { color: temAtiva ? colors.info : colors.textSecondary }]}>
-              {l.codigo}
-            </Text>
+            <Text style={[estilos.lojaCodigo, { color: temAtiva ? colors.info : colors.textSecondary }]}>{l.codigo}</Text>
           </View>
           <View style={{ flex: 1, marginLeft: spacing.sm }}>
             <Text style={estilos.lojaNome} numberOfLines={1}>{l.nome}</Text>
@@ -142,32 +142,22 @@ export default function DashboardLojasScreen({ navigation }) {
           </View>
           <Text style={estilos.seta}>›</Text>
         </View>
-
-        {/* Metricas */}
-        <View style={estilos.metricas}>
-          <Metrica rotulo="Acuracidade"  valor={`${l.acuracidade}%`}           cor={cor} />
-          <Metrica rotulo="Auditados"    valor={`${l.total_auditados}/${l.total_produtos}`} />
-          <Metrica rotulo="Estoque"      valor={fmtMoeda(l.valor_estoque)} />
-          <Metrica rotulo="Divergente"   valor={fmtMoeda(l.valor_divergente)}
+        <View style={estilos.lojaMetricas}>
+          <Metrica rotulo="Acuracidade" valor={`${l.acuracidade}%`} cor={cor} />
+          <Metrica rotulo="Auditados"   valor={`${l.total_auditados}/${l.total_produtos}`} />
+          <Metrica rotulo="Estoque"     valor={fmtMoeda(l.valor_estoque)} />
+          <Metrica rotulo="Divergente"  valor={fmtMoeda(l.valor_divergente)}
             cor={l.valor_divergente > 0 ? colors.danger : colors.textSecondary} />
         </View>
-
-        {/* Barra de acuracidade */}
         <View style={estilos.barraFundo}>
           <View style={[estilos.barraFill, { width: `${Math.min(l.acuracidade, 100)}%`, backgroundColor: cor }]} />
-          {/* Linha de meta 95% */}
-          <View style={[estilos.barraMeta, { left: '95%' }]} />
         </View>
       </TouchableOpacity>
     );
   }
 
   if (carregando && lojas.length === 0) {
-    return (
-      <SafeAreaView style={estilos.centro}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </SafeAreaView>
-    );
+    return <SafeAreaView style={estilos.centro}><ActivityIndicator size="large" color={colors.primary} /></SafeAreaView>;
   }
 
   return (
@@ -177,20 +167,14 @@ export default function DashboardLojasScreen({ navigation }) {
         renderItem={renderLoja}
         keyExtractor={l => l.loja_id}
         contentContainerStyle={estilos.lista}
-        ListHeaderComponent={
-          <Text style={estilos.dica}>Toque em uma loja para ver o histórico mês a mês</Text>
-        }
-        refreshControl={
-          <RefreshControl refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); carregar(); }}
-            colors={[colors.primary]} tintColor={colors.primary} />
-        }
+        ListHeaderComponent={<Text style={estilos.dica}>Toque para ver o histórico detalhado</Text>}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); carregar(); }} colors={[colors.primary]} tintColor={colors.primary} />}
       />
     </SafeAreaView>
   );
 }
 
-// ── TELA 2: Historico mes a mes ───────────────────────────────────────────────
+// ── TELA 2: Historico com paineis de acuracidade ──────────────────────────────
 export function DashboardHistoricoScreen({ navigation, route }) {
   const { loja } = route.params;
   const [historico, setHistorico] = useState(null);
@@ -200,10 +184,8 @@ export function DashboardHistoricoScreen({ navigation, route }) {
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
-    try {
-      const d = await buscarDashboardHistorico(loja.loja_id, meses);
-      setHistorico(d);
-    } catch (_) {}
+    try { const d = await buscarDashboardHistorico(loja.loja_id, meses); setHistorico(d); }
+    catch (_) {}
     finally { setCarregando(false); }
   }, [loja.loja_id, meses]);
 
@@ -214,97 +196,98 @@ export function DashboardHistoricoScreen({ navigation, route }) {
   }, [carregar]);
 
   if (carregando && !historico) {
-    return (
-      <SafeAreaView style={estilos.centro}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </SafeAreaView>
-    );
+    return <SafeAreaView style={estilos.centro}><ActivityIndicator size="large" color={colors.primary} /></SafeAreaView>;
   }
 
-  const hist    = historico?.historico || [];
-  const labels  = hist.map(h => (h.mes || '').slice(5));  // "2026-01" → "01"
-  const acurs   = hist.map(h => parseFloat(h.acuracidade || 0));
-  const divs    = hist.map(h => parseFloat(h.valor_divergente || 0));
-  const audits  = hist.map(h => h.total_auditados || 0);
-  const ultimo  = hist[hist.length - 1];
+  const hist = historico?.historico || [];
+  const ultimo = hist[hist.length - 1];
 
   return (
     <SafeAreaView style={estilos.container}>
-      <ScrollView contentContainerStyle={estilos.lista}
-        refreshControl={
-          <RefreshControl refreshing={false}
-            onRefresh={carregar} colors={[colors.primary]} tintColor={colors.primary} />
-        }
+      <ScrollView
+        contentContainerStyle={estilos.lista}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={carregar} colors={[colors.primary]} tintColor={colors.primary} />}
       >
-        {/* KPIs do ultimo mes */}
-        {ultimo && (
-          <View style={estilos.kpiRow}>
-            <KpiMini rotulo="Último mês"   valor={ultimo.mes} />
-            <KpiMini rotulo="Acuracidade"  valor={`${ultimo.acuracidade}%`} cor={corAcur(ultimo.acuracidade)} />
-            <KpiMini rotulo="Auditados"    valor={`${ultimo.total_auditados}/${ultimo.total_produtos}`} />
-          </View>
-        )}
-
-        {/* Seletor de periodo */}
+        {/* Seletor de período */}
         <View style={estilos.periodoRow}>
           {[3, 6, 12].map(n => (
-            <TouchableOpacity
-              key={n}
-              style={[estilos.chipPer, meses === n && estilos.chipPerAtivo]}
-              onPress={() => setMeses(n)}
-            >
+            <TouchableOpacity key={n} style={[estilos.chipPer, meses === n && estilos.chipPerAtivo]} onPress={() => setMeses(n)}>
               <Text style={[estilos.chipPerT, meses === n && estilos.chipPerTAtivo]}>{n}M</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Grafico: acuracidade */}
-        {acurs.length > 0 && (
-          <GraficoBloco titulo="Acuracidade quantitativa (%)">
-            {acurs.length >= 2
-              ? <SparkLine labels={labels} data={acurs} cor={colors.primary} suffixo="%" />
-              : <BarChartSimples labels={labels} data={acurs} cor={corAcur} suffixo="%" />
-            }
-          </GraficoBloco>
+        {/* ── PAINEIS DA SESSAO MAIS RECENTE ── */}
+        {ultimo && (
+          <>
+            <View style={estilos.sessaoHeader}>
+              <Text style={estilos.sessaoHeaderTitulo}>{ultimo.sessao_nome}</Text>
+              <Text style={estilos.sessaoHeaderSub}>{ultimo.mes} · {ultimo.total_auditados}/{ultimo.total_produtos} produtos</Text>
+            </View>
+
+            {ultimo.apuracao_valor && (
+              <PainelAcuracidade
+                titulo="APURAÇÃO DE VALOR"
+                dados={ultimo.apuracao_valor}
+                formatarTotal={fmtMoedaCompleto}
+                formatarAdj={fmtMoedaCompleto}
+                cor="#1E40AF"
+              />
+            )}
+
+            {ultimo.apuracao_unidades && (
+              <PainelAcuracidade
+                titulo="APURAÇÃO DE UNIDADES"
+                dados={ultimo.apuracao_unidades}
+                formatarTotal={v => fmtNum(v, 0)}
+                formatarAdj={v => fmtNum(v, 0)}
+                cor="#0284C7"
+              />
+            )}
+
+            {ultimo.apuracao_itens && (
+              <PainelAcuracidade
+                titulo="APURAÇÃO DE ITENS (SKUs)"
+                dados={{
+                  ...ultimo.apuracao_itens,
+                  total_sistema: ultimo.apuracao_itens.total,
+                  ajuste_liquido: ultimo.apuracao_itens.diferenca_itens,
+                }}
+                formatarTotal={v => fmtNum(v, 0)}
+                formatarAdj={v => fmtNum(v, 0)}
+                cor="#7C3AED"
+              />
+            )}
+          </>
         )}
 
-        {/* Grafico: produtos auditados */}
-        {audits.length > 0 && (
-          <GraficoBloco titulo="Produtos auditados por sessão">
-            <BarChartSimples labels={labels} data={audits} cor={colors.info} />
-          </GraficoBloco>
+        {/* ── HISTORICO DE SESSOES ── */}
+        {hist.length > 1 && (
+          <>
+            <Text style={[estilos.dica, { marginTop: spacing.lg, textAlign: 'left', fontWeight: '700', color: colors.textSecondary }]}>
+              HISTÓRICO DE SESSÕES
+            </Text>
+            {[...hist].reverse().map((h, i) => {
+              const corAc = corAcur(h.acuracidade);
+              return (
+                <View key={i} style={estilos.histRow}>
+                  <Text style={estilos.histMes}>{h.mes}</Text>
+                  <View style={{ flex: 1, marginHorizontal: spacing.sm }}>
+                    <Text style={estilos.histNome} numberOfLines={1}>{h.sessao_nome}</Text>
+                    <View style={estilos.barraFundo}>
+                      <View style={[estilos.barraFill, { width: `${Math.min(h.acuracidade, 100)}%`, backgroundColor: corAc }]} />
+                    </View>
+                  </View>
+                  <Text style={[estilos.histAcur, { color: corAc }]}>{fmtNum(h.acuracidade, 1)}%</Text>
+                </View>
+              );
+            })}
+          </>
         )}
 
-        {/* Grafico: valor divergente */}
-        {divs.some(v => v > 0) && (
-          <GraficoBloco titulo="Valor divergente por sessão (R$)">
-            {divs.length >= 2
-              ? <SparkLine labels={labels} data={divs} cor={colors.danger} />
-              : <BarChartSimples labels={labels} data={divs} cor={colors.danger} />
-            }
-          </GraficoBloco>
-        )}
-
-        {/* Tabela historico */}
-        <Text style={estilos.secaoTitulo}>Histórico de sessões</Text>
         {hist.length === 0 && (
           <Text style={estilos.semDados}>Nenhuma sessão concluída para esta loja</Text>
         )}
-        {hist.map((h, i) => {
-          const cor = corAcur(h.acuracidade);
-          return (
-            <View key={i} style={estilos.histRow}>
-              <Text style={estilos.histMes}>{h.mes}</Text>
-              <View style={{ flex: 1, marginHorizontal: spacing.sm }}>
-                <Text style={estilos.histNome} numberOfLines={1}>{h.sessao_nome}</Text>
-                <View style={estilos.histBarraFundo}>
-                  <View style={[estilos.histBarraFill, { width: `${Math.min(h.acuracidade, 100)}%`, backgroundColor: cor }]} />
-                </View>
-              </View>
-              <Text style={[estilos.histAcur, { color: cor }]}>{h.acuracidade}%</Text>
-            </View>
-          );
-        })}
 
         <View style={{ height: spacing.xl }} />
       </ScrollView>
@@ -312,7 +295,7 @@ export function DashboardHistoricoScreen({ navigation, route }) {
   );
 }
 
-// ── Componentes auxiliares ───────────────────────────────────────────────────
+// ── Componentes auxiliares ────────────────────────────────────────────────────
 function Metrica({ rotulo, valor, cor }) {
   return (
     <View style={estilos.metrica}>
@@ -322,30 +305,13 @@ function Metrica({ rotulo, valor, cor }) {
   );
 }
 
-function KpiMini({ rotulo, valor, cor }) {
-  return (
-    <View style={estilos.kpiMini}>
-      <Text style={[estilos.kpiMiniV, cor && { color: cor }]}>{valor}</Text>
-      <Text style={estilos.kpiMiniR}>{rotulo}</Text>
-    </View>
-  );
-}
-
-function GraficoBloco({ titulo, children }) {
-  return (
-    <View style={estilos.graficoBloco}>
-      <Text style={estilos.graficoTitulo}>{titulo}</Text>
-      <View style={estilos.graficoArea}>{children}</View>
-    </View>
-  );
-}
-
 const estilos = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundSoft },
   centro:    { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  lista:     { padding: spacing.lg },
-  dica:      { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.md },
+  lista:     { padding: spacing.md },
+  dica:      { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.sm },
 
+  // Cards de loja
   lojaCard:  { backgroundColor: colors.background, borderRadius: radius.md,
                padding: spacing.md, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border },
   lojaTopo:  { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
@@ -354,43 +320,100 @@ const estilos = StyleSheet.create({
   lojaNome:  { fontSize: fontSize.md, fontWeight: '600', color: colors.text },
   lojaMeta:  { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
   seta:      { fontSize: 20, color: colors.textMuted },
-
-  metricas:  { flexDirection: 'row', marginBottom: spacing.sm },
+  lojaMetricas: { flexDirection: 'row', marginBottom: spacing.sm },
   metrica:   { flex: 1, alignItems: 'center' },
   metricaV:  { fontSize: fontSize.sm, fontWeight: '700', color: colors.text },
   metricaR:  { fontSize: 9, color: colors.textSecondary, marginTop: 2 },
 
-  barraFundo: { height: 8, backgroundColor: colors.border, borderRadius: radius.full, overflow: 'hidden', position: 'relative' },
+  // Barra de progresso
+  barraFundo: { height: 8, backgroundColor: colors.border, borderRadius: radius.full, overflow: 'hidden' },
   barraFill:  { height: '100%', borderRadius: radius.full },
-  barraMeta:  { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: colors.primary + '88' },
 
-  kpiRow:    { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  kpiMini:   { flex: 1, backgroundColor: colors.background, borderRadius: radius.md,
-               padding: spacing.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-  kpiMiniV:  { fontSize: fontSize.md, fontWeight: '800', color: colors.text },
-  kpiMiniR:  { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+  // Painel de acuracidade
+  painel: {
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopWidth: 4,
+    overflow: 'hidden',
+  },
+  painelTitulo: {
+    fontSize: fontSize.xs,
+    fontWeight: '800',
+    letterSpacing: 1,
+    padding: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  painelLinha: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+  },
+  painelLinhaDestaque: {
+    backgroundColor: colors.backgroundSoft,
+  },
+  painelLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  painelValorPrincipal: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  painelValorAdj: {
+    fontSize: fontSize.md,
+    fontWeight: '600',
+  },
+  separador: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.md,
+    marginVertical: 4,
+  },
+  acuracidadeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.backgroundSoft,
+  },
+  acuracidadeValor: {
+    fontSize: fontSize.lg,
+    fontWeight: '800',
+    marginLeft: spacing.sm,
+    minWidth: 70,
+    textAlign: 'right',
+  },
 
-  periodoRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  // Sessao header
+  sessaoHeader: {
+    marginBottom: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  sessaoHeaderTitulo: { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
+  sessaoHeaderSub:    { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2 },
+
+  // Seletor de período
+  periodoRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   chipPer:    { flex: 1, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
   chipPerAtivo: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipPerT:   { fontSize: fontSize.sm, fontWeight: '600', color: colors.textSecondary },
   chipPerTAtivo: { color: colors.white },
 
-  graficoBloco: { marginBottom: spacing.lg },
-  graficoTitulo:{ fontSize: fontSize.sm, fontWeight: '700', color: colors.textSecondary, marginBottom: spacing.sm },
-  graficoArea:  { backgroundColor: colors.background, borderRadius: radius.md,
-                  padding: spacing.md, borderWidth: 1, borderColor: colors.border },
-
-  secaoTitulo: { fontSize: fontSize.sm, fontWeight: '700', color: colors.textSecondary,
-                 textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
-  semDados:    { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', padding: spacing.lg },
-
-  histRow:      { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background,
-                  borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.xs,
-                  borderWidth: 1, borderColor: colors.border },
-  histMes:      { fontSize: fontSize.sm, fontWeight: '700', color: colors.text, minWidth: 52 },
-  histNome:     { fontSize: fontSize.xs, color: colors.textSecondary, marginBottom: 4 },
-  histBarraFundo:{ height: 6, backgroundColor: colors.border, borderRadius: radius.full, overflow: 'hidden' },
-  histBarraFill: { height: '100%', borderRadius: radius.full },
-  histAcur:     { fontSize: fontSize.sm, fontWeight: '700', minWidth: 48, textAlign: 'right' },
+  // Histórico de sessões
+  semDados:    { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', padding: spacing.xl },
+  histRow:   { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background,
+               borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.xs,
+               borderWidth: 1, borderColor: colors.border },
+  histMes:   { fontSize: fontSize.sm, fontWeight: '700', color: colors.text, minWidth: 52 },
+  histNome:  { fontSize: fontSize.xs, color: colors.textSecondary, marginBottom: 4 },
+  histAcur:  { fontSize: fontSize.sm, fontWeight: '700', minWidth: 52, textAlign: 'right' },
 });
