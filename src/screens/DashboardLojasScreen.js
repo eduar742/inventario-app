@@ -1,5 +1,7 @@
-// Dashboard por loja e historico mes a mes.
-// Exibe 3 dimensoes de acuracidade: Valor (R$), Unidades e Itens (SKUs).
+// Dashboard por loja — visual consolidado com 3 paineis de acuracidade.
+// Regras de cor:
+//   Valor/Unidades: verde >= 99%, amarelo >= 98%, vermelho < 98%
+//   SKU (itens):    verde >= 90%, amarelo >= 80%, vermelho < 80%
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -12,168 +14,126 @@ import { buscarDashboardLojas, buscarDashboardHistorico } from '../services/api'
 
 const INTERVALO = 30000;
 
-// Formata numero no padrao brasileiro sem depender de toLocaleString
-function _separadorMil(intStr) {
-  return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-}
+// ── Formatacao numerica segura (sem toLocaleString) ────────────────────────
+function _mil(s) { return s.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
 
-function fmtNum(v, decimais = 0) {
+function fmtNum(v, dec = 0) {
   if (v == null || isNaN(parseFloat(v))) return '—';
   const n = parseFloat(v);
-  const fixed = Math.abs(n).toFixed(decimais);
-  const partes = fixed.split('.');
-  const intPart = _separadorMil(partes[0]);
-  const result = decimais > 0 ? `${intPart},${partes[1]}` : intPart;
-  return n < 0 ? `-${result}` : result;
+  const f = Math.abs(n).toFixed(dec).split('.');
+  const s = dec > 0 ? `${_mil(f[0])},${f[1]}` : _mil(f[0]);
+  return n < 0 ? `-${s}` : s;
+}
+
+function fmtR$(v) {
+  if (v == null || isNaN(parseFloat(v))) return '—';
+  const n = parseFloat(v);
+  const abs = Math.abs(n);
+  const f = abs.toFixed(2).split('.');
+  return (n < 0 ? '-' : '') + `R$ ${_mil(f[0])},${f[1]}`;
 }
 
 function fmtMoeda(v) {
   if (v == null || isNaN(parseFloat(v))) return '—';
   const n = parseFloat(v);
   const abs = Math.abs(n);
-  let str;
-  if (abs >= 1000000) str = `R$ ${(abs / 1000000).toFixed(2).replace('.', ',')}M`;
-  else if (abs >= 1000) str = `R$ ${(abs / 1000).toFixed(1).replace('.', ',')}k`;
-  else {
-    const p = abs.toFixed(2).split('.');
-    str = `R$ ${_separadorMil(p[0])},${p[1]}`;
-  }
-  return n < 0 ? `-${str}` : str;
+  if (abs >= 1000000) return (n < 0 ? '-' : '') + `R$ ${(abs / 1000000).toFixed(2).replace('.', ',')}M`;
+  if (abs >= 1000)    return (n < 0 ? '-' : '') + `R$ ${(abs / 1000).toFixed(1).replace('.', ',')}k`;
+  const f = abs.toFixed(2).split('.');
+  return (n < 0 ? '-' : '') + `R$ ${_mil(f[0])},${f[1]}`;
 }
 
-function fmtMoedaCompleto(v) {
-  if (v == null || isNaN(parseFloat(v))) return '—';
-  const n = parseFloat(v);
-  const abs = Math.abs(n);
-  const p = abs.toFixed(2).split('.');
-  const str = `R$ ${_separadorMil(p[0])},${p[1]}`;
-  return n < 0 ? `-${str}` : str;
+// ── Regras de cor por dimensao ─────────────────────────────────────────────
+function corValorUnid(v) {
+  const n = parseFloat(v) || 0;
+  if (n >= 99) return '#16A34A'; // verde
+  if (n >= 98) return '#D97706'; // amarelo
+  return '#DC2626';              // vermelho
 }
 
-function corAcur(v) {
-  if (v >= 98) return colors.success;
-  if (v >= 90) return colors.warning;
-  return colors.danger;
+function corSku(v) {
+  const n = parseFloat(v) || 0;
+  if (n >= 90) return '#16A34A';
+  if (n >= 80) return '#D97706';
+  return '#DC2626';
 }
 
-// ── Painel de acuracidade (Valor / Unidades / Itens) ─────────────────────────
-function PainelAcuracidade({ titulo, dados, formatarTotal, formatarAdj, cor }) {
-  if (!dados || typeof dados !== 'object') return null;
-  const acur = parseFloat(dados.acuracidade) || 0;
-  const corAcuracia = corAcur(acur);
-  const pct = Math.min(acur, 100);
+const SOFT = { '#16A34A': '#DCFCE7', '#D97706': '#FEF3C7', '#DC2626': '#FEE2E2' };
+
+// ── Painel estilo consolidado ──────────────────────────────────────────────
+function Painel({ titulo, acuracidade, corFn, linhas }) {
+  const cor = corFn(acuracidade);
+  const soft = SOFT[cor] || '#F8FAFC';
+  const pct = Math.min(Math.max(parseFloat(acuracidade) || 0, 0), 100);
 
   return (
-    <View style={[estilos.painel, { borderTopColor: cor }]}>
-      <Text style={[estilos.painelTitulo, { color: cor }]}>{titulo}</Text>
-
-      <View style={estilos.painelLinha}>
-        <Text style={estilos.painelLabel}>Total no Sistema</Text>
-        <Text style={estilos.painelValorPrincipal}>
-          {formatarTotal(dados.total_sistema != null ? dados.total_sistema
-            : dados.total != null ? dados.total
-            : dados.total_estoque)}
-        </Text>
+    <View style={[estilos.painel, { borderColor: cor }]}>
+      {/* Header colorido */}
+      <View style={[estilos.painelHeader, { backgroundColor: cor }]}>
+        <Text style={estilos.painelHeaderTitulo}>{titulo}</Text>
+        <Text style={estilos.painelHeaderAcur}>{fmtNum(acuracidade, 2)}%</Text>
       </View>
 
-      <View style={estilos.separador} />
-
-      <View style={estilos.painelLinha}>
-        <Text style={estilos.painelLabel}>Acerto Positivo (+)</Text>
-        <Text style={[estilos.painelValorAdj, { color: colors.warning }]}>
-          +{formatarAdj(dados.acerto_positivo)}
-        </Text>
-      </View>
-      <View style={estilos.painelLinha}>
-        <Text style={estilos.painelLabel}>Acerto Negativo (−)</Text>
-        <Text style={[estilos.painelValorAdj, { color: colors.danger }]}>
-          −{formatarAdj(dados.acerto_negativo)}
-        </Text>
-      </View>
-      <View style={[estilos.painelLinha, estilos.painelLinhaDestaque]}>
-        <Text style={[estilos.painelLabel, { fontWeight: '700' }]}>Ajuste Líquido</Text>
-        <Text style={[estilos.painelValorAdj, {
-          color: ((dados.ajuste_liquido != null ? dados.ajuste_liquido : dados.diferenca_itens) || 0) < 0
-            ? colors.danger : colors.warning,
-          fontWeight: '700',
-        }]}>
-          {formatarAdj(dados.ajuste_liquido != null ? dados.ajuste_liquido : dados.diferenca_itens)}
-        </Text>
+      {/* Barra de progresso */}
+      <View style={[estilos.barraFundo, { backgroundColor: soft }]}>
+        <View style={[estilos.barraFill, { width: `${pct}%`, backgroundColor: cor }]} />
       </View>
 
-      <View style={estilos.separador} />
-
-      <View style={estilos.painelLinha}>
-        <Text style={estilos.painelLabel}>Diferença</Text>
-        <Text style={[estilos.painelValorAdj, { color: colors.textSecondary }]}>
-          {fmtNum(dados.diferenca_pct, 2)}%
-        </Text>
-      </View>
-
-      {/* Barra de acuracidade */}
-      <View style={estilos.acuracidadeRow}>
-        <Text style={estilos.painelLabel}>Acuracidade</Text>
-        <View style={{ flex: 1, marginLeft: spacing.sm }}>
-          <View style={estilos.barraFundo}>
-            <View style={[estilos.barraFill, { width: `${pct}%`, backgroundColor: corAcuracia }]} />
-          </View>
+      {/* Linhas de dados */}
+      {linhas.map((l, i) => (
+        <View key={i} style={[estilos.painelLinha,
+          i === linhas.length - 1 && { borderBottomWidth: 0 },
+          l.destaque && { backgroundColor: soft },
+        ]}>
+          <Text style={[estilos.painelLabel, l.destaque && { fontWeight: '700', color: '#0F172A' }]}>
+            {l.label}
+          </Text>
+          <Text style={[estilos.painelValor, l.corValor && { color: l.corValor },
+            l.destaque && { fontWeight: '700' }]}>
+            {l.valor}
+          </Text>
         </View>
-        <Text style={[estilos.acuracidadeValor, { color: corAcuracia }]}>
-          {fmtNum(acur, 2)}%
-        </Text>
-      </View>
+      ))}
     </View>
   );
 }
 
-// ── TELA 1: Lista de lojas ───────────────────────────────────────────────────
+// ── TELA 1: Lista de lojas ────────────────────────────────────────────────
 export default function DashboardLojasScreen({ navigation }) {
   const [lojas, setLojas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const timerRef = useRef(null);
+  const timer = useRef(null);
 
-  const carregar = useCallback(async (silencioso = false) => {
-    if (!silencioso) setCarregando(true);
-    try { const d = await buscarDashboardLojas(); setLojas(d); }
-    catch (_) {}
+  const carregar = useCallback(async (s = false) => {
+    if (!s) setCarregando(true);
+    try { const d = await buscarDashboardLojas(); setLojas(d); } catch (_) {}
     finally { setCarregando(false); setRefreshing(false); }
   }, []);
 
   useEffect(() => {
     carregar();
-    timerRef.current = setInterval(() => carregar(true), INTERVALO);
-    return () => clearInterval(timerRef.current);
+    timer.current = setInterval(() => carregar(true), INTERVALO);
+    return () => clearInterval(timer.current);
   }, [carregar]);
 
   function renderLoja({ item: l }) {
-    const cor = corAcur(l.acuracidade);
-    const temAtiva = !!l.sessao_ativa;
+    const cor = corValorUnid(l.acuracidade);
     return (
-      <TouchableOpacity
-        style={estilos.lojaCard}
+      <TouchableOpacity style={estilos.lojaCard}
         onPress={() => navigation.navigate('DashboardHistorico', { loja: l })}
-        activeOpacity={0.75}
-      >
+        activeOpacity={0.75}>
         <View style={estilos.lojaTopo}>
-          <View style={[estilos.lojaBadge, { backgroundColor: temAtiva ? colors.infoSoft : colors.backgroundSoft }]}>
-            <Text style={[estilos.lojaCodigo, { color: temAtiva ? colors.info : colors.textSecondary }]}>{l.codigo}</Text>
+          <View style={[estilos.lojaBadge, { backgroundColor: SOFT[cor] || colors.backgroundSoft }]}>
+            <Text style={[estilos.lojaCodigo, { color: cor }]}>{l.codigo}</Text>
           </View>
           <View style={{ flex: 1, marginLeft: spacing.sm }}>
             <Text style={estilos.lojaNome} numberOfLines={1}>{l.nome}</Text>
-            <Text style={estilos.lojaMeta}>
-              {l.ultima_sessao_mes || 'Sem sessão'}
-              {temAtiva ? ` · ${l.sessao_ativa === 'aguardando_aprovacao' ? 'Aguardando' : 'Em andamento'}` : ''}
-            </Text>
+            <Text style={estilos.lojaMeta}>{l.ultima_sessao_mes || 'Sem sessão'}</Text>
           </View>
-          <Text style={estilos.seta}>›</Text>
-        </View>
-        <View style={estilos.lojaMetricas}>
-          <Metrica rotulo="Acuracidade" valor={`${l.acuracidade}%`} cor={cor} />
-          <Metrica rotulo="Auditados"   valor={`${l.total_auditados}/${l.total_produtos}`} />
-          <Metrica rotulo="Estoque"     valor={fmtMoeda(l.valor_estoque)} />
-          <Metrica rotulo="Divergente"  valor={fmtMoeda(l.valor_divergente)}
-            cor={l.valor_divergente > 0 ? colors.danger : colors.textSecondary} />
+          <View style={[estilos.lojaAcurBadge, { backgroundColor: SOFT[cor] || colors.backgroundSoft }]}>
+            <Text style={[estilos.lojaAcurTexto, { color: cor }]}>{fmtNum(l.acuracidade, 1)}%</Text>
+          </View>
         </View>
         <View style={estilos.barraFundo}>
           <View style={[estilos.barraFill, { width: `${Math.min(l.acuracidade, 100)}%`, backgroundColor: cor }]} />
@@ -182,172 +142,205 @@ export default function DashboardLojasScreen({ navigation }) {
     );
   }
 
-  if (carregando && lojas.length === 0) {
+  if (carregando && lojas.length === 0)
     return <SafeAreaView style={estilos.centro}><ActivityIndicator size="large" color={colors.primary} /></SafeAreaView>;
-  }
 
   return (
     <SafeAreaView style={estilos.container}>
-      <FlatList
-        data={lojas}
-        renderItem={renderLoja}
-        keyExtractor={l => l.loja_id}
+      <FlatList data={lojas} renderItem={renderLoja} keyExtractor={l => l.loja_id}
         contentContainerStyle={estilos.lista}
-        ListHeaderComponent={<Text style={estilos.dica}>Toque para ver o histórico detalhado</Text>}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); carregar(); }} colors={[colors.primary]} tintColor={colors.primary} />}
+        ListHeaderComponent={<Text style={estilos.dica}>Toque para ver o consolidado detalhado</Text>}
+        refreshControl={<RefreshControl refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); carregar(); }}
+          colors={[colors.primary]} tintColor={colors.primary} />}
       />
     </SafeAreaView>
   );
 }
 
-// ── TELA 2: Historico com paineis de acuracidade ──────────────────────────────
+// ── TELA 2: Consolidado por loja ──────────────────────────────────────────
 export function DashboardHistoricoScreen({ navigation, route }) {
   const { loja } = route.params;
   const [historico, setHistorico] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [meses, setMeses] = useState(6);
-  const timerRef = useRef(null);
+  const [sessaoIdx, setSessaoIdx] = useState(null); // null = mais recente
+  const timer = useRef(null);
 
-  const carregar = useCallback(async (silencioso = false) => {
-    if (!silencioso) setCarregando(true);
+  const carregar = useCallback(async (s = false) => {
+    if (!s) setCarregando(true);
     try { const d = await buscarDashboardHistorico(loja.loja_id, meses); setHistorico(d); }
     catch (_) {}
     finally { setCarregando(false); }
   }, [loja.loja_id, meses]);
 
   useEffect(() => {
+    setSessaoIdx(null);
     carregar();
-    timerRef.current = setInterval(() => carregar(true), INTERVALO);
-    return () => clearInterval(timerRef.current);
+    timer.current = setInterval(() => carregar(true), INTERVALO);
+    return () => clearInterval(timer.current);
   }, [carregar]);
 
-  if (carregando && !historico) {
+  if (carregando && !historico)
     return <SafeAreaView style={estilos.centro}><ActivityIndicator size="large" color={colors.primary} /></SafeAreaView>;
-  }
 
   const hist = historico?.historico || [];
-  const ultimo = hist[hist.length - 1];
+  // Seleciona sessao (padrão: mais recente = ultima do array)
+  const idx = sessaoIdx != null ? sessaoIdx : hist.length - 1;
+  const sel = hist[idx];
+
+  function buildPaineis(d) {
+    if (!d) return null;
+    const av = d.apuracao_valor;
+    const au = d.apuracao_unidades;
+    const ai = d.apuracao_itens;
+    if (!av) return null;
+
+    const paineis = [
+      {
+        titulo: 'APURAÇÃO DE VALOR',
+        acur: av.acuracidade,
+        corFn: corValorUnid,
+        linhas: [
+          { label: 'Total de Estoque', valor: fmtR$(av.total_estoque) },
+          { label: 'Acerto Positivo (+)', valor: `+ ${fmtR$(av.acerto_positivo)}`, corValor: '#D97706' },
+          { label: 'Acerto Negativo (−)', valor: `− ${fmtR$(av.acerto_negativo)}`, corValor: '#DC2626' },
+          { label: 'Ajuste Líquido', valor: fmtR$(av.ajuste_liquido),
+            corValor: (av.ajuste_liquido || 0) < 0 ? '#DC2626' : '#D97706', destaque: true },
+          { label: 'Diferença em %', valor: `${fmtNum(av.diferenca_pct, 2)}%` },
+        ],
+      },
+      {
+        titulo: 'APURAÇÃO DE UNIDADES',
+        acur: au ? au.acuracidade : 0,
+        corFn: corValorUnid,
+        linhas: au ? [
+          { label: 'Total de Unidades', valor: fmtNum(au.total_sistema, 0) },
+          { label: 'Acerto Positivo (+)', valor: `+ ${fmtNum(au.acerto_positivo, 0)}`, corValor: '#D97706' },
+          { label: 'Acerto Negativo (−)', valor: `− ${fmtNum(au.acerto_negativo, 0)}`, corValor: '#DC2626' },
+          { label: 'Ajuste Líquido', valor: fmtNum(au.ajuste_liquido, 0),
+            corValor: (au.ajuste_liquido || 0) < 0 ? '#DC2626' : '#D97706', destaque: true },
+          { label: 'Diferença em %', valor: `${fmtNum(au.diferenca_pct, 2)}%` },
+        ] : [],
+      },
+      {
+        titulo: 'APURAÇÃO DE ITENS (SKU)',
+        acur: ai ? ai.acuracidade : 0,
+        corFn: corSku,
+        linhas: ai ? [
+          { label: 'Total de Itens no Sistema', valor: fmtNum(ai.total, 0) },
+          { label: 'Acerto Positivo (+)', valor: `+ ${fmtNum(ai.acerto_positivo, 0)}`, corValor: '#D97706' },
+          { label: 'Acerto Negativo (−)', valor: `− ${fmtNum(ai.acerto_negativo, 0)}`, corValor: '#DC2626' },
+          { label: 'Diferença de Itens', valor: fmtNum(ai.diferenca_itens, 0),
+            corValor: '#DC2626', destaque: true },
+          { label: 'Diferença em %', valor: `${fmtNum(ai.diferenca_pct, 2)}%` },
+        ] : [],
+      },
+    ];
+    return paineis;
+  }
+
+  const paineis = sel ? buildPaineis(sel) : null;
 
   return (
     <SafeAreaView style={estilos.container}>
-      <ScrollView
-        contentContainerStyle={estilos.lista}
-        refreshControl={<RefreshControl refreshing={false} onRefresh={carregar} colors={[colors.primary]} tintColor={colors.primary} />}
-      >
-        {/* Seletor de período */}
+      <ScrollView contentContainerStyle={estilos.lista}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={carregar}
+          colors={[colors.primary]} tintColor={colors.primary} />}>
+
+        {/* Seletor de periodo */}
         <View style={estilos.periodoRow}>
           {[3, 6, 12].map(n => (
-            <TouchableOpacity key={n} style={[estilos.chipPer, meses === n && estilos.chipPerAtivo]} onPress={() => setMeses(n)}>
+            <TouchableOpacity key={n}
+              style={[estilos.chipPer, meses === n && estilos.chipPerAtivo]}
+              onPress={() => setMeses(n)}>
               <Text style={[estilos.chipPerT, meses === n && estilos.chipPerTAtivo]}>{n}M</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* ── PAINEIS DA SESSAO MAIS RECENTE ── */}
-        {ultimo && (
-          <>
-            <View style={estilos.sessaoHeader}>
-              <Text style={estilos.sessaoHeaderTitulo}>{ultimo.sessao_nome}</Text>
-              <Text style={estilos.sessaoHeaderSub}>
-                {ultimo.mes} · {ultimo.total_auditados}/{ultimo.total_produtos} produtos
+        {/* Cabecalho da sessao selecionada */}
+        {sel && (
+          <View style={estilos.sessaoHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={estilos.sessaoTitulo}>{sel.sessao_nome}</Text>
+              <Text style={estilos.sessaoSub}>
+                {sel.mes} · {sel.total_auditados} de {sel.total_produtos} produtos auditados
               </Text>
             </View>
-
-            {/* Paineis detalhados (disponiveis apos deploy do backend) */}
-            {ultimo.apuracao_valor ? (
-              <>
-                <PainelAcuracidade
-                  titulo="APURAÇÃO DE VALOR"
-                  dados={ultimo.apuracao_valor}
-                  formatarTotal={fmtMoedaCompleto}
-                  formatarAdj={fmtMoedaCompleto}
-                  cor="#1E40AF"
-                />
-                <PainelAcuracidade
-                  titulo="APURAÇÃO DE UNIDADES"
-                  dados={ultimo.apuracao_unidades}
-                  formatarTotal={v => fmtNum(v, 0)}
-                  formatarAdj={v => fmtNum(v, 0)}
-                  cor="#0284C7"
-                />
-                {ultimo.apuracao_itens && (
-                  <PainelAcuracidade
-                    titulo="APURAÇÃO DE ITENS (SKUs)"
-                    dados={{
-                      total_sistema: ultimo.apuracao_itens.total,
-                      acerto_positivo: ultimo.apuracao_itens.acerto_positivo,
-                      acerto_negativo: ultimo.apuracao_itens.acerto_negativo,
-                      ajuste_liquido: ultimo.apuracao_itens.diferenca_itens,
-                      diferenca_pct: ultimo.apuracao_itens.diferenca_pct,
-                      acuracidade: ultimo.apuracao_itens.acuracidade,
-                    }}
-                    formatarTotal={v => fmtNum(v, 0)}
-                    formatarAdj={v => fmtNum(v, 0)}
-                    cor="#7C3AED"
-                  />
-                )}
-              </>
-            ) : (
-              /* Fallback simples enquanto backend atualiza */
-              <View style={estilos.painelFallback}>
-                <View style={estilos.painelFallbackRow}>
-                  <Text style={estilos.painelFallbackLabel}>Acuracidade</Text>
-                  <Text style={[estilos.painelFallbackValor, { color: corAcur(ultimo.acuracidade) }]}>
-                    {fmtNum(ultimo.acuracidade, 1)}%
-                  </Text>
-                </View>
-                <View style={estilos.painelFallbackRow}>
-                  <Text style={estilos.painelFallbackLabel}>Produtos auditados</Text>
-                  <Text style={estilos.painelFallbackValor}>
-                    {ultimo.total_auditados} / {ultimo.total_produtos}
-                  </Text>
-                </View>
-                <View style={estilos.painelFallbackRow}>
-                  <Text style={estilos.painelFallbackLabel}>Divergentes</Text>
-                  <Text style={[estilos.painelFallbackValor, { color: colors.danger }]}>
-                    {ultimo.total_divergentes}
-                  </Text>
-                </View>
-                <View style={estilos.painelFallbackRow}>
-                  <Text style={estilos.painelFallbackLabel}>Valor divergente</Text>
-                  <Text style={[estilos.painelFallbackValor, { color: colors.danger }]}>
-                    {fmtMoeda(ultimo.valor_divergente)}
-                  </Text>
-                </View>
-                <TouchableOpacity style={estilos.botaoRecarregar} onPress={carregar}>
-                  <Text style={estilos.botaoRecarregarTexto}>Recarregar dados completos</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
+          </View>
         )}
 
-        {/* ── HISTORICO DE SESSOES ── */}
-        {hist.length >= 1 && (
+        {/* Paineis detalhados */}
+        {paineis ? paineis.map((p, i) => (
+          <Painel key={i}
+            titulo={p.titulo}
+            acuracidade={p.acur}
+            corFn={p.corFn}
+            linhas={p.linhas}
+          />
+        )) : sel ? (
+          /* Fallback quando backend ainda nao retornou novos campos */
+          <View style={estilos.painelFallback}>
+            <View style={estilos.painelFallbackHeader}>
+              <Text style={estilos.painelFallbackTitulo}>RESUMO DO INVENTÁRIO</Text>
+            </View>
+            {[
+              { label: 'Produtos auditados', valor: `${sel.total_auditados} / ${sel.total_produtos}` },
+              { label: 'Divergentes', valor: String(sel.total_divergentes), corValor: '#DC2626' },
+              { label: 'Valor divergente', valor: fmtMoeda(sel.valor_divergente), corValor: '#DC2626' },
+              { label: 'Acuracidade', valor: `${fmtNum(sel.acuracidade, 1)}%`,
+                corValor: corValorUnid(sel.acuracidade) },
+            ].map((l, i) => (
+              <View key={i} style={estilos.painelLinha}>
+                <Text style={estilos.painelLabel}>{l.label}</Text>
+                <Text style={[estilos.painelValor, l.corValor && { color: l.corValor }]}>{l.valor}</Text>
+              </View>
+            ))}
+            <TouchableOpacity style={estilos.botaoRecarregar} onPress={carregar}>
+              <Text style={estilos.botaoRecarregarTexto}>Recarregar dados completos</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {/* Historico de sessoes — clicavel para selecionar */}
+        {hist.length > 0 && (
           <>
-            <Text style={[estilos.dica, { marginTop: spacing.lg, textAlign: 'left', fontWeight: '700', color: colors.textSecondary }]}>
-              HISTÓRICO DE SESSÕES
-            </Text>
-            {[...hist].reverse().map((h, i) => {
-              const corAc = corAcur(h.acuracidade);
+            <Text style={estilos.histTitulo}>HISTÓRICO DE SESSÕES</Text>
+            {[...hist].reverse().map((h, ri) => {
+              const origIdx = hist.length - 1 - ri;
+              const ativo = origIdx === idx;
+              const cor = corValorUnid(h.acuracidade);
               return (
-                <View key={i} style={estilos.histRow}>
-                  <Text style={estilos.histMes}>{h.mes}</Text>
+                <TouchableOpacity key={ri}
+                  style={[estilos.histRow, ativo && estilos.histRowAtivo]}
+                  onPress={() => setSessaoIdx(origIdx)}
+                  activeOpacity={0.7}>
+                  <View style={[estilos.histMesBadge, { backgroundColor: ativo ? colors.primary : colors.backgroundSoft }]}>
+                    <Text style={[estilos.histMes, { color: ativo ? colors.white : colors.textSecondary }]}>
+                      {h.mes}
+                    </Text>
+                  </View>
                   <View style={{ flex: 1, marginHorizontal: spacing.sm }}>
                     <Text style={estilos.histNome} numberOfLines={1}>{h.sessao_nome}</Text>
                     <View style={estilos.barraFundo}>
-                      <View style={[estilos.barraFill, { width: `${Math.min(h.acuracidade, 100)}%`, backgroundColor: corAc }]} />
+                      <View style={[estilos.barraFill, {
+                        width: `${Math.min(parseFloat(h.acuracidade) || 0, 100)}%`,
+                        backgroundColor: cor,
+                      }]} />
                     </View>
                   </View>
-                  <Text style={[estilos.histAcur, { color: corAc }]}>{fmtNum(h.acuracidade, 1)}%</Text>
-                </View>
+                  <Text style={[estilos.histAcur, { color: cor }]}>
+                    {fmtNum(h.acuracidade, 1)}%
+                  </Text>
+                </TouchableOpacity>
               );
             })}
           </>
         )}
 
-        {hist.length === 0 && (
-          <Text style={estilos.semDados}>Nenhuma sessão concluída para esta loja</Text>
+        {hist.length === 0 && !carregando && (
+          <Text style={estilos.semDados}>Nenhuma sessão concluída neste período</Text>
         )}
 
         <View style={{ height: spacing.xl }} />
@@ -356,140 +349,87 @@ export function DashboardHistoricoScreen({ navigation, route }) {
   );
 }
 
-// ── Componentes auxiliares ────────────────────────────────────────────────────
-function Metrica({ rotulo, valor, cor }) {
-  return (
-    <View style={estilos.metrica}>
-      <Text style={[estilos.metricaV, cor && { color: cor }]}>{valor}</Text>
-      <Text style={estilos.metricaR}>{rotulo}</Text>
-    </View>
-  );
-}
-
 const estilos = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundSoft },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
   centro:    { flex: 1, alignItems: 'center', justifyContent: 'center' },
   lista:     { padding: spacing.md },
   dica:      { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.sm },
 
-  // Cards de loja
-  lojaCard:  { backgroundColor: colors.background, borderRadius: radius.md,
-               padding: spacing.md, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border },
+  // Cards de loja (tela 1)
+  lojaCard: { backgroundColor: colors.white, borderRadius: radius.md, padding: spacing.md,
+              marginBottom: spacing.sm, borderWidth: 1, borderColor: '#E2E8F0',
+              shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
   lojaTopo:  { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
   lojaBadge: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  lojaCodigo:{ fontSize: fontSize.sm, fontWeight: '700' },
-  lojaNome:  { fontSize: fontSize.md, fontWeight: '600', color: colors.text },
+  lojaCodigo:{ fontSize: fontSize.sm, fontWeight: '800' },
+  lojaNome:  { fontSize: fontSize.md, fontWeight: '600', color: '#0F172A' },
   lojaMeta:  { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
-  seta:      { fontSize: 20, color: colors.textMuted },
-  lojaMetricas: { flexDirection: 'row', marginBottom: spacing.sm },
-  metrica:   { flex: 1, alignItems: 'center' },
-  metricaV:  { fontSize: fontSize.sm, fontWeight: '700', color: colors.text },
-  metricaR:  { fontSize: 9, color: colors.textSecondary, marginTop: 2 },
+  lojaAcurBadge: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm },
+  lojaAcurTexto: { fontSize: fontSize.md, fontWeight: '800' },
+
+  // Painel de acuracidade (tela 2)
+  painel: {
+    borderRadius: radius.md, marginBottom: spacing.md,
+    borderWidth: 2, overflow: 'hidden',
+    backgroundColor: colors.white,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
+  },
+  painelHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+  },
+  painelHeaderTitulo: { fontSize: fontSize.xs, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.8 },
+  painelHeaderAcur:   { fontSize: fontSize.xl, fontWeight: '900', color: '#FFFFFF' },
+
+  painelLinha: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: spacing.md, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+  },
+  painelLabel: { fontSize: fontSize.sm, color: '#475569', flex: 1 },
+  painelValor: { fontSize: fontSize.sm, fontWeight: '600', color: '#0F172A' },
 
   // Barra de progresso
-  barraFundo: { height: 8, backgroundColor: colors.border, borderRadius: radius.full, overflow: 'hidden' },
-  barraFill:  { height: '100%', borderRadius: radius.full },
-
-  // Painel de acuracidade
-  painel: {
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderTopWidth: 4,
-    overflow: 'hidden',
-  },
-  painelTitulo: {
-    fontSize: fontSize.xs,
-    fontWeight: '800',
-    letterSpacing: 1,
-    padding: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  painelLinha: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-  },
-  painelLinhaDestaque: {
-    backgroundColor: colors.backgroundSoft,
-  },
-  painelLabel: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  painelValorPrincipal: {
-    fontSize: fontSize.md,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  painelValorAdj: {
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  separador: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginHorizontal: spacing.md,
-    marginVertical: 4,
-  },
-  acuracidadeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.backgroundSoft,
-  },
-  acuracidadeValor: {
-    fontSize: fontSize.lg,
-    fontWeight: '800',
-    marginLeft: spacing.sm,
-    minWidth: 70,
-    textAlign: 'right',
-  },
+  barraFundo: { height: 8, width: '100%', backgroundColor: '#F1F5F9' },
+  barraFill:  { height: '100%' },
 
   // Sessao header
-  sessaoHeader: {
-    marginBottom: spacing.sm,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  sessaoHeaderTitulo: { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
-  sessaoHeaderSub:    { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2 },
+  sessaoHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md,
+                  backgroundColor: colors.white, borderRadius: radius.md, padding: spacing.md,
+                  borderWidth: 1, borderColor: '#E2E8F0' },
+  sessaoTitulo: { fontSize: fontSize.lg, fontWeight: '700', color: '#0F172A' },
+  sessaoSub:    { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2 },
 
   // Seletor de período
-  periodoRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  chipPer:    { flex: 1, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-  chipPerAtivo: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipPerT:   { fontSize: fontSize.sm, fontWeight: '600', color: colors.textSecondary },
+  periodoRow:    { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  chipPer:       { flex: 1, padding: spacing.sm, borderRadius: radius.sm,
+                   borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center',
+                   backgroundColor: colors.white },
+  chipPerAtivo:  { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipPerT:      { fontSize: fontSize.sm, fontWeight: '600', color: colors.textSecondary },
   chipPerTAtivo: { color: colors.white },
 
-  // Histórico de sessões
-  semDados:    { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', padding: spacing.xl },
-  painelFallback: {
-    backgroundColor: colors.background, borderRadius: radius.md,
-    borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md,
-  },
-  painelFallbackRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  painelFallbackLabel: { fontSize: fontSize.sm, color: colors.textSecondary },
-  painelFallbackValor: { fontSize: fontSize.md, fontWeight: '700', color: colors.text },
-  botaoRecarregar: {
-    padding: spacing.md, alignItems: 'center',
-  },
-  botaoRecarregarTexto: { fontSize: fontSize.sm, color: colors.primary, fontWeight: '600' },
-  histRow:   { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background,
-               borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.xs,
-               borderWidth: 1, borderColor: colors.border },
-  histMes:   { fontSize: fontSize.sm, fontWeight: '700', color: colors.text, minWidth: 52 },
+  // Historico de sessoes
+  histTitulo: { fontSize: fontSize.xs, fontWeight: '800', color: colors.textSecondary,
+                letterSpacing: 0.8, marginBottom: spacing.sm, marginTop: spacing.md },
+  histRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white,
+             borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.xs,
+             borderWidth: 1, borderColor: '#E2E8F0' },
+  histRowAtivo: { borderColor: colors.primary, borderWidth: 2 },
+  histMesBadge: { paddingHorizontal: spacing.sm, paddingVertical: 4,
+                  borderRadius: radius.sm, minWidth: 60, alignItems: 'center' },
+  histMes:   { fontSize: fontSize.sm, fontWeight: '700' },
   histNome:  { fontSize: fontSize.xs, color: colors.textSecondary, marginBottom: 4 },
-  histAcur:  { fontSize: fontSize.sm, fontWeight: '700', minWidth: 52, textAlign: 'right' },
+  histAcur:  { fontSize: fontSize.sm, fontWeight: '800', minWidth: 52, textAlign: 'right' },
+
+  // Fallback
+  painelFallback:       { backgroundColor: colors.white, borderRadius: radius.md, marginBottom: spacing.md,
+                          borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },
+  painelFallbackHeader: { backgroundColor: colors.primary, padding: spacing.md },
+  painelFallbackTitulo: { fontSize: fontSize.xs, fontWeight: '800', color: colors.white, letterSpacing: 0.8 },
+  botaoRecarregar:      { padding: spacing.md, alignItems: 'center' },
+  botaoRecarregarTexto: { fontSize: fontSize.sm, color: colors.primary, fontWeight: '600' },
+  semDados:             { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', padding: spacing.xl },
 });
