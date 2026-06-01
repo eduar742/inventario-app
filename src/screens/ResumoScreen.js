@@ -23,6 +23,7 @@ export default function ResumoScreen({ navigation, route }) {
   const [processando, setProcessando] = useState(true);
   const [confirmados, setConfirmados] = useState([]);
   const [pendentes, setPendentes] = useState([]);
+  const [erroGeral, setErroGeral] = useState(''); // erro critico visivel
   const [itemAtivoIdx, setItemAtivoIdx] = useState(null);
   const [quantidade, setQuantidade] = useState('');
   const [registrando, setRegistrando] = useState(false);
@@ -33,6 +34,17 @@ export default function ResumoScreen({ navigation, route }) {
   }, []);
 
   async function finalizarInventario() {
+    setProcessando(true);
+    setErroGeral('');
+
+    // Sem itens para registrar
+    if (!contagens || contagens.length === 0) {
+      setErroGeral('Nenhum item para registrar. Volte e bipe os produtos antes de finalizar.');
+      setProcessando(false);
+      return;
+    }
+
+    // Agrupa por codigoQr e soma quantidades
     const mapa = {};
     for (const c of contagens) {
       if (!mapa[c.codigoQr]) {
@@ -51,10 +63,18 @@ export default function ResumoScreen({ navigation, route }) {
 
     const novosPendentes = [];
     const novosConfirmados = [];
+    let totalErros = 0;
+    let primeiroErro = '';
 
-    for (const item of Object.values(mapa)) {
+    const itensMapa = Object.values(mapa);
+    console.log(`[ResumoScreen] Finalizando ${itensMapa.length} produto(s) na sessao ${sessao.id}`);
+
+    for (const item of itensMapa) {
       try {
         const obs = item.obsLista.length > 0 ? item.obsLista.join('; ') : null;
+
+        console.log(`[ResumoScreen] Registrando: codigoQr=${item.codigoQr} qtd=${item.quantidadeTotal}`);
+
         const resp = await registrarContagem({
           sessaoId: sessao.id,
           codigoQr: item.codigoQr,
@@ -62,14 +82,28 @@ export default function ResumoScreen({ navigation, route }) {
           observacoes: obs,
         });
 
+        console.log(`[ResumoScreen] OK: ${item.codigoQr} → status=${resp.status_produto}`);
+
         if (resp.status_produto === 'aguardando_recontagem') {
           novosPendentes.push({ item, resp });
         } else {
           novosConfirmados.push({ item, resp, erro: null });
         }
       } catch (err) {
-        novosConfirmados.push({ item, resp: null, erro: err.message || 'Erro ao registrar' });
+        totalErros++;
+        const msg = err.message || 'Erro desconhecido';
+        if (!primeiroErro) primeiroErro = msg;
+        console.error(`[ResumoScreen] ERRO ${item.codigoQr}:`, msg, err);
+        novosConfirmados.push({ item, resp: null, erro: msg });
       }
+    }
+
+    // Se TODOS falharam, exibe erro critico
+    if (totalErros === itensMapa.length && itensMapa.length > 0) {
+      setErroGeral(
+        `Nenhum item foi salvo. Erro: ${primeiroErro}\n\n` +
+        `Verifique se a sessao ainda esta em andamento e se os produtos estao cadastrados.`
+      );
     }
 
     setPendentes(novosPendentes);
@@ -130,9 +164,18 @@ export default function ResumoScreen({ navigation, route }) {
       <SafeAreaView style={estilos.centro}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={estilos.textoCarregando}>Registrando contagens...</Text>
+        <Text style={estilos.textoCarregandoSub}>
+          {contagens?.length > 0
+            ? `${contagens.length} bipagem(ns) para ${new Set(contagens.map(c => c.codigoQr)).size} produto(s)`
+            : ''}
+        </Text>
       </SafeAreaView>
     );
   }
+
+  // Conta itens com erro real (erro no campo, nao recontagem)
+  const totalComErro = confirmados.filter(c => c.erro).length;
+  const totalOk = confirmados.filter(c => !c.erro).length + pendentes.length;
 
   return (
     <SafeAreaView style={estilos.container}>
@@ -144,6 +187,26 @@ export default function ResumoScreen({ navigation, route }) {
           contentContainerStyle={estilos.scroll}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Banner de erro critico — aparece quando TODOS os itens falharam */}
+          {erroGeral ? (
+            <View style={estilos.bannerErroCritico}>
+              <Text style={estilos.bannerErroCriticoTitulo}>Erro ao salvar contagens</Text>
+              <Text style={estilos.bannerErroCriticoTexto}>{erroGeral}</Text>
+              <TouchableOpacity style={estilos.botaoTentarNovamente} onPress={finalizarInventario}>
+                <Text style={estilos.botaoTentarNovamenteTexto}>Tentar novamente</Text>
+              </TouchableOpacity>
+            </View>
+          ) : totalComErro > 0 ? (
+            <View style={estilos.bannerErrosParciais}>
+              <Text style={estilos.bannerErrosParciaistTitulo}>
+                {totalOk} salvo(s) · {totalComErro} com erro
+              </Text>
+              <Text style={estilos.bannerErrosParcisTexto}>
+                Veja os itens em vermelho abaixo. Verifique se os produtos estao cadastrados.
+              </Text>
+            </View>
+          ) : null}
+
           <View style={estilos.cabecalho}>
             <Text style={estilos.cabecalhoTitulo}>
               {pendentes.length > 0
@@ -499,5 +562,62 @@ const estilos = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.danger,
     marginTop: 4,
+  },
+  textoCarregandoSub: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
+  // Banner de erro critico (todos os itens falharam)
+  bannerErroCritico: {
+    backgroundColor: colors.dangerSoft,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.danger,
+  },
+  bannerErroCriticoTitulo: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.danger,
+    marginBottom: spacing.xs,
+  },
+  bannerErroCriticoTexto: {
+    fontSize: fontSize.sm,
+    color: colors.text,
+    lineHeight: 20,
+    marginBottom: spacing.md,
+  },
+  botaoTentarNovamente: {
+    backgroundColor: colors.danger,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    alignItems: 'center',
+  },
+  botaoTentarNovamenteTexto: {
+    color: colors.white,
+    fontWeight: '700',
+    fontSize: fontSize.sm,
+  },
+  // Banner de erros parciais (alguns itens falharam)
+  bannerErrosParciais: {
+    backgroundColor: colors.warningSoft,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.warning,
+  },
+  bannerErrosParciaistTitulo: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.warning,
+    marginBottom: 4,
+  },
+  bannerErrosParcisTexto: {
+    fontSize: fontSize.sm,
+    color: colors.text,
   },
 });
