@@ -278,24 +278,35 @@ export async function importarPlanilha({ lojaId, mesReferencia, arquivo, modo = 
   formData.append('loja_id', lojaId);
   formData.append('mes_referencia', mesReferencia);
   formData.append('modo', modo);
-  formData.append('arquivo', {
-    uri: arquivo.uri,
-    name: arquivo.name,
-    type: arquivo.mimeType || 'application/octet-stream',
-  });
+
+  // Web: expo-document-picker retorna arquivo.file (File nativo do browser)
+  // Mobile: usa o objeto {uri, name, type} do React Native
+  if (arquivo.file) {
+    formData.append('arquivo', arquivo.file, arquivo.name);
+  } else {
+    formData.append('arquivo', {
+      uri: arquivo.uri,
+      name: arquivo.name,
+      type: arquivo.mimeType || 'application/octet-stream',
+    });
+  }
+
+  // Usa _fetch (fetch nativo do browser) para evitar problemas de CORS com polyfill RN
+  const fetchFn = typeof window !== 'undefined' && window.fetch
+    ? window.fetch.bind(window)
+    : fetch;
 
   try {
-    const resposta = await fetch(url, {
+    const resposta = await fetchFn(url, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        // Content-Type omitido: o fetch define automaticamente com boundary para multipart
-      },
+      headers: { Authorization: `Bearer ${token}` },
+      // Content-Type omitido: fetch define o boundary multipart automaticamente
       body: formData,
     });
 
     const texto = await resposta.text();
-    const dados = texto ? JSON.parse(texto) : null;
+    let dados = null;
+    try { dados = texto ? JSON.parse(texto) : null; } catch (_) {}
 
     if (!resposta.ok) {
       const erro = new Error(dados?.detail || `Erro ${resposta.status}`);
@@ -305,8 +316,9 @@ export async function importarPlanilha({ lojaId, mesReferencia, arquivo, modo = 
 
     return dados;
   } catch (err) {
-    if (err.message === 'Network request failed') {
-      const erro = new Error('Sem conexao com o servidor. Verifique sua internet.');
+    if (typeof window !== 'undefined') console.error('[importarPlanilha]', err);
+    if (err.message === 'Network request failed' || err.message === 'Failed to fetch') {
+      const erro = new Error('Sem conexao com o servidor.');
       erro.status = 0;
       throw erro;
     }

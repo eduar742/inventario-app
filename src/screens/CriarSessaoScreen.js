@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
-  TouchableOpacity, Alert, ActivityIndicator, TextInput, Modal,
+  TouchableOpacity, Alert, ActivityIndicator, TextInput, Modal, Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
@@ -27,7 +27,8 @@ export default function CriarSessaoScreen({ navigation }) {
   const [carregando, setCarregando] = useState(true);
   const [carregandoMeses, setCarregandoMeses] = useState(false);
   const [criando, setCriando] = useState(false);
-  const [etapaCriando, setEtapaCriando] = useState(''); // texto da etapa atual
+  const [etapaCriando, setEtapaCriando] = useState('');
+  const [erroVisivel, setErroVisivel] = useState(''); // banner de erro (web)
 
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
   const [nome, setNome] = useState('');
@@ -44,11 +45,29 @@ export default function CriarSessaoScreen({ navigation }) {
   // Controle do modal de selecao de loja
   const [modalLojas, setModalLojas] = useState(false);
 
+  // Exibe erro: banner na web, Alert no mobile
+  function mostrarErro(msg) {
+    setErroVisivel(msg);
+    if (Platform.OS !== 'web') Alert.alert('Atencao', msg);
+  }
+
+  function mostrarSucesso(titulo, msg, aoFechar) {
+    setErroVisivel('');
+    if (Platform.OS === 'web') {
+      // Web: mostra mensagem de sucesso no etapaCriando por 2s depois navega
+      setEtapaCriando(`✓ ${titulo}`);
+      setTimeout(() => { setEtapaCriando(''); if (aoFechar) aoFechar(); }, 1500);
+    } else {
+      Alert.alert(titulo, msg, [{ text: 'OK', onPress: aoFechar }]);
+    }
+  }
+
   useEffect(() => {
     listarLojas()
       .then(data => setLojas(data.filter(l => l.ativa)))
-      .catch(() => Alert.alert('Erro', 'Nao foi possivel carregar as lojas'))
+      .catch(() => mostrarErro('Nao foi possivel carregar as lojas'))
       .finally(() => setCarregando(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function aoSelecionarLoja(loja) {
@@ -76,14 +95,15 @@ export default function CriarSessaoScreen({ navigation }) {
       });
       if (res.canceled) return;
       const asset = res.assets[0];
-      const nome = asset.name.toLowerCase();
-      if (!nome.endsWith('.xlsx') && !nome.endsWith('.xls') && !nome.endsWith('.csv')) {
-        Alert.alert('Formato invalido', 'Use arquivos .xlsx, .xls ou .csv');
+      const nomeArq = (asset.name || '').toLowerCase();
+      if (!nomeArq.endsWith('.xlsx') && !nomeArq.endsWith('.xls') && !nomeArq.endsWith('.csv')) {
+        mostrarErro('Formato invalido. Use arquivos .xlsx, .xls ou .csv');
         return;
       }
+      setErroVisivel('');
       setArquivo(asset);
     } catch (_) {
-      Alert.alert('Erro', 'Nao foi possivel selecionar o arquivo');
+      mostrarErro('Nao foi possivel selecionar o arquivo');
     }
   }
 
@@ -110,16 +130,17 @@ export default function CriarSessaoScreen({ navigation }) {
   }
 
   async function handleCriar() {
-    if (!lojaSelecionada) { Alert.alert('Atencao', 'Selecione uma loja'); return; }
+    setErroVisivel('');
+    if (!lojaSelecionada) { mostrarErro('Selecione uma loja'); return; }
     const mesRef = mesEfetivo();
     if (!mesRef) {
-      Alert.alert('Atencao', arquivo
-        ? 'Informe o mes de referencia no formato MM/AAAA'
+      mostrarErro(arquivo
+        ? 'Informe o mes de referencia no formato MM/AAAA (ex: 06/2026)'
         : 'Selecione o mes de referencia');
       return;
     }
     const nomeFinal = nome.trim() || nomeSugerido();
-    if (!nomeFinal) { Alert.alert('Atencao', 'Informe o nome da sessao'); return; }
+    if (!nomeFinal) { mostrarErro('Informe o nome da sessao'); return; }
 
     setCriando(true);
     try {
@@ -133,18 +154,21 @@ export default function CriarSessaoScreen({ navigation }) {
           modo: modoImport,
         });
         if (resultado.status === 'falhou') {
-          Alert.alert(
-            'Falha na importacao',
-            `Nenhuma linha foi importada. Verifique o arquivo e tente novamente.\n\n${resultado.erros?.[0]?.mensagem || ''}`,
-          );
+          mostrarErro(`Falha na importacao: ${resultado.erros?.[0]?.mensagem || 'Verifique o arquivo'}`);
           return;
         }
         if (resultado.linhas_erro > 0) {
-          await new Promise(resolve => Alert.alert(
-            'Importacao com erros',
-            `${resultado.linhas_sucesso} linha(s) importadas, ${resultado.linhas_erro} com erro. A sessao sera criada mesmo assim.`,
-            [{ text: 'Continuar', onPress: resolve }],
-          ));
+          // Na web mostra no etapaCriando; no mobile mostra Alert com confirmacao
+          if (Platform.OS === 'web') {
+            setEtapaCriando(`${resultado.linhas_sucesso} linhas importadas, ${resultado.linhas_erro} com erro. Criando sessao...`);
+            await new Promise(r => setTimeout(r, 1500));
+          } else {
+            await new Promise(resolve => Alert.alert(
+              'Importacao com erros',
+              `${resultado.linhas_sucesso} linha(s) importadas, ${resultado.linhas_erro} com erro. A sessao sera criada mesmo assim.`,
+              [{ text: 'Continuar', onPress: resolve }],
+            ));
+          }
         }
       }
 
@@ -162,20 +186,20 @@ export default function CriarSessaoScreen({ navigation }) {
       if (iniciarImediatamente) {
         setEtapaCriando('Iniciando sessao...');
         await iniciarSessao(sessao.id);
-        Alert.alert(
+        mostrarSucesso(
           'Sessao criada e iniciada!',
-          `"${sessao.nome}" esta em andamento. Operadores ja podem bipar produtos.`,
-          [{ text: 'OK', onPress: () => navigation.goBack() }],
+          `"${sessao.nome}" esta em andamento.`,
+          () => navigation.goBack(),
         );
       } else {
-        Alert.alert(
+        mostrarSucesso(
           'Sessao criada!',
           `"${sessao.nome}" foi criada com sucesso.`,
-          [{ text: 'OK', onPress: () => navigation.goBack() }],
+          () => navigation.goBack(),
         );
       }
     } catch (err) {
-      Alert.alert('Erro', err.message || 'Tente novamente');
+      mostrarErro(err.message || 'Tente novamente');
     } finally {
       setCriando(false);
       setEtapaCriando('');
@@ -359,7 +383,15 @@ export default function CriarSessaoScreen({ navigation }) {
         </TouchableOpacity>
 
         {/* ── BOTOES ── */}
-        <View style={{ height: spacing.xl }} />
+        <View style={{ height: spacing.lg }} />
+
+        {/* Banner de erro visivel (essencial na web onde Alert nao aparece) */}
+        {erroVisivel ? (
+          <View style={estilos.bannerErro}>
+            <Text style={estilos.bannerErroTexto}>{erroVisivel}</Text>
+          </View>
+        ) : null}
+
         {criando && etapaCriando ? (
           <View style={estilos.etapaContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
@@ -527,6 +559,19 @@ const estilos = StyleSheet.create({
   etapaContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
                     marginBottom: spacing.sm, gap: spacing.sm },
   etapaTexto:     { fontSize: fontSize.sm, color: colors.primary, fontWeight: '500' },
+  bannerErro: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderLeftWidth: 4,
+    borderLeftColor: '#DC2626',
+  },
+  bannerErroTexto: {
+    fontSize: fontSize.sm,
+    color: '#DC2626',
+    fontWeight: '500',
+  },
 
   // Modal de selecao de loja
   modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
