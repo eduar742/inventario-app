@@ -25,6 +25,7 @@ export default function LoginScreen({ navigation }) {
   const [carregando, setCarregando] = useState(false);
   const [erroEmail, setErroEmail] = useState('');
   const [erroSenha, setErroSenha] = useState('');
+  const [erroGeral, setErroGeral] = useState(''); // visivel no browser (web)
 
   function validarFormulario() {
     let valido = true;
@@ -50,31 +51,22 @@ export default function LoginScreen({ navigation }) {
   async function handleLogin() {
     if (!validarFormulario()) return;
 
+    setErroGeral('');
     setCarregando(true);
     try {
-      const resposta = await login(email.toLowerCase().trim(), senha);
-
-// Sucesso! Navega para a tela de lojas.
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Lojas' }],
-      });
+      await login(email.toLowerCase().trim(), senha);
+      navigation.reset({ index: 0, routes: [{ name: 'Lojas' }] });
     } catch (err) {
-      // Mensagens amigaveis dependendo do erro
-      let titulo = 'Erro ao fazer login';
       let mensagem = err.message || 'Tente novamente';
+      if (err.status === 401) mensagem = 'Email ou senha invalidos';
+      else if (err.status === 429) mensagem = err.message;
+      else if (err.status === 0)  mensagem = 'Sem conexao com o servidor. Verifique sua internet.';
 
-      if (err.status === 401) {
-        mensagem = 'Email ou senha invalidos';
-      } else if (err.status === 429) {
-        titulo = 'Muitas tentativas';
-        mensagem = err.message;
-      } else if (err.status === 0) {
-        titulo = 'Sem conexao';
-        mensagem = 'Verifique sua internet e tente novamente';
+      // Mostra inline no browser (Alert pode nao funcionar em todos os browsers)
+      setErroGeral(mensagem);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Erro ao fazer login', mensagem, [{ text: 'OK' }]);
       }
-
-      Alert.alert(titulo, mensagem, [{ text: 'OK' }]);
     } finally {
       setCarregando(false);
     }
@@ -122,6 +114,12 @@ export default function LoginScreen({ navigation }) {
               autoCorrect={false}
               erro={erroSenha}
             />
+
+            {erroGeral ? (
+              <View style={estilos.bannerErro}>
+                <Text style={estilos.bannerErroTexto}>{erroGeral}</Text>
+              </View>
+            ) : null}
 
             <View style={{ height: spacing.sm }} />
 
@@ -200,5 +198,18 @@ const estilos = StyleSheet.create({
   textoRodape: {
     fontSize: fontSize.xs,
     color: colors.textMuted,
+  },
+  bannerErro: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderLeftWidth: 4,
+    borderLeftColor: '#DC2626',
+  },
+  bannerErroTexto: {
+    fontSize: fontSize.sm,
+    color: '#DC2626',
+    fontWeight: '500',
   },
 });
