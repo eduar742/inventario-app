@@ -44,7 +44,7 @@ export default function DivergenciasScreen({ navigation, route }) {
   async function handleAprovar(div) {
     Alert.alert(
       'Aprovar divergencia',
-      `Aprovar ajuste de ${_fmtNum(div.diferenca)} ${div.unidade_medida || ''} para "${div.produto_descricao}"?`,
+      `Aprovar ajuste de ${_fmtNum(div.diferenca)} ${div.unidade_medida || ''} para "${div.descricao_produto}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -70,7 +70,7 @@ export default function DivergenciasScreen({ navigation, route }) {
   async function handleRejeitar(div) {
     Alert.alert(
       'Rejeitar divergencia',
-      `Rejeitar ajuste para "${div.produto_descricao}"? O saldo do sistema sera mantido.`,
+      `Rejeitar ajuste para "${div.descricao_produto}"? O saldo do sistema sera mantido.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -110,8 +110,8 @@ export default function DivergenciasScreen({ navigation, route }) {
         {/* Cabecalho do card */}
         <View style={estilos.cardTopo}>
           <View style={estilos.cardTextos}>
-            <Text style={estilos.produto} numberOfLines={2}>{div.produto_descricao || div.produto_sku}</Text>
-            <Text style={estilos.sku}>{div.produto_sku}</Text>
+            <Text style={estilos.produto} numberOfLines={2}>{div.descricao_produto || div.sku}</Text>
+            <Text style={estilos.sku}>{div.sku}</Text>
           </View>
           <View style={[estilos.badge, { backgroundColor: cores.bg }]}>
             <Text style={[estilos.badgeTexto, { color: cores.txt }]}>
