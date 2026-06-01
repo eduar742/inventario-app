@@ -1,16 +1,17 @@
 // Tela para ADM criar e iniciar sessoes de inventario.
-// Apenas ADM pode criar sessoes; operadores e gestores usam sessoes ja abertas.
+// Permite tambem importar a planilha de referencia (SKU, descricao, saldos)
+// diretamente na criacao, sem precisar ir ate a tela de Importacao separadamente.
 
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
-  TouchableOpacity, Alert, ActivityIndicator, TextInput,
+  TouchableOpacity, Alert, ActivityIndicator, TextInput, Modal,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
-import Input from '../components/Input';
-import { listarLojas, listarMesesImportados, criarSessao, iniciarSessao } from '../services/api';
+import { listarLojas, listarMesesImportados, criarSessao, iniciarSessao, importarPlanilha } from '../services/api';
 
 
 const TIPOS = [
@@ -26,14 +27,22 @@ export default function CriarSessaoScreen({ navigation }) {
   const [carregando, setCarregando] = useState(true);
   const [carregandoMeses, setCarregandoMeses] = useState(false);
   const [criando, setCriando] = useState(false);
+  const [etapaCriando, setEtapaCriando] = useState(''); // texto da etapa atual
 
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
   const [nome, setNome] = useState('');
   const [tipo, setTipo] = useState('geral');
   const [mesReferencia, setMesReferencia] = useState('');
+  const [mesManual, setMesManual] = useState('');  // MM/AAAA digitado manualmente
   const [observacoes, setObservacoes] = useState('');
   const [iniciarImediatamente, setIniciarImediatamente] = useState(true);
-  const [expandirLojas, setExpandirLojas] = useState(false);
+
+  // Planilha de referencia (arquivo do coletor)
+  const [arquivo, setArquivo] = useState(null);
+  const [modoImport, setModoImport] = useState('completo');
+
+  // Controle do modal de selecao de loja
+  const [modalLojas, setModalLojas] = useState(false);
 
   useEffect(() => {
     listarLojas()
@@ -44,14 +53,14 @@ export default function CriarSessaoScreen({ navigation }) {
 
   async function aoSelecionarLoja(loja) {
     setLojaSelecionada(loja);
-    setExpandirLojas(false);
+    setModalLojas(false);
     setMesReferencia('');
     setMeses([]);
     setCarregandoMeses(true);
     try {
       const lista = await listarMesesImportados(loja.id);
       setMeses(lista);
-      if (lista.length > 0) setMesReferencia(lista[0]); // pre-seleciona o mais recente
+      if (lista.length > 0) setMesReferencia(lista[0]);
     } catch (_) {
       setMeses([]);
     } finally {
@@ -59,9 +68,42 @@ export default function CriarSessaoScreen({ navigation }) {
     }
   }
 
+  async function selecionarArquivo() {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ['*/*'],
+        copyToCacheDirectory: true,
+      });
+      if (res.canceled) return;
+      const asset = res.assets[0];
+      const nome = asset.name.toLowerCase();
+      if (!nome.endsWith('.xlsx') && !nome.endsWith('.xls') && !nome.endsWith('.csv')) {
+        Alert.alert('Formato invalido', 'Use arquivos .xlsx, .xls ou .csv');
+        return;
+      }
+      setArquivo(asset);
+    } catch (_) {
+      Alert.alert('Erro', 'Nao foi possivel selecionar o arquivo');
+    }
+  }
+
+  // Converte MM/AAAA → YYYY-MM
+  function converterMes(mmaaaa) {
+    const partes = mmaaaa.trim().split('/');
+    if (partes.length === 2 && partes[0].length === 2 && partes[1].length === 4) {
+      return `${partes[1]}-${partes[0]}`;
+    }
+    return '';
+  }
+
+  function mesEfetivo() {
+    if (mesReferencia) return mesReferencia;
+    return converterMes(mesManual);
+  }
+
   function nomeSugerido() {
-    if (!lojaSelecionada || !mesReferencia) return '';
-    const [ano, mes] = mesReferencia.split('-');
+    if (!lojaSelecionada || !mesEfetivo()) return '';
+    const [ano, mes] = mesEfetivo().split('-');
     const mesesNomes = ['', 'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
       'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     return `Inventario ${mesesNomes[parseInt(mes, 10)]} ${ano} - ${lojaSelecionada.codigo}`;
@@ -69,22 +111,56 @@ export default function CriarSessaoScreen({ navigation }) {
 
   async function handleCriar() {
     if (!lojaSelecionada) { Alert.alert('Atencao', 'Selecione uma loja'); return; }
-    if (!mesReferencia)    { Alert.alert('Atencao', 'Selecione o mes de referencia'); return; }
-
+    const mesRef = mesEfetivo();
+    if (!mesRef) {
+      Alert.alert('Atencao', arquivo
+        ? 'Informe o mes de referencia no formato MM/AAAA'
+        : 'Selecione o mes de referencia');
+      return;
+    }
     const nomeFinal = nome.trim() || nomeSugerido();
-    if (!nomeFinal)        { Alert.alert('Atencao', 'Informe o nome da sessao'); return; }
+    if (!nomeFinal) { Alert.alert('Atencao', 'Informe o nome da sessao'); return; }
 
     setCriando(true);
     try {
+      // Etapa 1: importar planilha (se arquivo selecionado)
+      if (arquivo) {
+        setEtapaCriando('Importando planilha de referencia...');
+        const resultado = await importarPlanilha({
+          lojaId: lojaSelecionada.id,
+          mesReferencia: mesRef,
+          arquivo,
+          modo: modoImport,
+        });
+        if (resultado.status === 'falhou') {
+          Alert.alert(
+            'Falha na importacao',
+            `Nenhuma linha foi importada. Verifique o arquivo e tente novamente.\n\n${resultado.erros?.[0]?.mensagem || ''}`,
+          );
+          return;
+        }
+        if (resultado.linhas_erro > 0) {
+          await new Promise(resolve => Alert.alert(
+            'Importacao com erros',
+            `${resultado.linhas_sucesso} linha(s) importadas, ${resultado.linhas_erro} com erro. A sessao sera criada mesmo assim.`,
+            [{ text: 'Continuar', onPress: resolve }],
+          ));
+        }
+      }
+
+      // Etapa 2: criar sessao
+      setEtapaCriando('Criando sessao...');
       const sessao = await criarSessao({
         lojaId: lojaSelecionada.id,
         nome: nomeFinal,
         tipo,
-        mesReferencia,
+        mesReferencia: mesRef,
         observacoes,
       });
 
+      // Etapa 3: iniciar (opcional)
       if (iniciarImediatamente) {
+        setEtapaCriando('Iniciando sessao...');
         await iniciarSessao(sessao.id);
         Alert.alert(
           'Sessao criada e iniciada!',
@@ -94,16 +170,19 @@ export default function CriarSessaoScreen({ navigation }) {
       } else {
         Alert.alert(
           'Sessao criada!',
-          `"${sessao.nome}" foi criada. Use o botao "Iniciar" na tela de sessoes para liberar para operadores.`,
+          `"${sessao.nome}" foi criada com sucesso.`,
           [{ text: 'OK', onPress: () => navigation.goBack() }],
         );
       }
     } catch (err) {
-      Alert.alert('Erro ao criar sessao', err.message || 'Tente novamente');
+      Alert.alert('Erro', err.message || 'Tente novamente');
     } finally {
       setCriando(false);
+      setEtapaCriando('');
     }
   }
+
+  const podeSubmeter = lojaSelecionada && (mesReferencia || converterMes(mesManual)) && !criando;
 
   if (carregando) {
     return (
@@ -117,66 +196,108 @@ export default function CriarSessaoScreen({ navigation }) {
     <SafeAreaView style={estilos.container}>
       <ScrollView contentContainerStyle={estilos.scroll} keyboardShouldPersistTaps="handled">
 
-        {/* Loja */}
+        {/* ── LOJA ── */}
         <Text style={estilos.rotulo}>Loja *</Text>
-        <TouchableOpacity
-          style={estilos.seletor}
-          onPress={() => setExpandirLojas(!expandirLojas)}
-        >
-          <Text style={lojaSelecionada ? estilos.seletorTexto : estilos.seletorPlaceholder}>
-            {lojaSelecionada ? `${lojaSelecionada.codigo} — ${lojaSelecionada.nome}` : 'Selecione a loja'}
+        <TouchableOpacity style={estilos.seletor} onPress={() => setModalLojas(true)}>
+          <Text style={lojaSelecionada ? estilos.seletorTexto : estilos.seletorPlaceholder} numberOfLines={1}>
+            {lojaSelecionada ? `${lojaSelecionada.codigo} — ${lojaSelecionada.nome}` : 'Toque para selecionar a loja'}
           </Text>
-          <Text style={estilos.seletorSeta}>{expandirLojas ? '▲' : '▼'}</Text>
+          <Text style={estilos.seletorSeta}>▼</Text>
         </TouchableOpacity>
-        {expandirLojas && (
-          <View style={estilos.dropdown}>
-            {lojas.map(loja => (
+
+        {/* ── PLANILHA DE REFERENCIA ── */}
+        <View style={{ height: spacing.lg }} />
+        <Text style={estilos.rotulo}>Planilha de referencia (opcional)</Text>
+        <Text style={estilos.descricaoBloco}>
+          Arquivo .xlsx ou .csv com SKU, descricao, saldo e custo dos produtos.
+          Se informado, sera importado automaticamente antes de criar a sessao.
+        </Text>
+
+        <TouchableOpacity style={estilos.botaoArquivo} onPress={selecionarArquivo}>
+          {arquivo ? (
+            <View style={estilos.arquivoSelecionado}>
+              <Text style={estilos.arquivoIcone}>📄</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={estilos.arquivoNome} numberOfLines={1}>{arquivo.name}</Text>
+                <Text style={estilos.arquivoTamanho}>
+                  {arquivo.size ? `${(arquivo.size / 1024).toFixed(1)} KB` : ''}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setArquivo(null)} style={estilos.botaoRemoverArquivo}>
+                <Text style={estilos.botaoRemoverTexto}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={estilos.botaoArquivoTexto}>Toque para selecionar planilha (.xlsx / .csv)</Text>
+          )}
+        </TouchableOpacity>
+
+        {arquivo && (
+          <View style={estilos.modoRow}>
+            {['completo', 'parcial'].map(m => (
               <TouchableOpacity
-                key={loja.id}
-                style={[estilos.dropdownItem, lojaSelecionada?.id === loja.id && estilos.dropdownItemAtivo]}
-                onPress={() => aoSelecionarLoja(loja)}
+                key={m}
+                style={[estilos.chipModo, modoImport === m && estilos.chipModoAtivo]}
+                onPress={() => setModoImport(m)}
               >
-                <Text style={[estilos.dropdownTexto, lojaSelecionada?.id === loja.id && estilos.dropdownTextoAtivo]}>
-                  {loja.codigo} — {loja.nome}
+                <Text style={[estilos.chipModoTexto, modoImport === m && estilos.chipModoTextoAtivo]}>
+                  {m === 'completo' ? 'Completo (zera ausentes)' : 'Parcial (so atualiza)'}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         )}
 
-        {/* Mes de referencia */}
-        <View style={{ height: spacing.md }} />
+        {/* ── MES DE REFERENCIA ── */}
+        <View style={{ height: spacing.lg }} />
         <Text style={estilos.rotulo}>Mes de referencia *</Text>
+
         {carregandoMeses ? (
           <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.sm }} />
         ) : meses.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={estilos.chipRow}>
-              {meses.map(m => (
-                <TouchableOpacity
-                  key={m}
-                  style={[estilos.chipMes, mesReferencia === m && estilos.chipMesAtivo]}
-                  onPress={() => setMesReferencia(m)}
-                >
-                  <Text style={[estilos.chipMesTexto, mesReferencia === m && estilos.chipMesTextoAtivo]}>
-                    {m}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        ) : lojaSelecionada ? (
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={estilos.chipRow}>
+                {meses.map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[estilos.chipMes, mesReferencia === m && estilos.chipMesAtivo]}
+                    onPress={() => { setMesReferencia(m); setMesManual(''); }}
+                  >
+                    <Text style={[estilos.chipMesTexto, mesReferencia === m && estilos.chipMesTextoAtivo]}>{m}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+            <Text style={estilos.dica}>Ou informe um novo mes abaixo (caso tenha carregado nova planilha)</Text>
+          </>
+        ) : lojaSelecionada && !arquivo ? (
           <View style={estilos.aviso}>
             <Text style={estilos.avisoTexto}>
-              Nenhum estoque importado para esta loja. Importe uma planilha antes de criar a sessao.
+              Nenhum estoque importado para esta loja. Selecione uma planilha acima para importar, ou importe pela tela de Importacao.
             </Text>
           </View>
-        ) : (
-          <Text style={estilos.dica}>Selecione uma loja para ver os meses disponíveis</Text>
+        ) : null}
+
+        {/* Input manual de mes (quando ha arquivo ou sem meses pre-existentes) */}
+        {(arquivo || (lojaSelecionada && meses.length === 0)) && (
+          <TextInput
+            style={[estilos.input, { marginTop: spacing.sm }]}
+            value={mesManual}
+            onChangeText={t => { setMesManual(t); setMesReferencia(''); }}
+            placeholder="MM/AAAA  ex: 06/2026"
+            placeholderTextColor={colors.textMuted}
+            keyboardType="numeric"
+            maxLength={7}
+          />
         )}
 
-        {/* Nome */}
-        <View style={{ height: spacing.md }} />
+        {!lojaSelecionada && (
+          <Text style={estilos.dica}>Selecione a loja para ver os meses disponíveis</Text>
+        )}
+
+        {/* ── NOME ── */}
+        <View style={{ height: spacing.lg }} />
         <Text style={estilos.rotulo}>Nome da sessao</Text>
         <TextInput
           style={estilos.input}
@@ -190,8 +311,8 @@ export default function CriarSessaoScreen({ navigation }) {
           <Text style={estilos.dica}>Sera usado: "{nomeSugerido()}"</Text>
         ) : null}
 
-        {/* Tipo */}
-        <View style={{ height: spacing.md }} />
+        {/* ── TIPO ── */}
+        <View style={{ height: spacing.lg }} />
         <Text style={estilos.rotulo}>Tipo</Text>
         {TIPOS.map(t => (
           <TouchableOpacity
@@ -201,16 +322,14 @@ export default function CriarSessaoScreen({ navigation }) {
           >
             <View style={[estilos.radio, tipo === t.id && estilos.radioAtivo]} />
             <View style={{ flex: 1 }}>
-              <Text style={[estilos.opcaoRotulo, tipo === t.id && estilos.opcaoRotuloAtivo]}>
-                {t.rotulo}
-              </Text>
+              <Text style={[estilos.opcaoRotulo, tipo === t.id && estilos.opcaoRotuloAtivo]}>{t.rotulo}</Text>
               <Text style={estilos.opcaoDescricao}>{t.descricao}</Text>
             </View>
           </TouchableOpacity>
         ))}
 
-        {/* Observacoes */}
-        <View style={{ height: spacing.md }} />
+        {/* ── OBSERVACOES ── */}
+        <View style={{ height: spacing.lg }} />
         <Text style={estilos.rotulo}>Observacoes (opcional)</Text>
         <TextInput
           style={[estilos.input, { minHeight: 70, textAlignVertical: 'top' }]}
@@ -222,7 +341,7 @@ export default function CriarSessaoScreen({ navigation }) {
           maxLength={500}
         />
 
-        {/* Iniciar imediatamente */}
+        {/* ── INICIAR IMEDIATAMENTE ── */}
         <View style={{ height: spacing.md }} />
         <TouchableOpacity
           style={estilos.toggleIniciar}
@@ -239,75 +358,207 @@ export default function CriarSessaoScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
+        {/* ── BOTOES ── */}
         <View style={{ height: spacing.xl }} />
+        {criando && etapaCriando ? (
+          <View style={estilos.etapaContainer}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={estilos.etapaTexto}>{etapaCriando}</Text>
+          </View>
+        ) : null}
         <Button
-          titulo="Criar sessao"
+          titulo={arquivo ? 'Importar e criar sessao' : 'Criar sessao'}
           onPress={handleCriar}
           carregando={criando}
-          desabilitado={!lojaSelecionada || !mesReferencia || criando}
+          desabilitado={!podeSubmeter}
         />
         <View style={{ height: spacing.sm }} />
         <Button titulo="Cancelar" variante="secondary" onPress={() => navigation.goBack()} desabilitado={criando} />
+        <View style={{ height: spacing.lg }} />
       </ScrollView>
+
+      {/* ── MODAL DE SELECAO DE LOJA (rolagem correta) ── */}
+      <Modal visible={modalLojas} animationType="slide" transparent onRequestClose={() => setModalLojas(false)}>
+        <View style={estilos.modalOverlay}>
+          <View style={estilos.modalContainer}>
+
+            <View style={estilos.modalHeader}>
+              <Text style={estilos.modalTitulo}>Selecione a loja</Text>
+              <TouchableOpacity onPress={() => setModalLojas(false)} style={estilos.modalFechar}>
+                <Text style={estilos.modalFecharTexto}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={estilos.modalLista}
+              showsVerticalScrollIndicator={true}
+              bounces={false}
+            >
+              {lojas.map(loja => {
+                const ativa = lojaSelecionada?.id === loja.id;
+                return (
+                  <TouchableOpacity
+                    key={loja.id}
+                    style={[estilos.modalItem, ativa && estilos.modalItemAtivo]}
+                    onPress={() => aoSelecionarLoja(loja)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[estilos.modalItemBadge, ativa && estilos.modalItemBadgeAtivo]}>
+                      <Text style={[estilos.modalItemCodigo, ativa && { color: colors.white }]}>
+                        {loja.codigo}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[estilos.modalItemNome, ativa && estilos.modalItemNomeAtivo]}
+                        numberOfLines={1}
+                      >
+                        {loja.nome}
+                      </Text>
+                      {loja.cidade ? (
+                        <Text style={estilos.modalItemCidade} numberOfLines={1}>{loja.cidade}</Text>
+                      ) : null}
+                    </View>
+                    {ativa && <Text style={estilos.modalItemCheck}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const estilos = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: colors.backgroundSoft },
-  centro:      { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll:      { padding: spacing.lg },
-  rotulo:      { fontSize: fontSize.sm, fontWeight: '600', color: colors.textSecondary,
-                 textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.xs },
-  dica:        { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 4 },
-  // Seletor de loja
-  seletor: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-             backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border,
-             borderRadius: radius.md, padding: spacing.md },
+  container: { flex: 1, backgroundColor: colors.backgroundSoft },
+  centro:    { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  scroll:    { padding: spacing.lg },
+
+  rotulo: {
+    fontSize: fontSize.sm, fontWeight: '700', color: colors.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.xs,
+  },
+  descricaoBloco: {
+    fontSize: fontSize.sm, color: colors.textSecondary,
+    marginBottom: spacing.sm, lineHeight: 20,
+  },
+  dica: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 4 },
+
+  // Seletor de loja (abre modal)
+  seletor: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.background, borderWidth: 1,
+    borderColor: colors.border, borderRadius: radius.md, padding: spacing.md,
+  },
   seletorTexto:       { fontSize: fontSize.md, color: colors.text, flex: 1 },
   seletorPlaceholder: { fontSize: fontSize.md, color: colors.textMuted, flex: 1 },
-  seletorSeta:        { fontSize: fontSize.sm, color: colors.textMuted, marginLeft: spacing.sm },
-  dropdown: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border,
-              borderTopWidth: 0, borderBottomLeftRadius: radius.md, borderBottomRightRadius: radius.md,
-              maxHeight: 200 },
-  dropdownItem:       { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
-  dropdownItemAtivo:  { backgroundColor: colors.primarySoft },
-  dropdownTexto:      { fontSize: fontSize.md, color: colors.text },
-  dropdownTextoAtivo: { color: colors.primary, fontWeight: '600' },
+  seletorSeta:        { fontSize: fontSize.sm, color: colors.primary, marginLeft: spacing.sm },
+
+  // Planilha de referencia
+  botaoArquivo: {
+    borderWidth: 2, borderColor: colors.border, borderStyle: 'dashed',
+    borderRadius: radius.md, padding: spacing.md, alignItems: 'center',
+    justifyContent: 'center', backgroundColor: colors.background, minHeight: 70,
+  },
+  botaoArquivoTexto: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center' },
+  arquivoSelecionado: { flexDirection: 'row', alignItems: 'center', width: '100%' },
+  arquivoIcone:  { fontSize: 24, marginRight: spacing.sm },
+  arquivoNome:   { fontSize: fontSize.md, fontWeight: '600', color: colors.text },
+  arquivoTamanho:{ fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+  botaoRemoverArquivo: { padding: spacing.sm },
+  botaoRemoverTexto:   { fontSize: fontSize.md, color: colors.danger, fontWeight: '700' },
+  modoRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  chipModo: {
+    flex: 1, paddingVertical: spacing.sm, paddingHorizontal: spacing.xs,
+    borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', backgroundColor: colors.backgroundSoft,
+  },
+  chipModoAtivo: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  chipModoTexto: { fontSize: fontSize.xs, color: colors.textSecondary, textAlign: 'center' },
+  chipModoTextoAtivo: { color: colors.primary, fontWeight: '600' },
+
   // Chips de mes
-  chipRow:         { flexDirection: 'row', gap: spacing.xs, paddingBottom: 4 },
-  chipMes:         { paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
-                     borderRadius: radius.full, borderWidth: 1, borderColor: colors.border,
-                     backgroundColor: colors.backgroundSoft },
-  chipMesAtivo:    { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipMesTexto:    { fontSize: fontSize.sm, color: colors.textSecondary, fontWeight: '500' },
-  chipMesTextoAtivo: { color: colors.white, fontWeight: '700' },
+  chipRow:          { flexDirection: 'row', gap: spacing.xs, paddingBottom: 4 },
+  chipMes:          { paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
+                      borderRadius: radius.full, borderWidth: 1, borderColor: colors.border,
+                      backgroundColor: colors.backgroundSoft },
+  chipMesAtivo:     { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipMesTexto:     { fontSize: fontSize.sm, color: colors.textSecondary, fontWeight: '500' },
+  chipMesTextoAtivo:{ color: colors.white, fontWeight: '700' },
+
   // Aviso sem estoque
   aviso:      { backgroundColor: colors.warningSoft, borderRadius: radius.md, padding: spacing.md,
                 borderLeftWidth: 4, borderLeftColor: colors.warning },
   avisoTexto: { fontSize: fontSize.sm, color: colors.text },
-  // Input
-  input: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border,
-           borderRadius: radius.md, padding: spacing.md, fontSize: fontSize.md, color: colors.text },
-  // Opcoes de tipo
+
+  // Input texto
+  input: {
+    backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, padding: spacing.md, fontSize: fontSize.md, color: colors.text,
+  },
+
+  // Tipo de sessao
   opcao:           { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background,
                      borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.xs,
                      borderWidth: 1, borderColor: colors.border },
   opcaoAtiva:      { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   radio:           { width: 18, height: 18, borderRadius: 9, borderWidth: 2,
-                     borderColor: colors.border, marginRight: spacing.sm },
+                     borderColor: colors.border, marginRight: spacing.sm, flexShrink: 0 },
   radioAtivo:      { borderColor: colors.primary, backgroundColor: colors.primary },
   opcaoRotulo:     { fontSize: fontSize.md, fontWeight: '600', color: colors.text },
-  opcaoRotuloAtivo: { color: colors.primary },
+  opcaoRotuloAtivo:{ color: colors.primary },
   opcaoDescricao:  { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+
   // Toggle iniciar
-  toggleIniciar: { flexDirection: 'row', alignItems: 'center',
-                   backgroundColor: colors.background, borderRadius: radius.md,
-                   padding: spacing.md, borderWidth: 1, borderColor: colors.border },
-  checkbox:       { width: 22, height: 22, borderRadius: radius.sm, borderWidth: 2,
-                    borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  checkboxAtivo:  { backgroundColor: colors.primary, borderColor: colors.primary },
-  checkboxTick:   { color: colors.white, fontWeight: '700', fontSize: 13 },
-  toggleRotulo:   { fontSize: fontSize.md, fontWeight: '600', color: colors.text },
+  toggleIniciar: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background,
+    borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border,
+  },
+  checkbox:        { width: 22, height: 22, borderRadius: radius.sm, borderWidth: 2,
+                     borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  checkboxAtivo:   { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkboxTick:    { color: colors.white, fontWeight: '700', fontSize: 13 },
+  toggleRotulo:    { fontSize: fontSize.md, fontWeight: '600', color: colors.text },
   toggleDescricao: { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+
+  // Etapa de progresso
+  etapaContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                    marginBottom: spacing.sm, gap: spacing.sm },
+  etapaTexto:     { fontSize: fontSize.sm, color: colors.primary, fontWeight: '500' },
+
+  // Modal de selecao de loja
+  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalContainer: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    maxHeight: '75%',
+  },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  modalTitulo:      { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
+  modalFechar:      { padding: spacing.xs },
+  modalFecharTexto: { fontSize: fontSize.lg, color: colors.textMuted },
+  modalLista:       { flexGrow: 0 },   // nao cresce alem do maxHeight do pai
+
+  modalItem: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  modalItemAtivo:   { backgroundColor: colors.primarySoft },
+  modalItemBadge: {
+    width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.backgroundSoft,
+    alignItems: 'center', justifyContent: 'center', marginRight: spacing.md, flexShrink: 0,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  modalItemBadgeAtivo: { backgroundColor: colors.primary, borderColor: colors.primary },
+  modalItemCodigo:  { fontSize: fontSize.sm, fontWeight: '700', color: colors.primary },
+  modalItemNome:    { fontSize: fontSize.md, fontWeight: '600', color: colors.text },
+  modalItemNomeAtivo: { color: colors.primary },
+  modalItemCidade:  { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+  modalItemCheck:   { fontSize: fontSize.lg, color: colors.primary, marginLeft: spacing.sm },
 });
