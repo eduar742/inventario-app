@@ -48,7 +48,7 @@ export default function ScannerScreen({ navigation, route }) {
     return (raw || '').trim().replace(/[*\r\n\t]+/g, '').trim();
   }
 
-  function confirmarCodigoManual() {
+   function confirmarCodigoManual() {
     const codigo = limparCodigo(codigoManual);
     if (!codigo) return;
     setModalVisivel(false);
@@ -57,6 +57,7 @@ export default function ScannerScreen({ navigation, route }) {
       sessao,
       loja,
       onAdicionar: adicionarContagem,
+      quantidadeAnterior: totalAcumulado(codigo),
     });
   }
 
@@ -65,6 +66,13 @@ export default function ScannerScreen({ navigation, route }) {
   }
 
   const skusUnicos = new Set(contagens.map(c => c.codigoQr)).size;
+
+  // Calcula total ja acumulado para um QR code especifico
+  function totalAcumulado(codigoQr) {
+    return contagens
+      .filter(c => c.codigoQr === codigoQr)
+      .reduce((soma, c) => soma + (c.quantidade || 0), 0);
+  }
 
   function handleBarCodeScanned({ data }) {
     const codigo = limparCodigo(data);
@@ -78,6 +86,7 @@ export default function ScannerScreen({ navigation, route }) {
       sessao,
       loja,
       onAdicionar: adicionarContagem,
+      quantidadeAnterior: totalAcumulado(codigo), // total ja bipado para este SKU
     });
 
     // Reseta apos um pequeno delay para permitir nova leitura ao voltar

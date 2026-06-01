@@ -112,7 +112,6 @@ export default function ResumoScreen({ navigation, route }) {
     }
 
     // Pelo menos 1 item registrado: encerra a sessao automaticamente
-    // Isso impede o operador de bipar novamente
     try {
       console.log('[ResumoScreen] Encerrando sessao automaticamente...');
       await encerrarSessao(sessao.id);
@@ -120,9 +119,17 @@ export default function ResumoScreen({ navigation, route }) {
       setSessaoEncerrada(true);
       console.log('[ResumoScreen] Sessao encerrada. Divergencias geradas.');
     } catch (err) {
-      // Pode falhar se a sessao ja foi encerrada antes — ignora
-      console.warn('[ResumoScreen] Aviso ao encerrar sessao:', err.message);
-      setSessaoEncerrada(true); // considera encerrada mesmo assim
+      const msg = err.message || '';
+      // Sessao ja encerrada anteriormente: nao e erro, apenas registra
+      if (msg.includes('aguardando') || msg.includes('concluida') || msg.includes('cancelada') || err.status === 400) {
+        console.log('[ResumoScreen] Sessao ja estava encerrada:', msg);
+        setSessaoEncerrada(true);
+      } else {
+        // Erro real ao encerrar: avisa mas contagens ja foram salvas
+        console.error('[ResumoScreen] Erro ao encerrar sessao:', msg);
+        setSessaoEncerrada(false);
+        // Nao bloqueia — contagens foram salvas mas sessao pode ser encerrada manualmente
+      }
     }
 
     setPendentes(novosPendentes);

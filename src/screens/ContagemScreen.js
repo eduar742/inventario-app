@@ -22,7 +22,7 @@ import { buscarProdutoPorQR } from '../services/api';
 export default function ContagemScreen({ navigation, route }) {
   // Limpa asteriscos e caracteres extras que alguns coletores adicionam ao codigo
   const codigoQr = (route.params.codigoQr || '').trim().replace(/[*\r\n\t]+/g, '').trim();
-  const { sessao, loja } = route.params;
+  const { sessao, loja, quantidadeAnterior = 0 } = route.params;
 
   const [carregandoProduto, setCarregandoProduto] = useState(true);
   const [produto, setProduto] = useState(null);
@@ -115,6 +115,17 @@ export default function ContagemScreen({ navigation, route }) {
               <View style={estilos.dadosProduto}>
                 <Text style={estilos.dadoProduto}>UN: {produto.unidade_medida}</Text>
               </View>
+            </View>
+          )}
+
+          {/* Aviso de soma quando o mesmo SKU ja foi bipado antes */}
+          {quantidadeAnterior > 0 && (
+            <View style={estilos.cardSoma}>
+              <Text style={estilos.somaLabel}>Bipagem adicional — sera somada</Text>
+              <Text style={estilos.somaTexto}>
+                Ja bipado nesta sessao: <Text style={estilos.somaValor}>{quantidadeAnterior} {produto?.unidade_medida || ''}</Text>
+                {'\n'}Digite a quantidade deste local. O total sera somado automaticamente.
+              </Text>
             </View>
           )}
 
@@ -237,6 +248,29 @@ const estilos = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     marginRight: spacing.md,
+  },
+  cardSoma: {
+    backgroundColor: colors.successSoft,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.success,
+  },
+  somaLabel: {
+    fontSize: fontSize.sm,
+    color: colors.success,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  somaTexto: {
+    fontSize: fontSize.sm,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  somaValor: {
+    fontWeight: '700',
+    color: colors.success,
   },
   cardAviso: {
     backgroundColor: colors.primarySoft,

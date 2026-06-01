@@ -1,7 +1,8 @@
 // Tela de selecao de sessao de inventario.
 // Mostra as sessoes em andamento da loja que o operador escolheu.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -56,9 +57,18 @@ export default function SessoesScreen({ navigation, route }) {
   // 'ativas' = em_andamento + aguardando_aprovacao | 'concluidas' = concluida
   const [filtroVisao, setFiltroVisao] = useState('ativas');
 
+  // Recarrega ao montar e toda vez que o filtro mudar
   useEffect(() => {
     carregarDados();
   }, [filtroVisao]);
+
+  // Recarrega SEMPRE que a tela recebe foco (ex: ao voltar do Scanner/Resumo)
+  // Garante que status da sessao esteja atualizado apos encerramento
+  useFocusEffect(
+    useCallback(() => {
+      carregarDados();
+    }, [filtroVisao])
+  );
 
   async function carregarDados() {
     try {
