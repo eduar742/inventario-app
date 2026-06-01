@@ -12,22 +12,42 @@ import { buscarDashboardLojas, buscarDashboardHistorico } from '../services/api'
 
 const INTERVALO = 30000;
 
-function fmtMoeda(v) {
-  if (!v && v !== 0) return '—';
-  const n = parseFloat(v);
-  if (n >= 1000000) return `R$ ${(n / 1000000).toFixed(2)}M`;
-  if (n >= 1000)    return `R$ ${(n / 1000).toFixed(1)}k`;
-  return `R$ ${n.toFixed(2)}`;
-}
-
-function fmtMoedaCompleto(v) {
-  if (!v && v !== 0) return '—';
-  return `R$ ${parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Formata numero no padrao brasileiro sem depender de toLocaleString
+function _separadorMil(intStr) {
+  return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
 function fmtNum(v, decimais = 0) {
-  if (!v && v !== 0) return '—';
-  return parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: decimais, maximumFractionDigits: decimais });
+  if (v == null || isNaN(parseFloat(v))) return '—';
+  const n = parseFloat(v);
+  const fixed = Math.abs(n).toFixed(decimais);
+  const partes = fixed.split('.');
+  const intPart = _separadorMil(partes[0]);
+  const result = decimais > 0 ? `${intPart},${partes[1]}` : intPart;
+  return n < 0 ? `-${result}` : result;
+}
+
+function fmtMoeda(v) {
+  if (v == null || isNaN(parseFloat(v))) return '—';
+  const n = parseFloat(v);
+  const abs = Math.abs(n);
+  let str;
+  if (abs >= 1000000) str = `R$ ${(abs / 1000000).toFixed(2).replace('.', ',')}M`;
+  else if (abs >= 1000) str = `R$ ${(abs / 1000).toFixed(1).replace('.', ',')}k`;
+  else {
+    const p = abs.toFixed(2).split('.');
+    str = `R$ ${_separadorMil(p[0])},${p[1]}`;
+  }
+  return n < 0 ? `-${str}` : str;
+}
+
+function fmtMoedaCompleto(v) {
+  if (v == null || isNaN(parseFloat(v))) return '—';
+  const n = parseFloat(v);
+  const abs = Math.abs(n);
+  const p = abs.toFixed(2).split('.');
+  const str = `R$ ${_separadorMil(p[0])},${p[1]}`;
+  return n < 0 ? `-${str}` : str;
 }
 
 function corAcur(v) {
@@ -38,9 +58,10 @@ function corAcur(v) {
 
 // ── Painel de acuracidade (Valor / Unidades / Itens) ─────────────────────────
 function PainelAcuracidade({ titulo, dados, formatarTotal, formatarAdj, cor }) {
-  if (!dados) return null;
-  const corAcuracia = corAcur(dados.acuracidade);
-  const pct = Math.min(dados.acuracidade, 100);
+  if (!dados || typeof dados !== 'object') return null;
+  const acur = parseFloat(dados.acuracidade) || 0;
+  const corAcuracia = corAcur(acur);
+  const pct = Math.min(acur, 100);
 
   return (
     <View style={[estilos.painel, { borderTopColor: cor }]}>
@@ -48,7 +69,11 @@ function PainelAcuracidade({ titulo, dados, formatarTotal, formatarAdj, cor }) {
 
       <View style={estilos.painelLinha}>
         <Text style={estilos.painelLabel}>Total no Sistema</Text>
-        <Text style={estilos.painelValorPrincipal}>{formatarTotal(dados.total_sistema ?? dados.total ?? dados.total_estoque)}</Text>
+        <Text style={estilos.painelValorPrincipal}>
+          {formatarTotal(dados.total_sistema != null ? dados.total_sistema
+            : dados.total != null ? dados.total
+            : dados.total_estoque)}
+        </Text>
       </View>
 
       <View style={estilos.separador} />
@@ -68,10 +93,11 @@ function PainelAcuracidade({ titulo, dados, formatarTotal, formatarAdj, cor }) {
       <View style={[estilos.painelLinha, estilos.painelLinhaDestaque]}>
         <Text style={[estilos.painelLabel, { fontWeight: '700' }]}>Ajuste Líquido</Text>
         <Text style={[estilos.painelValorAdj, {
-          color: (dados.ajuste_liquido ?? dados.diferenca_itens ?? 0) < 0 ? colors.danger : colors.warning,
+          color: ((dados.ajuste_liquido != null ? dados.ajuste_liquido : dados.diferenca_itens) || 0) < 0
+            ? colors.danger : colors.warning,
           fontWeight: '700',
         }]}>
-          {formatarAdj(dados.ajuste_liquido ?? dados.diferenca_itens)}
+          {formatarAdj(dados.ajuste_liquido != null ? dados.ajuste_liquido : dados.diferenca_itens)}
         </Text>
       </View>
 
@@ -93,7 +119,7 @@ function PainelAcuracidade({ titulo, dados, formatarTotal, formatarAdj, cor }) {
           </View>
         </View>
         <Text style={[estilos.acuracidadeValor, { color: corAcuracia }]}>
-          {fmtNum(dados.acuracidade, 2)}%
+          {fmtNum(acur, 2)}%
         </Text>
       </View>
     </View>
