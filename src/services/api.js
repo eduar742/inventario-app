@@ -40,6 +40,12 @@ export async function pegarUsuario() {
 // WRAPPER DE FETCH COM TOKEN AUTOMATICO
 // ============================================================
 
+// No browser usa o fetch nativo (evita polyfill do React Native que pode
+// ter comportamento diferente com CORS em ambiente web)
+const _fetch = typeof window !== 'undefined' && window.fetch
+  ? window.fetch.bind(window)
+  : fetch;
+
 export async function chamarAPI(caminho, opcoes = {}) {
   const url = `${API_BASE_URL}${caminho}`;
   const token = await pegarToken();
@@ -54,7 +60,7 @@ export async function chamarAPI(caminho, opcoes = {}) {
   }
 
   try {
-    const resposta = await fetch(url, {
+    const resposta = await _fetch(url, {
       ...opcoes,
       headers,
     });
@@ -64,7 +70,6 @@ export async function chamarAPI(caminho, opcoes = {}) {
     try {
       dados = texto ? JSON.parse(texto) : null;
     } catch (_) {
-      // Servidor retornou texto puro em vez de JSON (ex: proxy/504)
       if (!resposta.ok) {
         const erro = new Error(`Erro ${resposta.status}: resposta inesperada do servidor`);
         erro.status = resposta.status;
@@ -81,8 +86,11 @@ export async function chamarAPI(caminho, opcoes = {}) {
 
     return dados;
   } catch (err) {
-    // Erro de rede (sem internet, timeout)
-    if (err.message === 'Network request failed') {
+    // Log para facilitar debug no browser (F12 > Console)
+    if (typeof window !== 'undefined') {
+      console.error('[API]', caminho, err.message, err);
+    }
+    if (err.message === 'Network request failed' || err.message === 'Failed to fetch') {
       const erro = new Error('Sem conexao com o servidor. Verifique sua internet.');
       erro.status = 0;
       throw erro;
