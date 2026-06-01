@@ -223,32 +223,32 @@ Telas registradas (em `src/navigation/AppNavigator.js`):
 
 ### Concluido (em producao)
 
-- [x] Backend FastAPI completo com 30+ endpoints
-- [x] PostgreSQL em producao com seed (11 lojas, admin, 10 produtos, 110 estoques)
-- [x] 8 camadas de seguranca implementadas e testadas
-- [x] App mobile com 5 telas funcionais
-- [x] Scanner de QR Code lendo em tempo real
-- [x] Login JWT funcionando ponta a ponta
-- [x] Inventario CEGO implementado (ContagemScreen sem saldo sistemico)
-- [x] Logica das 3 contagens funcional no backend
+- [x] Backend FastAPI com 44+ endpoints (PostgreSQL, Render.com)
+- [x] 17 lojas ativas, admin, 10 produtos de exemplo, estoque historico temporal
+- [x] 8 camadas de seguranca (JWT, bcrypt, rate limit, headers OWASP, audit log, LGPD)
+- [x] App mobile com 13 telas funcionais (Expo SDK 54)
+- [x] Scanner QR Code em tempo real + input manual de codigo
+- [x] Inventario CEGO com acumulador local + soma de parciais
+- [x] Logica de 3 contagens com recontagem interativa no Resumo
+- [x] Fluxo completo de sessao: criar -> iniciar -> encerrar -> divergencias -> concluir
+- [x] Sistema de importacao de planilhas xlsx/csv (modo completo e parcial)
+- [x] Sistema de relatorios xlsx/pdf/csv com 5 perfis de auditoria
+- [x] Tela de criacao de sessao com validacao de mes importado
+- [x] Tela de divergencias com aprovar/rejeitar e botao Concluir sessao
+- [x] Historico de contagens por sessao com busca
+- [x] Gerenciamento de usuarios (ADM cria gestores, atribui lojas)
+- [x] Cancelamento de sessao pelo app (ADM)
+- [x] Documentacao tecnica: ARQUITETURA.md, SEGURANCA.md, LGPD.md
+- [x] 1o commit do app mobile no repositorio local (aguardando GitHub)
 
 ### Pendente (curto prazo)
 
-- [ ] Documentacao tecnica:
-  - [ ] Criar pasta `docs/` no backend
-  - [ ] `ARQUITETURA.md` (stack, modelo de dados, decisoes, roadmap incluindo Parciais)
-  - [ ] `SEGURANCA.md` (controles, gaps, ISO 27001 Anexo A, OWASP Top 10)
-  - [ ] `LGPD.md` (mapeamento de dados, base legal, retencao, DPO a confirmar)
-- [ ] Commit final do backend no GitHub
-- [ ] Criar repositorio do app mobile no GitHub + 1o commit
+- [ ] Criar repositorio GitHub do app mobile + push
 - [ ] Apresentacao para o time de TI
+- [ ] Populat loja_id para gestores existentes no banco de producao
 
 ### Roadmap (medio prazo, pos-apresentacao)
 
-- [ ] Implementar Contagens Parciais com Soma (4-6h)
-- [ ] Tela de ADM para criar sessoes pelo app (criacao e exclusiva do ADM)
-- [ ] Tela de historico de contagens
-- [ ] Tela de divergencias (visualizar e resolver)
 - [ ] Multi-operador na mesma sessao
 - [ ] Notificacoes push quando recontagem necessaria
 
