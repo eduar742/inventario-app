@@ -248,47 +248,82 @@ export function DashboardHistoricoScreen({ navigation, route }) {
           <>
             <View style={estilos.sessaoHeader}>
               <Text style={estilos.sessaoHeaderTitulo}>{ultimo.sessao_nome}</Text>
-              <Text style={estilos.sessaoHeaderSub}>{ultimo.mes} · {ultimo.total_auditados}/{ultimo.total_produtos} produtos</Text>
+              <Text style={estilos.sessaoHeaderSub}>
+                {ultimo.mes} · {ultimo.total_auditados}/{ultimo.total_produtos} produtos
+              </Text>
             </View>
 
-            {ultimo.apuracao_valor && (
-              <PainelAcuracidade
-                titulo="APURAÇÃO DE VALOR"
-                dados={ultimo.apuracao_valor}
-                formatarTotal={fmtMoedaCompleto}
-                formatarAdj={fmtMoedaCompleto}
-                cor="#1E40AF"
-              />
-            )}
-
-            {ultimo.apuracao_unidades && (
-              <PainelAcuracidade
-                titulo="APURAÇÃO DE UNIDADES"
-                dados={ultimo.apuracao_unidades}
-                formatarTotal={v => fmtNum(v, 0)}
-                formatarAdj={v => fmtNum(v, 0)}
-                cor="#0284C7"
-              />
-            )}
-
-            {ultimo.apuracao_itens && (
-              <PainelAcuracidade
-                titulo="APURAÇÃO DE ITENS (SKUs)"
-                dados={{
-                  ...ultimo.apuracao_itens,
-                  total_sistema: ultimo.apuracao_itens.total,
-                  ajuste_liquido: ultimo.apuracao_itens.diferenca_itens,
-                }}
-                formatarTotal={v => fmtNum(v, 0)}
-                formatarAdj={v => fmtNum(v, 0)}
-                cor="#7C3AED"
-              />
+            {/* Paineis detalhados (disponiveis apos deploy do backend) */}
+            {ultimo.apuracao_valor ? (
+              <>
+                <PainelAcuracidade
+                  titulo="APURAÇÃO DE VALOR"
+                  dados={ultimo.apuracao_valor}
+                  formatarTotal={fmtMoedaCompleto}
+                  formatarAdj={fmtMoedaCompleto}
+                  cor="#1E40AF"
+                />
+                <PainelAcuracidade
+                  titulo="APURAÇÃO DE UNIDADES"
+                  dados={ultimo.apuracao_unidades}
+                  formatarTotal={v => fmtNum(v, 0)}
+                  formatarAdj={v => fmtNum(v, 0)}
+                  cor="#0284C7"
+                />
+                {ultimo.apuracao_itens && (
+                  <PainelAcuracidade
+                    titulo="APURAÇÃO DE ITENS (SKUs)"
+                    dados={{
+                      total_sistema: ultimo.apuracao_itens.total,
+                      acerto_positivo: ultimo.apuracao_itens.acerto_positivo,
+                      acerto_negativo: ultimo.apuracao_itens.acerto_negativo,
+                      ajuste_liquido: ultimo.apuracao_itens.diferenca_itens,
+                      diferenca_pct: ultimo.apuracao_itens.diferenca_pct,
+                      acuracidade: ultimo.apuracao_itens.acuracidade,
+                    }}
+                    formatarTotal={v => fmtNum(v, 0)}
+                    formatarAdj={v => fmtNum(v, 0)}
+                    cor="#7C3AED"
+                  />
+                )}
+              </>
+            ) : (
+              /* Fallback simples enquanto backend atualiza */
+              <View style={estilos.painelFallback}>
+                <View style={estilos.painelFallbackRow}>
+                  <Text style={estilos.painelFallbackLabel}>Acuracidade</Text>
+                  <Text style={[estilos.painelFallbackValor, { color: corAcur(ultimo.acuracidade) }]}>
+                    {fmtNum(ultimo.acuracidade, 1)}%
+                  </Text>
+                </View>
+                <View style={estilos.painelFallbackRow}>
+                  <Text style={estilos.painelFallbackLabel}>Produtos auditados</Text>
+                  <Text style={estilos.painelFallbackValor}>
+                    {ultimo.total_auditados} / {ultimo.total_produtos}
+                  </Text>
+                </View>
+                <View style={estilos.painelFallbackRow}>
+                  <Text style={estilos.painelFallbackLabel}>Divergentes</Text>
+                  <Text style={[estilos.painelFallbackValor, { color: colors.danger }]}>
+                    {ultimo.total_divergentes}
+                  </Text>
+                </View>
+                <View style={estilos.painelFallbackRow}>
+                  <Text style={estilos.painelFallbackLabel}>Valor divergente</Text>
+                  <Text style={[estilos.painelFallbackValor, { color: colors.danger }]}>
+                    {fmtMoeda(ultimo.valor_divergente)}
+                  </Text>
+                </View>
+                <TouchableOpacity style={estilos.botaoRecarregar} onPress={carregar}>
+                  <Text style={estilos.botaoRecarregarTexto}>Recarregar dados completos</Text>
+                </TouchableOpacity>
+              </View>
             )}
           </>
         )}
 
         {/* ── HISTORICO DE SESSOES ── */}
-        {hist.length > 1 && (
+        {hist.length >= 1 && (
           <>
             <Text style={[estilos.dica, { marginTop: spacing.lg, textAlign: 'left', fontWeight: '700', color: colors.textSecondary }]}>
               HISTÓRICO DE SESSÕES
@@ -436,6 +471,21 @@ const estilos = StyleSheet.create({
 
   // Histórico de sessões
   semDados:    { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', padding: spacing.xl },
+  painelFallback: {
+    backgroundColor: colors.background, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md,
+  },
+  painelFallbackRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  painelFallbackLabel: { fontSize: fontSize.sm, color: colors.textSecondary },
+  painelFallbackValor: { fontSize: fontSize.md, fontWeight: '700', color: colors.text },
+  botaoRecarregar: {
+    padding: spacing.md, alignItems: 'center',
+  },
+  botaoRecarregarTexto: { fontSize: fontSize.sm, color: colors.primary, fontWeight: '600' },
   histRow:   { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background,
                borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.xs,
                borderWidth: 1, borderColor: colors.border },
