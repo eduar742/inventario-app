@@ -12,12 +12,36 @@ import {
   Alert,
   SafeAreaView,
   RefreshControl,
+  Platform,
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarSessoes, pegarUsuario, cancelarSessao, encerrarSessao, gerarDivergencias } from '../services/api';
 import Button from '../components/Button';
 import { exportarEstoque } from '../services/exportacao';
+
+// ── Helpers compatíveis com web ──────────────────────────────────────────────
+// Alert.alert com multiplos botoes nao funciona no browser.
+// Na web: window.confirm() para decisao sim/nao, window.alert() para avisos.
+
+function confirmar(titulo, mensagem, aoConfirmar) {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${titulo}\n\n${mensagem}`)) aoConfirmar();
+  } else {
+    Alert.alert(titulo, mensagem, [
+      { text: 'Voltar', style: 'cancel' },
+      { text: titulo, style: 'destructive', onPress: aoConfirmar },
+    ]);
+  }
+}
+
+function avisar(titulo, mensagem) {
+  if (Platform.OS === 'web') {
+    window.alert(mensagem ? `${titulo}\n\n${mensagem}` : titulo);
+  } else {
+    Alert.alert(titulo, mensagem);
+  }
+}
 
 export default function SessoesScreen({ navigation, route }) {
   const { loja } = route.params;
@@ -55,7 +79,7 @@ export default function SessoesScreen({ navigation, route }) {
         setSessoes([...aguardando, ...andamento]); // aguardando primeiro (precisa atenção)
       }
     } catch (err) {
-      Alert.alert('Erro', err.message || 'Nao foi possivel carregar as sessoes');
+      avisar('Erro', err.message || 'Nao foi possivel carregar as sessoes');
     } finally {
       setCarregando(false);
       setRefreshing(false);
@@ -63,32 +87,22 @@ export default function SessoesScreen({ navigation, route }) {
   }
 
   async function handleEncerrar(sessao) {
-    Alert.alert(
+    confirmar(
       'Encerrar sessao',
       `Encerrar "${sessao.nome}"?\n\nIsso gera as divergencias para revisao. Operadores nao poderao mais bipar.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Encerrar',
-          style: 'destructive',
-          onPress: async () => {
-            setEncerrando(sessao.id);
-            try {
-              await encerrarSessao(sessao.id);
-              await gerarDivergencias(sessao.id);
-              await carregarDados();
-              Alert.alert(
-                'Sessao encerrada',
-                'Divergencias geradas. Acesse "Divergencias" para aprovar ou rejeitar os ajustes.',
-              );
-            } catch (err) {
-              Alert.alert('Erro', err.message || 'Nao foi possivel encerrar');
-            } finally {
-              setEncerrando(null);
-            }
-          },
-        },
-      ]
+      async () => {
+        setEncerrando(sessao.id);
+        try {
+          await encerrarSessao(sessao.id);
+          await gerarDivergencias(sessao.id);
+          await carregarDados();
+          avisar('Sessao encerrada', 'Divergencias geradas. Acesse "Divergencias" para aprovar ou rejeitar os ajustes.');
+        } catch (err) {
+          avisar('Erro', err.message || 'Nao foi possivel encerrar');
+        } finally {
+          setEncerrando(null);
+        }
+      }
     );
   }
 
@@ -98,17 +112,10 @@ export default function SessoesScreen({ navigation, route }) {
   }
 
   function handleCancelar(sessao) {
-    Alert.alert(
+    confirmar(
       'Cancelar sessao',
       `Deseja cancelar "${sessao.nome}"?\n\nEsta acao nao pode ser desfeita.`,
-      [
-        { text: 'Voltar', style: 'cancel' },
-        {
-          text: 'Cancelar sessao',
-          style: 'destructive',
-          onPress: () => confirmarCancelamento(sessao),
-        },
-      ]
+      () => confirmarCancelamento(sessao),
     );
   }
 
@@ -118,7 +125,7 @@ export default function SessoesScreen({ navigation, route }) {
       await cancelarSessao(sessao.id);
       setSessoes(prev => prev.filter(s => s.id !== sessao.id));
     } catch (err) {
-      Alert.alert('Erro', err.message || 'Nao foi possivel cancelar a sessao');
+      avisar('Erro', err.message || 'Nao foi possivel cancelar a sessao');
     } finally {
       setCancelando(null);
     }
@@ -371,7 +378,7 @@ export default function SessoesScreen({ navigation, route }) {
                 try {
                   await exportarEstoque(loja.id, loja.codigo);
                 } catch (err) {
-                  Alert.alert('Erro ao exportar', err.message || 'Tente novamente');
+                  avisar('Erro ao exportar', err.message || 'Tente novamente');
                 } finally {
                   setExportando(false);
                 }
