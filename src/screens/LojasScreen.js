@@ -125,9 +125,14 @@ export default function LojasScreen({ navigation }) {
             <Text style={estilos.nomeUsuario} numberOfLines={1}>{usuario.nome}</Text>
           </View>
             {usuario?.papel === 'admin' && (
-            <TouchableOpacity onPress={() => navigation.navigate('Gestores')} style={estilos.botaoGestores}>
-              <Text style={estilos.textoGestores}>Usuarios</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity onPress={() => navigation.navigate('Dashboard')} style={estilos.botaoDashboard}>
+                <Text style={estilos.textoDashboard}>Dashboard</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('Gestores')} style={estilos.botaoGestores}>
+                <Text style={estilos.textoGestores}>Usuarios</Text>
+              </TouchableOpacity>
+            </>
           )}
           <TouchableOpacity onPress={fazerLogout} style={estilos.botaoSair}>
             <Text style={estilos.textoSair}>Sair</Text>
@@ -197,6 +202,18 @@ const estilos = StyleSheet.create({
   botaoSair: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
+  },
+  botaoDashboard: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.successSoft,
+    marginRight: spacing.xs,
+  },
+  textoDashboard: {
+    fontSize: fontSize.sm,
+    color: colors.success,
+    fontWeight: '600',
   },
   botaoGestores: {
     paddingVertical: spacing.xs,

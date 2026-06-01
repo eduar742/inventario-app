@@ -15,6 +15,8 @@ import HistoricoImportacoesScreen from '../screens/HistoricoImportacoesScreen';
 import ExportarRelatorioScreen   from '../screens/ExportarRelatorioScreen';
 import CriarSessaoScreen         from '../screens/CriarSessaoScreen';
 import GestoresScreen            from '../screens/GestoresScreen';
+import DashboardScreen           from '../screens/DashboardScreen';
+import DashboardLojasScreen, { DashboardHistoricoScreen } from '../screens/DashboardLojasScreen';
 import DivergenciasScreen        from '../screens/DivergenciasScreen';
 import HistoricoContagensScreen  from '../screens/HistoricoContagensScreen';
 
@@ -51,6 +53,11 @@ export default function AppNavigator() {
         {/* Gestao (ADM) */}
         <Stack.Screen name="CriarSessao" component={CriarSessaoScreen} options={{ title: 'Nova sessao' }} />
         <Stack.Screen name="Gestores"    component={GestoresScreen}    options={{ title: 'Usuarios' }} />
+
+        {/* Dashboard */}
+        <Stack.Screen name="Dashboard"          component={DashboardScreen}          options={{ title: 'Dashboard' }} />
+        <Stack.Screen name="DashboardLojas"     component={DashboardLojasScreen}     options={{ title: 'Dashboard por loja' }} />
+        <Stack.Screen name="DashboardHistorico" component={DashboardHistoricoScreen} options={({ route }) => ({ title: route.params?.loja?.codigo || 'Historico' })} />
 
         {/* Pos-inventario */}
         <Stack.Screen name="Divergencias"       component={DivergenciasScreen}       options={{ title: 'Divergencias' }} />

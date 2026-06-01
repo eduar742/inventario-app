@@ -332,6 +332,22 @@ export async function listarMesesImportados(lojaId) {
 }
 
 // ============================================================
+// ENDPOINTS DE DASHBOARD
+// ============================================================
+
+export async function buscarDashboardGeral() {
+  return await chamarAPI('/api/v1/dashboard');
+}
+
+export async function buscarDashboardLojas() {
+  return await chamarAPI('/api/v1/dashboard/lojas');
+}
+
+export async function buscarDashboardHistorico(lojaId, meses = 6) {
+  return await chamarAPI(`/api/v1/dashboard/historico/${lojaId}?meses=${meses}`);
+}
+
+// ============================================================
 // ENDPOINTS DE RELATORIOS
 // ============================================================
 
