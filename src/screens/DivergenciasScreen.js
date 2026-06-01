@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, SafeAreaView,
-  ActivityIndicator, Alert, RefreshControl, TouchableOpacity,
+  ActivityIndicator, Alert, RefreshControl, TouchableOpacity, Platform,
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
@@ -16,6 +16,26 @@ const STATUS_COR = {
   aprovada:  { bg: colors.successSoft,  txt: colors.success },
   rejeitada: { bg: colors.dangerSoft,   txt: colors.danger  },
 };
+
+// Helpers compatíveis com web (Alert.alert com botoes nao funciona no browser)
+function confirmar(titulo, mensagem, aoConfirmar) {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${titulo}\n\n${mensagem}`)) aoConfirmar();
+  } else {
+    Alert.alert(titulo, mensagem, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: titulo, style: 'destructive', onPress: aoConfirmar },
+    ]);
+  }
+}
+
+function avisar(titulo, mensagem) {
+  if (Platform.OS === 'web') {
+    window.alert(mensagem ? `${titulo}\n\n${mensagem}` : titulo);
+  } else {
+    Alert.alert(titulo, mensagem);
+  }
+}
 
 export default function DivergenciasScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
@@ -34,63 +54,54 @@ export default function DivergenciasScreen({ navigation, route }) {
       const dados = await listarDivergencias(sessao.id);
       setDivergencias(dados);
     } catch (err) {
-      Alert.alert('Erro', err.message || 'Nao foi possivel carregar as divergencias');
+      avisar('Erro', err.message || 'Nao foi possivel carregar as divergencias');
     } finally {
       setCarregando(false);
       setRefreshing(false);
     }
   }
 
-  async function handleAprovar(div) {
-    Alert.alert(
+  async function executarAprovar(div) {
+    setProcessando(div.id);
+    try {
+      await aprovarDivergencia(div.id);
+      setDivergencias(prev =>
+        prev.map(d => d.id === div.id ? { ...d, status: 'aprovada' } : d)
+      );
+    } catch (err) {
+      avisar('Erro', err.message || 'Nao foi possivel aprovar');
+    } finally {
+      setProcessando(null);
+    }
+  }
+
+  async function executarRejeitar(div) {
+    setProcessando(div.id);
+    try {
+      await rejeitarDivergencia(div.id);
+      setDivergencias(prev =>
+        prev.map(d => d.id === div.id ? { ...d, status: 'rejeitada' } : d)
+      );
+    } catch (err) {
+      avisar('Erro', err.message || 'Nao foi possivel rejeitar');
+    } finally {
+      setProcessando(null);
+    }
+  }
+
+  function handleAprovar(div) {
+    confirmar(
       'Aprovar divergencia',
       `Aprovar ajuste de ${_fmtNum(div.diferenca)} ${div.unidade_medida || ''} para "${div.descricao_produto}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Aprovar',
-          onPress: async () => {
-            setProcessando(div.id);
-            try {
-              await aprovarDivergencia(div.id);
-              setDivergencias(prev =>
-                prev.map(d => d.id === div.id ? { ...d, status: 'aprovada' } : d)
-              );
-            } catch (err) {
-              Alert.alert('Erro', err.message || 'Nao foi possivel aprovar');
-            } finally {
-              setProcessando(null);
-            }
-          },
-        },
-      ]
+      () => executarAprovar(div),
     );
   }
 
-  async function handleRejeitar(div) {
-    Alert.alert(
+  function handleRejeitar(div) {
+    confirmar(
       'Rejeitar divergencia',
       `Rejeitar ajuste para "${div.descricao_produto}"? O saldo do sistema sera mantido.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Rejeitar',
-          style: 'destructive',
-          onPress: async () => {
-            setProcessando(div.id);
-            try {
-              await rejeitarDivergencia(div.id);
-              setDivergencias(prev =>
-                prev.map(d => d.id === div.id ? { ...d, status: 'rejeitada' } : d)
-              );
-            } catch (err) {
-              Alert.alert('Erro', err.message || 'Nao foi possivel rejeitar');
-            } finally {
-              setProcessando(null);
-            }
-          },
-        },
-      ]
+      () => executarRejeitar(div),
     );
   }
 
@@ -201,11 +212,10 @@ export default function DivergenciasScreen({ navigation, route }) {
             setConcluindo(true);
             try {
               await concluirSessao(sessao.id);
-              Alert.alert('Sessao concluida!', 'O inventario foi finalizado com sucesso.', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-              ]);
+              avisar('Sessao concluida!', 'O inventario foi finalizado com sucesso.');
+              navigation.goBack();
             } catch (err) {
-              Alert.alert('Erro', err.message || 'Nao foi possivel concluir');
+              avisar('Erro', err.message || 'Nao foi possivel concluir');
             } finally {
               setConcluindo(false);
             }
