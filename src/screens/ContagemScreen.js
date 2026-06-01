@@ -20,7 +20,9 @@ import Button from '../components/Button';
 import { buscarProdutoPorQR } from '../services/api';
 
 export default function ContagemScreen({ navigation, route }) {
-  const { codigoQr, sessao, loja } = route.params;
+  // Limpa asteriscos e caracteres extras que alguns coletores adicionam ao codigo
+  const codigoQr = (route.params.codigoQr || '').trim().replace(/[*\r\n\t]+/g, '').trim();
+  const { sessao, loja } = route.params;
 
   const [carregandoProduto, setCarregandoProduto] = useState(true);
   const [produto, setProduto] = useState(null);

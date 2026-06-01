@@ -43,8 +43,13 @@ export default function ScannerScreen({ navigation, route }) {
     }
   }, [permissao]);
 
- function confirmarCodigoManual() {
-    const codigo = codigoManual.trim();
+  // Remove caracteres extras que alguns coletores adicionam (asterisco, CR, LF, espacos)
+  function limparCodigo(raw) {
+    return (raw || '').trim().replace(/[*\r\n\t]+/g, '').trim();
+  }
+
+  function confirmarCodigoManual() {
+    const codigo = limparCodigo(codigoManual);
     if (!codigo) return;
     setModalVisivel(false);
     navigation.navigate('Contagem', {
@@ -61,13 +66,15 @@ export default function ScannerScreen({ navigation, route }) {
 
   const skusUnicos = new Set(contagens.map(c => c.codigoQr)).size;
 
- function handleBarCodeScanned({ data }) {
-    if (escaneado || data === ultimoCodigoRef.current) return;
+  function handleBarCodeScanned({ data }) {
+    const codigo = limparCodigo(data);
+    if (!codigo) return;
+    if (escaneado || codigo === ultimoCodigoRef.current) return;
     setEscaneado(true);
-    ultimoCodigoRef.current = data;
+    ultimoCodigoRef.current = codigo;
 
     navigation.navigate('Contagem', {
-      codigoQr: data,
+      codigoQr: codigo,
       sessao,
       loja,
       onAdicionar: adicionarContagem,
