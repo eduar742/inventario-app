@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
-import { registrarContagem } from '../services/api';
+import { registrarContagem, encerrarSessao, gerarDivergencias } from '../services/api';
 import { exportarSessao } from '../services/exportacao';
 
 export default function ResumoScreen({ navigation, route }) {
@@ -23,7 +23,8 @@ export default function ResumoScreen({ navigation, route }) {
   const [processando, setProcessando] = useState(true);
   const [confirmados, setConfirmados] = useState([]);
   const [pendentes, setPendentes] = useState([]);
-  const [erroGeral, setErroGeral] = useState(''); // erro critico visivel
+  const [erroGeral, setErroGeral] = useState('');
+  const [sessaoEncerrada, setSessaoEncerrada] = useState(false);
   const [itemAtivoIdx, setItemAtivoIdx] = useState(null);
   const [quantidade, setQuantidade] = useState('');
   const [registrando, setRegistrando] = useState(false);
@@ -98,12 +99,30 @@ export default function ResumoScreen({ navigation, route }) {
       }
     }
 
-    // Se TODOS falharam, exibe erro critico
+    // Se TODOS falharam, exibe erro critico (nao encerra a sessao)
     if (totalErros === itensMapa.length && itensMapa.length > 0) {
       setErroGeral(
         `Nenhum item foi salvo. Erro: ${primeiroErro}\n\n` +
         `Verifique se a sessao ainda esta em andamento e se os produtos estao cadastrados.`
       );
+      setPendentes(novosPendentes);
+      setConfirmados(novosConfirmados);
+      setProcessando(false);
+      return;
+    }
+
+    // Pelo menos 1 item registrado: encerra a sessao automaticamente
+    // Isso impede o operador de bipar novamente
+    try {
+      console.log('[ResumoScreen] Encerrando sessao automaticamente...');
+      await encerrarSessao(sessao.id);
+      await gerarDivergencias(sessao.id);
+      setSessaoEncerrada(true);
+      console.log('[ResumoScreen] Sessao encerrada. Divergencias geradas.');
+    } catch (err) {
+      // Pode falhar se a sessao ja foi encerrada antes — ignora
+      console.warn('[ResumoScreen] Aviso ao encerrar sessao:', err.message);
+      setSessaoEncerrada(true); // considera encerrada mesmo assim
     }
 
     setPendentes(novosPendentes);
@@ -187,6 +206,17 @@ export default function ResumoScreen({ navigation, route }) {
           contentContainerStyle={estilos.scroll}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Banner de sessao encerrada automaticamente */}
+          {sessaoEncerrada && !erroGeral && (
+            <View style={estilos.bannerSessaoEncerrada}>
+              <Text style={estilos.bannerSessaoEncerradaTitulo}>Sessao encerrada</Text>
+              <Text style={estilos.bannerSessaoEncerradaTexto}>
+                O inventario foi finalizado. Nenhuma bipagem adicional e possivel nesta sessao.
+                {'\n'}ADM/Gestor pode revisar as divergencias pelo menu da sessao.
+              </Text>
+            </View>
+          )}
+
           {/* Banner de erro critico — aparece quando TODOS os itens falharam */}
           {erroGeral ? (
             <View style={estilos.bannerErroCritico}>
@@ -562,6 +592,25 @@ const estilos = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.danger,
     marginTop: 4,
+  },
+  bannerSessaoEncerrada: {
+    backgroundColor: colors.successSoft,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.success,
+  },
+  bannerSessaoEncerradaTitulo: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.success,
+    marginBottom: 4,
+  },
+  bannerSessaoEncerradaTexto: {
+    fontSize: fontSize.sm,
+    color: colors.text,
+    lineHeight: 20,
   },
   textoCarregandoSub: {
     fontSize: fontSize.xs,
