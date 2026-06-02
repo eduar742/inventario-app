@@ -11,6 +11,7 @@ import {
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { buscarDashboardLojas, buscarDashboardHistorico } from '../services/api';
+import NaturezaFiltro from '../components/NaturezaFiltro';
 
 const INTERVALO = 30000;
 
@@ -103,13 +104,14 @@ export default function DashboardLojasScreen({ navigation }) {
   const [lojas, setLojas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [naturezaId, setNaturezaId] = useState(null);
   const timer = useRef(null);
 
   const carregar = useCallback(async (s = false) => {
     if (!s) setCarregando(true);
-    try { const d = await buscarDashboardLojas(); setLojas(d); } catch (_) {}
+    try { const d = await buscarDashboardLojas(naturezaId); setLojas(d); } catch (_) {}
     finally { setCarregando(false); setRefreshing(false); }
-  }, []);
+  }, [naturezaId]);
 
   useEffect(() => {
     carregar();
@@ -149,7 +151,15 @@ export default function DashboardLojasScreen({ navigation }) {
     <SafeAreaView style={estilos.container}>
       <FlatList data={lojas} renderItem={renderLoja} keyExtractor={l => l.loja_id}
         contentContainerStyle={estilos.lista}
-        ListHeaderComponent={<Text style={estilos.dica}>Toque para ver o consolidado detalhado</Text>}
+        ListHeaderComponent={
+          <>
+            <NaturezaFiltro
+              value={naturezaId}
+              onChange={id => { setNaturezaId(id); setCarregando(true); }}
+            />
+            <Text style={estilos.dica}>Toque para ver o consolidado detalhado</Text>
+          </>
+        }
         refreshControl={<RefreshControl refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); carregar(); }}
           colors={[colors.primary]} tintColor={colors.primary} />}
@@ -164,15 +174,16 @@ export function DashboardHistoricoScreen({ navigation, route }) {
   const [historico, setHistorico] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [meses, setMeses] = useState(6);
-  const [sessaoIdx, setSessaoIdx] = useState(null); // null = mais recente
+  const [sessaoIdx, setSessaoIdx] = useState(null);
+  const [naturezaId, setNaturezaId] = useState(null);
   const timer = useRef(null);
 
   const carregar = useCallback(async (s = false) => {
     if (!s) setCarregando(true);
-    try { const d = await buscarDashboardHistorico(loja.loja_id, meses); setHistorico(d); }
+    try { const d = await buscarDashboardHistorico(loja.loja_id, meses, naturezaId); setHistorico(d); }
     catch (_) {}
     finally { setCarregando(false); }
-  }, [loja.loja_id, meses]);
+  }, [loja.loja_id, meses, naturezaId]);
 
   useEffect(() => {
     setSessaoIdx(null);
@@ -247,6 +258,12 @@ export function DashboardHistoricoScreen({ navigation, route }) {
       <ScrollView contentContainerStyle={estilos.lista}
         refreshControl={<RefreshControl refreshing={false} onRefresh={carregar}
           colors={[colors.primary]} tintColor={colors.primary} />}>
+
+        {/* Filtro por natureza */}
+        <NaturezaFiltro
+          value={naturezaId}
+          onChange={id => { setNaturezaId(id); setSessaoIdx(null); setCarregando(true); }}
+        />
 
         {/* Seletor de periodo */}
         <View style={estilos.periodoRow}>

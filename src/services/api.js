@@ -366,16 +366,20 @@ export async function listarMesesImportados(lojaId) {
 // ENDPOINTS DE DASHBOARD
 // ============================================================
 
-export async function buscarDashboardGeral() {
-  return await chamarAPI('/api/v1/dashboard');
+export async function buscarDashboardGeral(naturezaFiltroId) {
+  const params = naturezaFiltroId ? `?natureza_filtro_id=${naturezaFiltroId}` : '';
+  return await chamarAPI(`/api/v1/dashboard${params}`);
 }
 
-export async function buscarDashboardLojas() {
-  return await chamarAPI('/api/v1/dashboard/lojas');
+export async function buscarDashboardLojas(naturezaFiltroId) {
+  const params = naturezaFiltroId ? `?natureza_filtro_id=${naturezaFiltroId}` : '';
+  return await chamarAPI(`/api/v1/dashboard/lojas${params}`);
 }
 
-export async function buscarDashboardHistorico(lojaId, meses = 6) {
-  return await chamarAPI(`/api/v1/dashboard/historico/${lojaId}?meses=${meses}`);
+export async function buscarDashboardHistorico(lojaId, meses = 6, naturezaFiltroId) {
+  const params = new URLSearchParams({ meses });
+  if (naturezaFiltroId) params.append('natureza_filtro_id', naturezaFiltroId);
+  return await chamarAPI(`/api/v1/dashboard/historico/${lojaId}?${params}`);
 }
 
 // ============================================================

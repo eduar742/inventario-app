@@ -10,6 +10,7 @@ import {
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { buscarDashboardGeral } from '../services/api';
+import NaturezaFiltro from '../components/NaturezaFiltro';
 
 const INTERVALO = 30000;
 
@@ -62,17 +63,18 @@ export default function DashboardScreen({ navigation }) {
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [ultimaAtu, setUltimaAtu] = useState(null);
+  const [naturezaId, setNaturezaId] = useState(null);
   const timerRef = useRef(null);
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
     try {
-      const d = await buscarDashboardGeral();
+      const d = await buscarDashboardGeral(naturezaId);
       setDados(d);
       setUltimaAtu(new Date());
     } catch (_) {}
     finally { setCarregando(false); setRefreshing(false); }
-  }, []);
+  }, [naturezaId]);
 
   useEffect(() => {
     carregar();
@@ -105,6 +107,12 @@ export default function DashboardScreen({ navigation }) {
             colors={[colors.primary]} tintColor={colors.primary} />
         }
       >
+        {/* Filtro por natureza */}
+        <NaturezaFiltro
+          value={naturezaId}
+          onChange={id => { setNaturezaId(id); setCarregando(true); }}
+        />
+
         {/* Header */}
         <View style={estilos.header}>
           <View>
