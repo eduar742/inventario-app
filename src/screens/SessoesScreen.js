@@ -423,13 +423,23 @@ export default function SessoesScreen({ navigation, route }) {
             </TouchableOpacity>
           )}
 
-          {/* M6: Relatorio consolidado (admin) */}
+          {/* Relatorio consolidado (admin) */}
           {isAdmin && (
             <TouchableOpacity
               style={[estilos.chip, { backgroundColor: '#F3E8FF', borderColor: '#7C3AED' }]}
               onPress={() => navigation.navigate('RelatorioConsolidado')}
             >
               <Text style={[estilos.chipTexto, { color: '#7C3AED' }]}>Rel. Geral</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Dashboard consolidado gerencial (admin) */}
+          {isAdmin && (
+            <TouchableOpacity
+              style={[estilos.chip, { backgroundColor: '#ECFDF5', borderColor: '#059669' }]}
+              onPress={() => navigation.navigate('DashboardConsolidado')}
+            >
+              <Text style={[estilos.chipTexto, { color: '#059669' }]}>Consolidado</Text>
             </TouchableOpacity>
           )}
         </View>
