@@ -7,6 +7,7 @@ import {
   ActivityIndicator, Alert, RefreshControl, TextInput,
 } from 'react-native';
 
+import { avisar, confirmar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarContagensDaSessao } from '../services/api';
 
@@ -30,7 +31,7 @@ export default function HistoricoContagensScreen({ navigation, route }) {
       setContagens(dados);
       agrupar(dados, '');
     } catch (err) {
-      Alert.alert('Erro', err.message || 'Nao foi possivel carregar o historico');
+      avisar('Erro', err.message || 'Nao foi possivel carregar o historico');
     } finally {
       setCarregando(false);
       setRefreshing(false);

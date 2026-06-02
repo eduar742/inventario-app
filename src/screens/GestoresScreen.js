@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
+import { avisar, confirmar } from '../utils/alertas';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import { listarUsuarios, criarUsuarioAPI, atualizarUsuario, listarLojas } from '../services/api';
@@ -48,7 +49,7 @@ export default function GestoresScreen({ navigation }) {
       setUsuarios(us);
       setLojas(ls.filter(l => l.ativa));
     } catch (err) {
-      Alert.alert('Erro', err.message || 'Nao foi possivel carregar');
+      avisar('Erro', err.message || 'Nao foi possivel carregar');
     } finally {
       setCarregando(false);
       setRefreshing(false);
@@ -70,9 +71,9 @@ export default function GestoresScreen({ navigation }) {
   }
 
   async function handleSalvar() {
-    if (!nome.trim()) { Alert.alert('Atencao', 'Informe o nome'); return; }
-    if (!editando && !email.trim()) { Alert.alert('Atencao', 'Informe o email'); return; }
-    if (!editando && !senha.trim()) { Alert.alert('Atencao', 'Informe a senha'); return; }
+    if (!nome.trim()) { avisar('Atencao', 'Informe o nome'); return; }
+    if (!editando && !email.trim()) { avisar('Atencao', 'Informe o email'); return; }
+    if (!editando && !senha.trim()) { avisar('Atencao', 'Informe a senha'); return; }
 
     setSalvando(true);
     try {
@@ -95,7 +96,7 @@ export default function GestoresScreen({ navigation }) {
       setModalVisivel(false);
       await carregar();
     } catch (err) {
-      Alert.alert('Erro ao salvar', err.message || 'Tente novamente');
+      avisar('Erro ao salvar', err.message || 'Tente novamente');
     } finally {
       setSalvando(false);
     }

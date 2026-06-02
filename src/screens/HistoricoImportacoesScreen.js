@@ -16,6 +16,7 @@ import {
   ScrollView,
 } from 'react-native';
 
+import { avisar, confirmar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarImportacoes, buscarImportacao, listarLojas } from '../services/api';
 
@@ -50,7 +51,7 @@ export default function HistoricoImportacoesScreen({ navigation }) {
       const dados = await listarImportacoes(filtros);
       setImportacoes(dados);
     } catch (err) {
-      Alert.alert('Erro', err.message || 'Nao foi possivel carregar o historico');
+      avisar('Erro', err.message || 'Nao foi possivel carregar o historico');
     } finally {
       setCarregando(false);
       setRefreshing(false);
@@ -75,7 +76,7 @@ export default function HistoricoImportacoesScreen({ navigation }) {
       const dados = await buscarImportacao(importacaoId);
       setDetalhe(dados);
     } catch (err) {
-      Alert.alert('Erro', err.message || 'Nao foi possivel carregar os detalhes');
+      avisar('Erro', err.message || 'Nao foi possivel carregar os detalhes');
     } finally {
       setCarregandoDetalhe(false);
     }

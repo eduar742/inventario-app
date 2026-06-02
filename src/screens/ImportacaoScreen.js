@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
+import { avisar, confirmar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { listarLojas, importarPlanilha } from '../services/api';
@@ -44,7 +45,7 @@ export default function ImportacaoScreen({ navigation }) {
       const dados = await listarLojas();
       setLojas(dados);
     } catch (err) {
-      Alert.alert('Erro', 'Nao foi possivel carregar as lojas');
+      avisar('Erro', 'Nao foi possivel carregar as lojas');
     } finally {
       setCarregandoLojas(false);
     }
@@ -68,14 +69,14 @@ export default function ImportacaoScreen({ navigation }) {
       const asset = res.assets[0];
       const nome = asset.name.toLowerCase();
       if (!nome.endsWith('.xlsx') && !nome.endsWith('.xls') && !nome.endsWith('.csv')) {
-        Alert.alert('Formato invalido', 'Use arquivos .xlsx, .xls ou .csv');
+        avisar('Formato invalido', 'Use arquivos .xlsx, .xls ou .csv');
         return;
       }
 
       setArquivo(asset);
       setResultado(null);
     } catch (err) {
-      Alert.alert('Erro', 'Nao foi possivel selecionar o arquivo');
+      avisar('Erro', 'Nao foi possivel selecionar o arquivo');
     }
   }
 
@@ -92,15 +93,15 @@ export default function ImportacaoScreen({ navigation }) {
 
   async function handleImportar() {
     if (!lojaSelecionada) {
-      Alert.alert('Atencao', 'Selecione uma loja');
+      avisar('Atencao', 'Selecione uma loja');
       return;
     }
     if (!validarMesAno(mesAno)) {
-      Alert.alert('Atencao', 'Informe o mes no formato MM/AAAA (ex: 01/2026)');
+      avisar('Atencao', 'Informe o mes no formato MM/AAAA (ex: 01/2026)');
       return;
     }
     if (!arquivo) {
-      Alert.alert('Atencao', 'Selecione o arquivo da planilha');
+      avisar('Atencao', 'Selecione o arquivo da planilha');
       return;
     }
 
@@ -116,7 +117,7 @@ export default function ImportacaoScreen({ navigation }) {
       });
       setResultado(res);
     } catch (err) {
-      Alert.alert('Erro na importacao', err.message || 'Tente novamente');
+      avisar('Erro na importacao', err.message || 'Tente novamente');
     } finally {
       setImportando(false);
     }

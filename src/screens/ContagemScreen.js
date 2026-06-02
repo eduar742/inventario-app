@@ -15,6 +15,7 @@ import {
   Platform,
 } from 'react-native';
 
+import { avisar, confirmar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { buscarProdutoPorQR } from '../services/api';
@@ -48,11 +49,9 @@ export default function ContagemScreen({ navigation, route }) {
           nao_cadastrado: true,
         });
       } else {
-        Alert.alert(
-          'Erro ao buscar produto',
-          err.message || 'Nao foi possivel verificar o produto.',
-          [{ text: 'Voltar', onPress: () => navigation.goBack() }]
-        );
+        // Na web: avisa e navega de volta; no mobile: Alert com botao Voltar
+        avisar('Erro ao buscar produto', err.message || 'Nao foi possivel verificar o produto.');
+        navigation.goBack();
       }
     } finally {
       setCarregandoProduto(false);
@@ -62,7 +61,7 @@ export default function ContagemScreen({ navigation, route }) {
   function handleConfirmar() {
     const qtd = parseFloat(quantidade.replace(',', '.'));
     if (isNaN(qtd) || qtd < 0) {
-      Alert.alert('Quantidade invalida', 'Digite um numero valido (ex: 60 ou 12,5)');
+      avisar('Quantidade invalida', 'Digite um numero valido (ex: 60 ou 12,5)');
       return;
     }
 
