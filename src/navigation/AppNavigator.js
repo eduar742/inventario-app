@@ -17,8 +17,9 @@ import CriarSessaoScreen         from '../screens/CriarSessaoScreen';
 import GestoresScreen            from '../screens/GestoresScreen';
 import DashboardScreen           from '../screens/DashboardScreen';
 import DashboardLojasScreen, { DashboardHistoricoScreen } from '../screens/DashboardLojasScreen';
-import DivergenciasScreen        from '../screens/DivergenciasScreen';
-import HistoricoContagensScreen  from '../screens/HistoricoContagensScreen';
+import DivergenciasScreen              from '../screens/DivergenciasScreen';
+import HistoricoContagensScreen        from '../screens/HistoricoContagensScreen';
+import RelatorioConsolidadoScreen      from '../screens/RelatorioConsolidadoScreen';
 
 import { colors } from '../theme/colors';
 
@@ -60,8 +61,9 @@ export default function AppNavigator() {
         <Stack.Screen name="DashboardHistorico" component={DashboardHistoricoScreen} options={({ route }) => ({ title: route.params?.loja?.codigo || 'Historico' })} />
 
         {/* Pos-inventario */}
-        <Stack.Screen name="Divergencias"       component={DivergenciasScreen}       options={{ title: 'Divergencias' }} />
-        <Stack.Screen name="HistoricoContagens" component={HistoricoContagensScreen}  options={{ title: 'Historico de contagens' }} />
+        <Stack.Screen name="Divergencias"            component={DivergenciasScreen}           options={{ title: 'Divergencias' }} />
+        <Stack.Screen name="HistoricoContagens"      component={HistoricoContagensScreen}      options={{ title: 'Historico de contagens' }} />
+        <Stack.Screen name="RelatorioConsolidado"    component={RelatorioConsolidadoScreen}    options={{ title: 'Relatorio Geral' }} />
 
       </Stack.Navigator>
     </NavigationContainer>

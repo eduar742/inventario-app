@@ -306,7 +306,8 @@ export default function SessoesScreen({ navigation, route }) {
           </View>
         )}
 
-        {isAdmin && item.status !== 'concluida' && (
+        {/* M3: ADM pode excluir QUALQUER sessao (inclusive concluida) */}
+        {isAdmin && (
           <TouchableOpacity
             style={estilos.botaoCancelar}
             onPress={() => handleCancelar(item)}
@@ -315,7 +316,9 @@ export default function SessoesScreen({ navigation, route }) {
             {estaCancelando ? (
               <ActivityIndicator size="small" color={colors.danger} />
             ) : (
-              <Text style={estilos.botaoCancelarTexto}>Cancelar sessao</Text>
+              <Text style={estilos.botaoCancelarTexto}>
+                {item.status === 'concluida' ? 'Excluir sessao (ADM)' : 'Cancelar sessao'}
+              </Text>
             )}
           </TouchableOpacity>
         )}
@@ -417,6 +420,16 @@ export default function SessoesScreen({ navigation, route }) {
               onPress={() => navigation.navigate('Importacao')}
             >
               <Text style={[estilos.chipTexto, { color: colors.primary }]}>Importar</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* M6: Relatorio consolidado (admin) */}
+          {isAdmin && (
+            <TouchableOpacity
+              style={[estilos.chip, { backgroundColor: '#F3E8FF', borderColor: '#7C3AED' }]}
+              onPress={() => navigation.navigate('RelatorioConsolidado')}
+            >
+              <Text style={[estilos.chipTexto, { color: '#7C3AED' }]}>Rel. Geral</Text>
             </TouchableOpacity>
           )}
         </View>

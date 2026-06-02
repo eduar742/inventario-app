@@ -210,6 +210,43 @@ export async function listarRecontagemNecessaria(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/recontagem-necessaria`);
 }
 
+// M5: aprova todas as divergencias e conclui a sessao em um unico passo
+export async function aprovarInventario(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/aprovar-inventario`, { method: 'POST' });
+}
+
+// M6: relatório consolidado — retorna blob Excel de todas as lojas
+export async function baixarRelatorioConsolidado({ naturezaId, mesReferencia } = {}) {
+  const url_base = 'https://inventario-api-bc1p.onrender.com';
+  const token = await pegarToken();
+  const params = new URLSearchParams();
+  if (naturezaId) params.append('natureza_id', naturezaId);
+  if (mesReferencia) params.append('mes_referencia', mesReferencia);
+
+  const url = `${url_base}/api/v1/relatorios/consolidado${params.toString() ? '?' + params : ''}`;
+  const resposta = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+
+  if (!resposta.ok) {
+    const texto = await resposta.text();
+    let mensagem = `Erro ${resposta.status}`;
+    try { const d = JSON.parse(texto); mensagem = _extrairMensagem(d?.detail, resposta.status) || mensagem; } catch (_) {}
+    const erro = new Error(mensagem); erro.status = resposta.status; throw erro;
+  }
+
+  const blob = await resposta.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result.split(',')[1];
+      const cd = resposta.headers.get('content-disposition') || '';
+      const match = cd.match(/filename="([^"]+)"/);
+      resolve({ base64, nomeArquivo: match ? match[1] : 'relatorio_consolidado.xlsx' });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 // ============================================================
 // ENDPOINTS DE ESTOQUE E PRODUTOS
 // ============================================================

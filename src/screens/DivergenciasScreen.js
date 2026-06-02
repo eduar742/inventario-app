@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao } from '../services/api';
+import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario } from '../services/api';
 
 
 const STATUS_COR = {
@@ -184,9 +184,37 @@ export default function DivergenciasScreen({ navigation, route }) {
   }
 
   const [concluindo, setConcluindo] = useState(false);
+  const [aprovandoTudo, setAprovandoTudo] = useState(false);
   const pendentes  = divergencias.filter(d => d.status === 'pendente').length;
   const aprovadas  = divergencias.filter(d => d.status === 'aprovada').length;
   const rejeitadas = divergencias.filter(d => d.status === 'rejeitada').length;
+
+  // M5: aprova todas as divergencias e conclui em um passo
+  async function handleAprovarTudo() {
+    const msg = `Aprovar TODAS as ${pendentes} divergencia(s) pendente(s) e concluir o inventario de uma vez?`;
+    const confirmar = () => executarAprovarTudo();
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Aprovar inventario\n\n${msg}`)) confirmar();
+    } else {
+      Alert.alert('Aprovar inventario', msg, [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Aprovar tudo', style: 'default', onPress: confirmar },
+      ]);
+    }
+  }
+
+  async function executarAprovarTudo() {
+    setAprovandoTudo(true);
+    try {
+      await aprovarInventario(sessao.id);
+      avisar('Inventario aprovado!', 'Todas as divergencias foram aprovadas e a sessao foi concluida.');
+      navigation.navigate('Sessoes', { loja, filtroInicial: 'concluidas' });
+    } catch (err) {
+      avisar('Erro', err.message || 'Nao foi possivel aprovar o inventario');
+    } finally {
+      setAprovandoTudo(false);
+    }
+  }
 
   if (carregando) {
     return (
@@ -206,6 +234,22 @@ export default function DivergenciasScreen({ navigation, route }) {
         <ResumoItem valor={aprovadas}           rotulo="Aprovadas" cor={colors.success} />
         <ResumoItem valor={rejeitadas}          rotulo="Rejeitadas" cor={colors.danger} />
       </View>
+
+      {/* M5: Botao unico de aprovacao — aparece quando ha pendentes */}
+      {divergencias.length > 0 && pendentes > 0 && (
+        <TouchableOpacity
+          style={estilos.botaoAprovarTudo}
+          onPress={handleAprovarTudo}
+          disabled={aprovandoTudo}
+        >
+          {aprovandoTudo
+            ? <ActivityIndicator size="small" color={colors.white} />
+            : <Text style={estilos.botaoAprovarTudoTexto}>
+                Aprovar todo o inventario ({pendentes} pendente{pendentes > 1 ? 's' : ''})
+              </Text>
+          }
+        </TouchableOpacity>
+      )}
 
       {/* Banner: todas resolvidas, aguardando conclusao */}
       {divergencias.length > 0 && pendentes === 0 && (
@@ -341,4 +385,14 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
   },
   botaoConcluirTexto: { color: colors.white, fontWeight: '700', fontSize: fontSize.md },
+  // M5: botao de aprovacao em lote
+  botaoAprovarTudo: {
+    margin: spacing.md,
+    marginBottom: 0,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  botaoAprovarTudoTexto: { color: colors.white, fontWeight: '700', fontSize: fontSize.md },
 });
