@@ -180,8 +180,9 @@ export async function encerrarSessao(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/encerrar`, { method: 'PATCH' });
 }
 
-export async function gerarDivergencias(sessaoId) {
-  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/gerar-divergencias`, { method: 'POST' });
+export async function gerarDivergencias(sessaoId, forcaRegerar = false) {
+  const q = forcaRegerar ? '?forcar_regenerar=true' : '';
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/gerar-divergencias${q}`, { method: 'POST' });
 }
 
 export async function concluirSessao(sessaoId) {
