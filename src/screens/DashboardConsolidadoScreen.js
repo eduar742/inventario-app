@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
-  TouchableOpacity, ActivityIndicator, RefreshControl, FlatList,
+  TouchableOpacity, ActivityIndicator, RefreshControl,
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
@@ -153,9 +153,7 @@ export default function DashboardConsolidadoScreen({ navigation }) {
 
   const lojas = dados?.lojas || [];
   const consol = dados?.consolidado;
-  const materiais = dados?.materiais_inventariados || [];
-  const totalMateriais = dados?.total_materiais ?? 0;
-  const [materiaisExpandido, setMateriaisExpandido] = useState(false);
+  const gruposContados = dados?.grupos_contados || [];
 
   // Todas as lojas aparecem — sem sessao exibe zeros (nao filtra)
   const lojasColunas = lojas;
@@ -204,55 +202,15 @@ export default function DashboardConsolidadoScreen({ navigation }) {
           onRefresh={() => { setRefreshing(true); carregar(true); }}
           colors={[colors.primary]} tintColor={colors.primary} />}
       >
-        {/* ── Painel de materiais inventariados ─────────────── */}
-        {totalMateriais > 0 && (
-          <View style={est.materiaisBox}>
-            <TouchableOpacity
-              style={est.materiaisHeader}
-              onPress={() => setMateriaisExpandido(v => !v)}
-              activeOpacity={0.8}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={est.materiaisTitulo}>
-                  📋 Materiais Inventariados
-                </Text>
-                <Text style={est.materiaisSubTitulo}>
-                  {totalMateriais} produto{totalMateriais !== 1 ? 's' : ''} contado{totalMateriais !== 1 ? 's' : ''} no período
-                </Text>
-              </View>
-              <Text style={est.materiaisChevron}>
-                {materiaisExpandido ? '▲' : '▼'}
-              </Text>
-            </TouchableOpacity>
-
-            {materiaisExpandido && (
-              <View style={est.materiaisLista}>
-                {/* Cabeçalho da lista */}
-                <View style={est.materiaisLinhaHeader}>
-                  <Text style={[est.materiaisColSku, est.materiaisHeaderTxt]}>Código</Text>
-                  <Text style={[est.materiaisColDesc, est.materiaisHeaderTxt]}>Descrição</Text>
-                  <Text style={[est.materiaisColUn, est.materiaisHeaderTxt]}>UN</Text>
-                </View>
-                {/* Itens */}
-                {materiais.map((m, i) => (
-                  <View key={m.sku} style={[
-                    est.materiaisLinha,
-                    i % 2 === 0 ? { backgroundColor: '#F8FAFC' } : { backgroundColor: '#FFFFFF' },
-                  ]}>
-                    <Text style={est.materiaisColSku} numberOfLines={1}>{m.sku}</Text>
-                    <Text style={est.materiaisColDesc} numberOfLines={2}>{m.descricao}</Text>
-                    <Text style={est.materiaisColUn}>{m.unidade_medida}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Cabeçalho da competência */}
-        <View style={[est.headerCompetencia, { flexDirection: 'row', alignItems: 'center' }]}>
+        {/* Cabeçalho da competência + grupos contados — tudo em uma linha */}
+        <View style={est.headerCompetencia}>
           <Text style={est.headerEmpresaTxt}>Inventário</Text>
           <Text style={est.headerMesTxt}>  Competência: {mes || '—'}</Text>
+          {gruposContados.length > 0 && (
+            <Text style={est.headerGrupos}>
+              {'  ·  '}Grupos contados nas lojas: {gruposContados.join(', ')}
+            </Text>
+          )}
         </View>
 
         <View style={{ flexDirection: 'row' }}>
@@ -430,6 +388,7 @@ const est = StyleSheet.create({
   },
   headerEmpresaTxt: { fontSize: fontSize.md, fontWeight: '800', color: '#FFFFFF' },
   headerMesTxt:     { fontSize: fontSize.sm, color: '#93C5FD' },
+  headerGrupos:     { fontSize: fontSize.sm, color: '#FDE68A', fontWeight: '600' },
 
   // Header de loja (coluna)
   headerLojaBox: {
@@ -467,64 +426,6 @@ const est = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
   },
   celTxt: { fontSize: 11 },
-
-  // ── Painel materiais ──
-  materiaisBox: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  materiaisHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: '#F0F9FF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#BAE6FD',
-  },
-  materiaisTitulo: {
-    fontSize: fontSize.sm,
-    fontWeight: '700',
-    color: '#0369A1',
-    marginBottom: 2,
-  },
-  materiaisSubTitulo: {
-    fontSize: 11,
-    color: '#0284C7',
-  },
-  materiaisChevron: {
-    fontSize: 12,
-    color: '#0369A1',
-    fontWeight: '700',
-    marginLeft: spacing.sm,
-  },
-  materiaisLista: {
-    maxHeight: 280,
-  },
-  materiaisLinhaHeader: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    backgroundColor: '#0369A1',
-    borderBottomWidth: 1,
-    borderBottomColor: '#0284C7',
-  },
-  materiaisHeaderTxt: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 11,
-  },
-  materiaisLinha: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  materiaisColSku:  { width: 130, fontSize: 10, color: '#1E40AF', fontWeight: '600' },
-  materiaisColDesc: { flex: 1, fontSize: 10, color: '#334155', marginHorizontal: spacing.xs },
-  materiaisColUn:   { width: 36, fontSize: 10, color: '#64748B', textAlign: 'center' },
 
   // Sem sessao
   semSessaoBox: {
