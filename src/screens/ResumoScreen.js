@@ -324,9 +324,11 @@ export default function ResumoScreen({ navigation, route }) {
                 onPress={async () => {
                   setExportando(true);
                   try {
-                    await exportarSessao(sessao.id, sessao.nome);
+                    await exportarSessao(sessao.id);
                   } catch (err) {
-                    Alert.alert('Erro ao exportar', err.message || 'Tente novamente');
+                    const msg = err?.message || 'Tente novamente';
+                    if (Platform.OS === 'web') window.alert(`Erro ao exportar\n\n${msg}`);
+                    else Alert.alert('Erro ao exportar', msg);
                   } finally {
                     setExportando(false);
                   }

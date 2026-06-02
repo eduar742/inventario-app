@@ -4,10 +4,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
-  TouchableOpacity, Alert, ActivityIndicator,
+  TouchableOpacity, Alert, ActivityIndicator, Platform,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
@@ -61,9 +59,14 @@ export default function ExportarRelatorioScreen({ navigation, route }) {
     );
   }
 
+  function _avisar(titulo, msg) {
+    if (Platform.OS === 'web') window.alert(msg ? `${titulo}\n\n${msg}` : titulo);
+    else Alert.alert(titulo, msg);
+  }
+
   async function handleGerar() {
     if (perfilId === 'customizado' && abasSelecionadas.length === 0) {
-      Alert.alert('Atencao', 'Selecione pelo menos uma aba para o perfil customizado');
+      _avisar('Atencao', 'Selecione pelo menos uma aba para o perfil customizado');
       return;
     }
 
@@ -76,21 +79,42 @@ export default function ExportarRelatorioScreen({ navigation, route }) {
         abas: perfilId === 'customizado' ? abasSelecionadas : undefined,
       });
 
-      const destino = FileSystem.documentDirectory + nomeArquivo;
-      await FileSystem.writeAsStringAsync(destino, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      const podeCompartilhar = await Sharing.isAvailableAsync();
-      if (podeCompartilhar) {
-        await Sharing.shareAsync(destino, { dialogTitle: 'Exportar relatorio' });
+      if (Platform.OS === 'web') {
+        // Web: download direto via <a>
+        const mime = nomeArquivo.endsWith('.pdf') ? 'application/pdf'
+          : nomeArquivo.endsWith('.zip') ? 'application/zip'
+          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        const bytes = atob(base64);
+        const buf = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+        const blob = new Blob([buf], { type: mime });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = nomeArquivo;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(url); }, 200);
       } else {
-        Alert.alert('Arquivo salvo', `Salvo em:\n${nomeArquivo}`);
+        // Mobile: salva e compartilha
+        const { default: FileSystem } = await import('expo-file-system');
+        const Sharing = await import('expo-sharing');
+        const destino = FileSystem.documentDirectory + nomeArquivo;
+        await FileSystem.writeAsStringAsync(destino, base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const podeCompartilhar = await Sharing.isAvailableAsync();
+        if (podeCompartilhar) {
+          await Sharing.shareAsync(destino, { dialogTitle: 'Exportar relatorio' });
+        } else {
+          _avisar('Arquivo salvo', `Salvo: ${nomeArquivo}`);
+        }
+        try { await FileSystem.deleteAsync(destino, { idempotent: true }); } catch (_) {}
       }
-
-      try { await FileSystem.deleteAsync(destino, { idempotent: true }); } catch (_) {}
     } catch (err) {
-      Alert.alert('Erro ao gerar relatorio', err.message || 'Tente novamente');
+      _avisar('Erro ao gerar relatorio', err?.message || 'Tente novamente');
+      console.error('[ExportarRelatorio]', err);
     } finally {
       setGerando(false);
     }

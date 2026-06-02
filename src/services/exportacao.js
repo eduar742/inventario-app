@@ -1,32 +1,37 @@
-// Service de exportacao para Excel.
-// - Mobile (iOS/Android): usa expo-file-system + expo-sharing
-// - Web (notebook/browser): converte base64 em download direto via link HTML
+// Service de exportacao para Excel/PDF/ZIP.
+// Web: download direto via link <a> no browser
+// Mobile: salva via expo-file-system e abre compartilhamento
 
 import { Platform, Alert } from 'react-native';
 import { chamarAPI } from './api';
 
-// ── WEB: dispara download do arquivo direto no browser ──────────────────────
+// ── WEB: download direto no browser ────────────────────────────────────────
 function _downloadWeb(base64, nomeArquivo, mimeType) {
-  // Converte base64 para Blob
-  const bytes = atob(base64);
-  const buffer = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) {
-    buffer[i] = bytes.charCodeAt(i);
+  try {
+    const bytes = atob(base64);
+    const buffer = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) {
+      buffer[i] = bytes.charCodeAt(i);
+    }
+    const blob = new Blob([buffer], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nomeArquivo;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 200);
+  } catch (err) {
+    console.error('[exportacao] Erro ao baixar no browser:', err);
+    window.alert(`Erro ao baixar o arquivo:\n${err.message}`);
   }
-  const blob = new Blob([buffer], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-
-  // Cria link invisivel, clica e remove
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = nomeArquivo;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
-// ── MOBILE: salva e abre dialogo de compartilhamento ───────────────────────
+// ── MOBILE: salva e compartilha ─────────────────────────────────────────────
 async function _downloadMobile(base64, nomeArquivo, mimeType) {
   const { default: FileSystem } = await import('expo-file-system');
   const Sharing = await import('expo-sharing');
@@ -38,7 +43,7 @@ async function _downloadMobile(base64, nomeArquivo, mimeType) {
 
   const podeCompartilhar = await Sharing.isAvailableAsync();
   if (!podeCompartilhar) {
-    Alert.alert('Arquivo salvo', `Salvo em:\n${nomeArquivo}`);
+    Alert.alert('Arquivo salvo', `Salvo: ${nomeArquivo}`);
     return;
   }
 
@@ -51,19 +56,31 @@ async function _downloadMobile(base64, nomeArquivo, mimeType) {
   try { await FileSystem.deleteAsync(destino, { idempotent: true }); } catch (_) {}
 }
 
-// ── Funcao central ──────────────────────────────────────────────────────────
-function _mimeType(nomeArquivo) {
-  if (nomeArquivo.endsWith('.pdf'))  return 'application/pdf';
-  if (nomeArquivo.endsWith('.zip'))  return 'application/zip';
+// ── Detecta tipo MIME pelo nome ─────────────────────────────────────────────
+function _mimeType(nome) {
+  if (nome.endsWith('.pdf'))  return 'application/pdf';
+  if (nome.endsWith('.zip'))  return 'application/zip';
   return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 }
 
+// ── Funcao central ──────────────────────────────────────────────────────────
 async function _exportar(caminho, nomeArquivoFallback) {
+  console.log('[exportacao] chamando:', caminho);
+
   const dados = await chamarAPI(caminho);
-  if (!dados?.arquivo_base64) throw new Error('Resposta de exportacao invalida');
+
+  if (!dados) {
+    throw new Error('Servidor nao retornou dados. Tente novamente.');
+  }
+  if (!dados.arquivo_base64) {
+    console.error('[exportacao] Resposta invalida:', dados);
+    throw new Error('Arquivo nao gerado pelo servidor. Verifique se a sessao esta concluida.');
+  }
 
   const nomeArquivo = dados.nome_arquivo || nomeArquivoFallback;
   const mime = _mimeType(nomeArquivo);
+
+  console.log('[exportacao] baixando:', nomeArquivo, `(${Math.round(dados.arquivo_base64.length * 0.75 / 1024)} KB)`);
 
   if (Platform.OS === 'web') {
     _downloadWeb(dados.arquivo_base64, nomeArquivo, mime);
@@ -72,12 +89,21 @@ async function _exportar(caminho, nomeArquivoFallback) {
   }
 }
 
-// ── API publica ──────────────────────────────────────────────────────────────
+// ── Funcao de aviso compativel com web ──────────────────────────────────────
+function _avisar(titulo, mensagem) {
+  if (Platform.OS === 'web') {
+    window.alert(mensagem ? `${titulo}\n\n${mensagem}` : titulo);
+  } else {
+    Alert.alert(titulo, mensagem);
+  }
+}
+
+// ── API pública ──────────────────────────────────────────────────────────────
 
 export async function exportarSessao(sessaoId) {
   await _exportar(
     `/api/v1/sessoes/${sessaoId}/exportar`,
-    `sessao_${sessaoId.slice(0, 8)}.xlsx`,
+    `sessao_${String(sessaoId).slice(0, 8)}.xlsx`,
   );
 }
 
@@ -85,6 +111,20 @@ export async function exportarEstoque(lojaId, mesReferencia) {
   const params = mesReferencia ? `?mes_referencia=${mesReferencia}` : '';
   await _exportar(
     `/api/v1/lojas/${lojaId}/estoque/exportar${params}`,
-    `estoque_${lojaId.slice(0, 8)}.xlsx`,
+    `estoque_${String(lojaId).slice(0, 8)}.xlsx`,
   );
+}
+
+// Wrapper com feedback visual integrado (para uso direto em botoes)
+export async function exportarComFeedback(fn, setCarregando) {
+  if (setCarregando) setCarregando(true);
+  try {
+    await fn();
+  } catch (err) {
+    const msg = err?.message || 'Tente novamente';
+    _avisar('Erro ao exportar', msg);
+    console.error('[exportacao] erro:', err);
+  } finally {
+    if (setCarregando) setCarregando(false);
+  }
 }

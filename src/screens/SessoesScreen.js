@@ -387,7 +387,8 @@ export default function SessoesScreen({ navigation, route }) {
               onPress={async () => {
                 setExportando(true);
                 try {
-                  await exportarEstoque(loja.id, loja.codigo);
+                  // Sem mes_referencia = exporta o snapshot mais recente
+                  await exportarEstoque(loja.id);
                 } catch (err) {
                   avisar('Erro ao exportar', err.message || 'Tente novamente');
                 } finally {
