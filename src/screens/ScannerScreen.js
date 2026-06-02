@@ -210,14 +210,18 @@ export default function ScannerScreen({ navigation, route }) {
               <Text style={estilos.painelPendentesTitle}>
                 {ORDINAL[rodada] || `${rodada}ª`} contagem — {itensPendentes.length} produto(s):
               </Text>
-              {itensPendentes.slice(0, 4).map((item, i) => (
-                <Text key={i} style={estilos.painelPendentesItem} numberOfLines={1}>
-                  · {item.sku || item.codigoQr} — {item.descricao || ''}
+              {itensPendentes.slice(0, 5).map((item, i) => (
+                <Text key={i}
+                  style={[estilos.painelPendentesItem, item.naoBipado && { color: '#FCA5A5' }]}
+                  numberOfLines={1}>
+                  {item.naoBipado ? '○' : '↻'} {item.sku || item.codigoQr}
+                  {item.descricao ? ` — ${item.descricao}` : ''}
+                  {item.naoBipado ? ' (não bipado)' : ''}
                 </Text>
               ))}
-              {itensPendentes.length > 4 && (
+              {itensPendentes.length > 5 && (
                 <Text style={estilos.painelPendentesItem}>
-                  ...e mais {itensPendentes.length - 4}
+                  ...e mais {itensPendentes.length - 5}
                 </Text>
               )}
             </View>

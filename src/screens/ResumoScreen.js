@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
-import { registrarContagem, encerrarSessao, gerarDivergencias } from '../services/api';
+import { registrarContagem, encerrarSessao, gerarDivergencias, listarPendentes } from '../services/api';
 import { exportarSessao } from '../services/exportacao';
 
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
@@ -111,8 +111,37 @@ export default function ResumoScreen({ navigation, route }) {
       return;
     }
 
+    // Adiciona itens NAO BIPADOS à lista de pendentes da proxima rodada
+    // Regra: produto com saldo no sistema mas sem contagem = precisa ser bipado
+    if (rodada < 3) {
+      try {
+        const naoBipados = await listarPendentes(sessao.id);
+        if (naoBipados && naoBipados.length > 0) {
+          const extras = naoBipados.map(p => ({
+            item: {
+              codigoQr: p.codigo_qr || p.codigoQr || p.sku,
+              sku: p.sku,
+              descricao: p.descricao || p.sku,
+              unidadeMedida: p.unidade_medida || p.unidadeMedida || 'UN',
+              naoBipado: true,
+              quantidadeSistema: p.quantidade_sistema,
+            },
+            resp: null,
+            naoBipado: true,
+          }));
+          // Evita duplicata: nao adiciona se ja esta em novosPendentes
+          const codigosJaPendentes = new Set(novosPendentes.map(p => p.item.codigoQr));
+          const novosNaoBipados = extras.filter(e => !codigosJaPendentes.has(e.item.codigoQr));
+          novosPendentes.push(...novosNaoBipados);
+          console.log(`[ResumoScreen] ${novosNaoBipados.length} item(s) nao bipado(s) adicionados a proxima rodada`);
+        }
+      } catch (err) {
+        console.warn('[ResumoScreen] Nao foi possivel buscar pendentes:', err.message);
+      }
+    }
+
     // Encerra a sessao automaticamente apenas quando:
-    // - Nao ha mais pendentes de recontagem (todos resolvidos)
+    // - Nao ha mais pendentes (bipados sem divergencia E nenhum nao bipado)
     // - OU chegou na 3a rodada (limite das 3 contagens)
     const deveEncerrar = novosPendentes.length === 0 || rodada >= 3;
 
@@ -230,19 +259,29 @@ export default function ResumoScreen({ navigation, route }) {
           {pendentes.length > 0 && !sessaoEncerrada && (
             <View style={estilos.secao}>
               <Text style={estilos.secaoTitulo}>
-                Precisam de {ORDINAL[rodada + 1] || `${rodada + 1}ª`} contagem ({pendentes.length})
+                Para {ORDINAL[rodada + 1] || `${rodada + 1}ª`} contagem ({pendentes.length})
               </Text>
-              {pendentes.map(({ item }) => (
-                <View key={item.codigoQr} style={estilos.cardPendente}>
+              {pendentes.map(({ item, naoBipado }) => (
+                <View key={item.codigoQr}
+                  style={[estilos.cardPendente, naoBipado && estilos.cardPendenteNaoBipado]}>
                   <View style={estilos.cardPendenteHeader}>
                     <View style={estilos.cardTextos}>
                       <Text style={estilos.cardNome} numberOfLines={1}>{item.descricao || item.codigoQr}</Text>
                       <Text style={estilos.cardSku}>{item.sku || item.codigoQr}</Text>
                     </View>
-                    <View style={estilos.badgeContagem}>
-                      <Text style={estilos.badgeContagemTexto}>{ORDINAL[rodada + 1] || `${rodada + 1}ª`}</Text>
+                    <View style={[estilos.badgeContagem,
+                      naoBipado && { backgroundColor: colors.dangerSoft }]}>
+                      <Text style={[estilos.badgeContagemTexto,
+                        naoBipado && { color: colors.danger }]}>
+                        {naoBipado ? 'NÃO BIPADO' : ORDINAL[rodada + 1] || `${rodada + 1}ª`}
+                      </Text>
                     </View>
                   </View>
+                  {naoBipado && item.quantidadeSistema != null && (
+                    <Text style={estilos.cardNaoContadoInfo}>
+                      Saldo sistema: {parseFloat(item.quantidadeSistema).toFixed(0)} {item.unidadeMedida}
+                    </Text>
+                  )}
                 </View>
               ))}
 
@@ -425,6 +464,17 @@ const estilos = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: colors.warning,
     overflow: 'hidden',
+  },
+  cardPendenteNaoBipado: {
+    borderLeftColor: colors.danger,
+    backgroundColor: colors.dangerSoft + '22',
+  },
+  cardNaoContadoInfo: {
+    fontSize: fontSize.xs,
+    color: colors.danger,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    fontStyle: 'italic',
   },
   cardPendenteAtivo: {
     borderColor: colors.warning,
