@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
+  Platform,
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
@@ -43,21 +44,19 @@ export default function LojasScreen({ navigation }) {
   }
 
   async function fazerLogout() {
-    Alert.alert(
-      'Sair',
-      'Deseja realmente sair do app?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Sair',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-          },
-        },
-      ]
-    );
+    const confirmar = Platform.OS === 'web'
+      ? window.confirm('Deseja realmente sair do app?')
+      : await new Promise(resolve =>
+          Alert.alert('Sair', 'Deseja realmente sair do app?', [
+            { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Sair', style: 'destructive', onPress: () => resolve(true) },
+          ])
+        );
+
+    if (confirmar) {
+      await logout();
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+    }
   }
 
   // Extrai o numero da loja para o badge (ex: "L01" -> "01", "L12" -> "12")
