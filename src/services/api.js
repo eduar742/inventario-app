@@ -158,7 +158,7 @@ export async function listarPendentes(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/pendentes`);
 }
 
-export async function criarSessao({ lojaId, nome, tipo, mesReferencia, observacoes }) {
+export async function criarSessao({ lojaId, nome, tipo, mesReferencia, naturezaFiltroId, observacoes }) {
   return await chamarAPI('/api/v1/sessoes', {
     method: 'POST',
     body: JSON.stringify({
@@ -166,6 +166,7 @@ export async function criarSessao({ lojaId, nome, tipo, mesReferencia, observaco
       nome,
       tipo,
       mes_referencia: mesReferencia,
+      natureza_filtro_id: naturezaFiltroId || null,
       observacoes: observacoes || null,
     }),
   });

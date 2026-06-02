@@ -11,7 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
-import { listarLojas, listarMesesImportados, criarSessao, iniciarSessao, importarPlanilha } from '../services/api';
+import { listarLojas, listarNaturezas, listarMesesImportados, criarSessao, iniciarSessao, importarPlanilha } from '../services/api';
 
 
 const TIPOS = [
@@ -34,9 +34,13 @@ export default function CriarSessaoScreen({ navigation }) {
   const [nome, setNome] = useState('');
   const [tipo, setTipo] = useState('geral');
   const [mesReferencia, setMesReferencia] = useState('');
-  const [mesManual, setMesManual] = useState('');  // MM/AAAA digitado manualmente
+  const [mesManual, setMesManual] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [iniciarImediatamente, setIniciarImediatamente] = useState(true);
+
+  // Filtro de natureza (None = todas)
+  const [naturezas, setNaturezas] = useState([]);
+  const [naturezaFiltroId, setNaturezaFiltroId] = useState(null);
 
   // Planilha de referencia (arquivo do coletor)
   const [arquivo, setArquivo] = useState(null);
@@ -63,9 +67,13 @@ export default function CriarSessaoScreen({ navigation }) {
   }
 
   useEffect(() => {
-    listarLojas()
-      .then(data => setLojas(data.filter(l => l.ativa)))
-      .catch(() => mostrarErro('Nao foi possivel carregar as lojas'))
+    Promise.all([
+      listarLojas(),
+      listarNaturezas().catch(() => []),
+    ]).then(([lojasData, naturezasData]) => {
+      setLojas(lojasData.filter(l => l.ativa));
+      setNaturezas(naturezasData || []);
+    }).catch(() => mostrarErro('Nao foi possivel carregar os dados'))
       .finally(() => setCarregando(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -179,6 +187,7 @@ export default function CriarSessaoScreen({ navigation }) {
         nome: nomeFinal,
         tipo,
         mesReferencia: mesRef,
+        naturezaFiltroId: naturezaFiltroId || null,
         observacoes,
       });
 
@@ -351,6 +360,45 @@ export default function CriarSessaoScreen({ navigation }) {
             </View>
           </TouchableOpacity>
         ))}
+
+        {/* ── NATUREZA (filtro de contagem) ── */}
+        {naturezas.length > 0 && (
+          <>
+            <View style={{ height: spacing.lg }} />
+            <Text style={estilos.rotulo}>Natureza do inventario</Text>
+            <Text style={estilos.descricaoBloco}>
+              Selecione qual natureza contar. Sessoes sempre separadas por natureza.
+            </Text>
+            {/* Opcao: todas as naturezas */}
+            <TouchableOpacity
+              style={[estilos.opcao, naturezaFiltroId === null && estilos.opcaoAtiva]}
+              onPress={() => setNaturezaFiltroId(null)}
+            >
+              <View style={[estilos.radio, naturezaFiltroId === null && estilos.radioAtivo]} />
+              <View style={{ flex: 1 }}>
+                <Text style={[estilos.opcaoRotulo, naturezaFiltroId === null && estilos.opcaoRotuloAtivo]}>
+                  Todas as naturezas
+                </Text>
+                <Text style={estilos.opcaoDescricao}>Conta todos os produtos sem filtro</Text>
+              </View>
+            </TouchableOpacity>
+            {/* Uma opcao por natureza cadastrada */}
+            {naturezas.map(n => (
+              <TouchableOpacity
+                key={n.id}
+                style={[estilos.opcao, naturezaFiltroId === n.id && estilos.opcaoAtiva]}
+                onPress={() => setNaturezaFiltroId(n.id)}
+              >
+                <View style={[estilos.radio, naturezaFiltroId === n.id && estilos.radioAtivo]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[estilos.opcaoRotulo, naturezaFiltroId === n.id && estilos.opcaoRotuloAtivo]}>
+                    {n.nome} <Text style={{ fontSize: fontSize.xs, color: colors.textMuted }}>({n.codigo})</Text>
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
 
         {/* ── OBSERVACOES ── */}
         <View style={{ height: spacing.lg }} />

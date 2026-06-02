@@ -205,6 +205,13 @@ export default function SessoesScreen({ navigation, route }) {
               <Text style={estilos.tagMesTexto}>{item.mes_referencia}</Text>
             </View>
           ) : null}
+          {item.natureza_filtro_nome ? (
+            <View style={[estilos.tagMes, { backgroundColor: colors.primarySoft, borderRadius: radius.sm }]}>
+              <Text style={[estilos.tagMesTexto, { color: colors.primary }]}>
+                {item.natureza_filtro_nome}
+              </Text>
+            </View>
+          ) : null}
           <Text style={estilos.dataIniciada}>
             Iniciada em {formatarData(item.iniciada_em)}
           </Text>
