@@ -296,20 +296,25 @@ export async function listarUsuarios() {
   return await chamarAPI('/api/v1/usuarios');
 }
 
-export async function criarUsuarioAPI({ nome, email, senha, papel, lojaId }) {
+export async function criarUsuarioAPI({ nome, email, senha, papel, lojaId, lojasIds }) {
   return await chamarAPI('/api/v1/usuarios', {
     method: 'POST',
-    body: JSON.stringify({ nome, email, senha, papel, loja_id: lojaId || null }),
+    body: JSON.stringify({
+      nome, email, senha, papel,
+      loja_id: lojaId || null,
+      lojas_ids: lojasIds && lojasIds.length > 0 ? lojasIds : null,
+    }),
   });
 }
 
-export async function atualizarUsuario(usuarioId, { nome, papel, lojaId, ativo }) {
+export async function atualizarUsuario(usuarioId, { nome, papel, lojaId, lojasIds, ativo }) {
   return await chamarAPI(`/api/v1/usuarios/${usuarioId}`, {
     method: 'PATCH',
     body: JSON.stringify({
       nome,
       papel,
       loja_id: lojaId !== undefined ? (lojaId || '') : undefined,
+      lojas_ids: lojasIds !== undefined ? lojasIds : undefined,
       ativo,
     }),
   });

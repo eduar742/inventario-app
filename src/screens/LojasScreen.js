@@ -33,20 +33,27 @@ export default function LojasScreen({ navigation }) {
       const dados = await listarLojas();
       const ativas = dados.filter(l => l.ativa);
 
-      // Operador com loja vinculada: vai direto para a sessao da sua loja
-      if (u?.papel === 'operador' && u?.loja_id) {
-        const lojaVinculada = ativas.find(l => l.id === u.loja_id);
-        if (lojaVinculada) {
-          navigation.replace('Sessoes', { loja: lojaVinculada });
+      // Operador: mostra apenas as lojas vinculadas ao seu perfil
+      if (u?.papel === 'operador') {
+        const ids = u?.lojas_ids || (u?.loja_id ? [u.loja_id] : []);
+        if (ids.length === 1) {
+          // Uma loja: vai direto para sessoes
+          const lojaVinculada = ativas.find(l => l.id === ids[0]);
+          if (lojaVinculada) {
+            navigation.replace('Sessoes', { loja: lojaVinculada });
+            return;
+          }
+        } else if (ids.length > 1) {
+          // Multiplas lojas: mostra somente as vinculadas
+          setLojas(ativas.filter(l => ids.includes(l.id)));
+          setCarregando(false);
+          return;
+        } else {
+          // Sem loja vinculada: tela vazia
+          setLojas([]);
+          setCarregando(false);
           return;
         }
-      }
-
-      // Operador sem loja vinculada: exibe apenas mensagem de espera
-      if (u?.papel === 'operador' && !u?.loja_id) {
-        setLojas([]);
-        setCarregando(false);
-        return;
       }
 
       setLojas(ativas);
