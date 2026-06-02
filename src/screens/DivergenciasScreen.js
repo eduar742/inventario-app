@@ -43,6 +43,10 @@ function avisar(titulo, mensagem) {
 export default function DivergenciasScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
 
+  // Papeis leitura-somente nao podem aprovar/rejeitar divergencias
+  const [papelUsuario, setPapelUsuario] = useState('gestor');
+  const isReadOnly = ['gerente', 'auditor'].includes(papelUsuario);
+
   const [divergencias, setDivergencias] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,6 +54,9 @@ export default function DivergenciasScreen({ navigation, route }) {
 
   useEffect(() => {
     carregar();
+    import('../services/api').then(api => {
+      api.pegarUsuario().then(u => { if (u?.papel) setPapelUsuario(u.papel); }).catch(() => {});
+    });
   }, []);
 
   async function carregar() {
@@ -156,8 +163,8 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* Botoes de acao (apenas se pendente) */}
-        {div.status === 'pendente' && (
+        {/* Botoes de acao apenas para quem pode escrever */}
+        {div.status === 'pendente' && !isReadOnly && (
           <View style={estilos.acoes}>
             {emProcessamento ? (
               <ActivityIndicator size="small" color={colors.primary} />
@@ -235,8 +242,8 @@ export default function DivergenciasScreen({ navigation, route }) {
         <ResumoItem valor={rejeitadas}          rotulo="Rejeitadas" cor={colors.danger} />
       </View>
 
-      {/* M5: Botao unico de aprovacao — aparece quando ha pendentes */}
-      {divergencias.length > 0 && pendentes > 0 && (
+      {/* M5: Botao unico de aprovacao — apenas para quem pode escrever */}
+      {divergencias.length > 0 && pendentes > 0 && !isReadOnly && (
         <TouchableOpacity
           style={estilos.botaoAprovarTudo}
           onPress={handleAprovarTudo}

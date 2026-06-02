@@ -47,7 +47,7 @@ const BLOCOS = [
     corBg: '#EEF2FF',
     corBorda: '#C7D2FE',
     tela: 'Dashboard',
-    papeis: ['admin', 'gestor'],
+    papeis: ['admin', 'gestor', 'gerente', 'auditor'],
   },
   {
     id: 'consolidado',
@@ -58,7 +58,7 @@ const BLOCOS = [
     corBg: '#F0FDFA',
     corBorda: '#99F6E4',
     tela: 'DashboardConsolidado',
-    papeis: ['admin', 'gestor'],
+    papeis: ['admin', 'gestor', 'gerente', 'auditor'],
   },
   {
     id: 'relatorio',
@@ -69,7 +69,7 @@ const BLOCOS = [
     corBg: '#F0FDF4',
     corBorda: '#BBF7D0',
     tela: 'RelatorioConsolidado',
-    papeis: ['admin', 'gestor'],
+    papeis: ['admin', 'gestor', 'gerente', 'auditor'],
   },
   {
     id: 'importar',
@@ -146,8 +146,14 @@ export default function HomeScreen({ navigation }) {
   }
 
   const primeiroNome = usuario?.nome?.split(' ')[0] || 'Usuário';
-  const badgePapel   = { admin: 'ADM', gestor: 'Gestor', operador: 'Operador' }[papel] || papel;
-  const corBadge     = { admin: '#1E40AF', gestor: '#059669', operador: '#D97706' }[papel] || '#475569';
+  const badgePapel = {
+    admin: 'ADM', gestor: 'Gestor', gerente: 'Gerente',
+    auditor: 'Auditor', operador: 'Operador',
+  }[papel] || papel;
+  const corBadge = {
+    admin: '#1E40AF', gestor: '#059669', gerente: '#0891B2',
+    auditor: '#7C3AED', operador: '#D97706',
+  }[papel] || '#475569';
 
   return (
     <SafeAreaView style={est.container}>

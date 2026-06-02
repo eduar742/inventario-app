@@ -14,10 +14,13 @@ import Input from '../components/Input';
 import { listarUsuarios, criarUsuarioAPI, atualizarUsuario, listarLojas } from '../services/api';
 
 
-const PAPEIS = ['gestor', 'operador'];
+// Papeis disponiveis para criacao/edicao (ADM nao pode ser criado pelo gestor)
+const PAPEIS = ['gestor', 'gerente', 'auditor', 'operador'];
 const COR_PAPEL = {
   admin:    { bg: colors.dangerSoft,   txt: colors.danger },
   gestor:   { bg: colors.primarySoft,  txt: colors.primary },
+  gerente:  { bg: '#CFFAFE',           txt: '#0891B2' },
+  auditor:  { bg: '#EDE9FE',           txt: '#7C3AED' },
   operador: { bg: colors.successSoft,  txt: colors.success },
 };
 

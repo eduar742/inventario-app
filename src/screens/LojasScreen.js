@@ -31,7 +31,25 @@ export default function LojasScreen({ navigation }) {
       const u = await pegarUsuario();
       setUsuario(u);
       const dados = await listarLojas();
-      setLojas(dados.filter(l => l.ativa));
+      const ativas = dados.filter(l => l.ativa);
+
+      // Operador com loja vinculada: vai direto para a sessao da sua loja
+      if (u?.papel === 'operador' && u?.loja_id) {
+        const lojaVinculada = ativas.find(l => l.id === u.loja_id);
+        if (lojaVinculada) {
+          navigation.replace('Sessoes', { loja: lojaVinculada });
+          return;
+        }
+      }
+
+      // Operador sem loja vinculada: exibe apenas mensagem de espera
+      if (u?.papel === 'operador' && !u?.loja_id) {
+        setLojas([]);
+        setCarregando(false);
+        return;
+      }
+
+      setLojas(ativas);
     } catch (err) {
       Alert.alert('Erro', err.message || 'Nao foi possivel carregar as lojas');
     } finally {

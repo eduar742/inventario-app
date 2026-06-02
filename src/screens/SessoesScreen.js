@@ -51,6 +51,7 @@ export default function SessoesScreen({ navigation, route }) {
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [papel, setPapel] = useState('operador'); // papel real do usuario
   const [cancelando, setCancelando] = useState(null);
   const [encerrando, setEncerrando] = useState(null);
   const [exportando, setExportando] = useState(false);
@@ -74,6 +75,7 @@ export default function SessoesScreen({ navigation, route }) {
     try {
       const usuario = await pegarUsuario();
       setIsAdmin(usuario?.papel === 'admin');
+      setPapel(usuario?.papel || 'operador');
     } catch (_) {}
 
     try {
@@ -170,11 +172,15 @@ export default function SessoesScreen({ navigation, route }) {
     return cfg[status] || { bg: colors.backgroundSoft, txt: colors.textSecondary, label: status };
   }
 
+  // Papeis somente leitura: apenas visualizam, nao executam acoes
+  const isReadOnly = ['gerente', 'auditor'].includes(papel);
+  const podeEscrever = !isReadOnly; // admin, gestor, operador podem agir
+
   function renderSessao({ item }) {
     const estaCancelando = cancelando === item.id;
     const estaEncerrando = encerrando === item.id;
     const { bg, txt, label } = badgeStatus(item.status);
-    const podeContar = item.status === 'em_andamento';
+    const podeContar = item.status === 'em_andamento' && podeEscrever;
 
     return (
       <TouchableOpacity
@@ -250,8 +256,8 @@ export default function SessoesScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* Encerrar sessao: apenas em_andamento + admin */}
-        {isAdmin && item.status === 'em_andamento' && (
+        {/* Encerrar sessao: apenas em_andamento + admin + sem leitura-somente */}
+        {isAdmin && item.status === 'em_andamento' && podeEscrever && (
           <TouchableOpacity
             style={estilos.botaoCancelar}
             onPress={() => handleEncerrar(item)}
@@ -264,8 +270,8 @@ export default function SessoesScreen({ navigation, route }) {
           </TouchableOpacity>
         )}
 
-        {/* Aguardando aprovacao: ir para divergencias */}
-        {isAdmin && item.status === 'aguardando_aprovacao' && (
+        {/* Aguardando aprovacao — gerente/auditor pode ver mas nao aprovar */}
+        {(isAdmin || isReadOnly) && item.status === 'aguardando_aprovacao' && (
           <View style={estilos.acoesCard}>
             <TouchableOpacity
               style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft, flex: 2 }]}
@@ -282,8 +288,8 @@ export default function SessoesScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Acoes pos-inventario: apenas sessoes concluidas */}
-        {isAdmin && item.status === 'concluida' && (
+        {/* Acoes pos-inventario — gerente/auditor pode ver historico/exportar */}
+        {(isAdmin || isReadOnly) && item.status === 'concluida' && (
           <View style={estilos.acoesCard}>
             <TouchableOpacity
               style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft }]}
@@ -306,8 +312,8 @@ export default function SessoesScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* M3: ADM pode excluir QUALQUER sessao (inclusive concluida) */}
-        {isAdmin && (
+        {/* M3: ADM pode excluir QUALQUER sessao — leitura-somente nao pode */}
+        {isAdmin && podeEscrever && (
           <TouchableOpacity
             style={estilos.botaoCancelar}
             onPress={() => handleCancelar(item)}
@@ -361,8 +367,8 @@ export default function SessoesScreen({ navigation, route }) {
             <Text style={estilos.chipTexto}>{loja.codigo}</Text>
           </View>
 
-          {/* Nova Sessao (admin) */}
-          {isAdmin && (
+          {/* Nova Sessao (admin apenas — nao para leitura-somente) */}
+          {isAdmin && podeEscrever && (
             <TouchableOpacity
               style={[estilos.chip, estilos.chipPrimary]}
               onPress={() => navigation.navigate('CriarSessao')}
