@@ -229,6 +229,55 @@ export default function CriarSessaoScreen({ navigation }) {
     <SafeAreaView style={estilos.container}>
       <ScrollView contentContainerStyle={estilos.scroll} keyboardShouldPersistTaps="handled">
 
+        {/* ── INFO: o que é necessário ── */}
+        <View style={estilos.infoBox}>
+          <Text style={estilos.infoTitulo}>📋 O que você precisa para criar uma sessão</Text>
+
+          <View style={estilos.infoLinha}>
+            <Text style={estilos.infoBullet}>1.</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={estilos.infoItemTitulo}>Estoque importado (obrigatório)</Text>
+              <Text style={estilos.infoItemDesc}>
+                A planilha de saldos do ERP já deve estar carregada para a loja e mês escolhidos.
+                Vá em Importar → aba Estoque antes de criar a sessão.
+              </Text>
+            </View>
+          </View>
+
+          <View style={estilos.infoLinha}>
+            <Text style={estilos.infoBullet}>2.</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={estilos.infoItemTitulo}>Loja e Mês de referência</Text>
+              <Text style={estilos.infoItemDesc}>
+                Os meses disponíveis aparecem automaticamente após selecionar a loja.
+                Formato: YYYY-MM (ex: 2026-06)
+              </Text>
+            </View>
+          </View>
+
+          <View style={estilos.infoLinha}>
+            <Text style={estilos.infoBullet}>3.</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={estilos.infoItemTitulo}>Natureza (Venda ou Quarentena)</Text>
+              <Text style={estilos.infoItemDesc}>
+                Filtra quais produtos serão contados. Cada natureza gera uma sessão separada.
+                Deixe "Todas" para contar sem filtro.
+              </Text>
+            </View>
+          </View>
+
+          <View style={[estilos.infoLinha, { borderBottomWidth: 0, marginBottom: 0, paddingBottom: 0 }]}>
+            <Text style={estilos.infoBullet}>4.</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={estilos.infoItemTitulo}>Nome da sessão (opcional)</Text>
+              <Text style={estilos.infoItemDesc}>
+                Se não informado, o sistema gera automaticamente:
+                "Inventario [Mês] [Ano] — [Loja]"
+              </Text>
+            </View>
+          </View>
+        </View>
+
         {/* ── LOJA ── */}
         <Text style={estilos.rotulo}>Loja *</Text>
         <TouchableOpacity style={estilos.seletor} onPress={() => setModalLojas(true)}>
@@ -515,6 +564,38 @@ const estilos = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundSoft },
   centro:    { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll:    { padding: spacing.lg },
+
+  // Info box
+  infoBox: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  infoTitulo: {
+    fontSize: fontSize.sm, fontWeight: '800', color: '#1E40AF',
+    marginBottom: spacing.sm,
+  },
+  infoLinha: {
+    flexDirection: 'row',
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: '#DBEAFE',
+    marginBottom: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  infoBullet: {
+    fontSize: fontSize.sm, fontWeight: '800', color: '#3B82F6',
+    marginRight: spacing.sm, width: 18,
+  },
+  infoItemTitulo: {
+    fontSize: fontSize.sm, fontWeight: '700', color: '#1E40AF', marginBottom: 2,
+  },
+  infoItemDesc: {
+    fontSize: 11, color: '#3B82F6', lineHeight: 16,
+  },
 
   rotulo: {
     fontSize: fontSize.sm, fontWeight: '700', color: colors.textSecondary,
