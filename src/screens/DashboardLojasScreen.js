@@ -12,6 +12,7 @@ import {
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { buscarDashboardLojas, buscarDashboardHistorico } from '../services/api';
 import NaturezaFiltro from '../components/NaturezaFiltro';
+import GrupoMaterialFiltro from '../components/GrupoMaterialFiltro';
 
 const INTERVALO = 30000;
 
@@ -105,13 +106,14 @@ export default function DashboardLojasScreen({ navigation }) {
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [naturezaId, setNaturezaId] = useState(null);
+  const [grupoMaterial, setGrupoMaterial] = useState(null);
   const timer = useRef(null);
 
   const carregar = useCallback(async (s = false) => {
     if (!s) setCarregando(true);
-    try { const d = await buscarDashboardLojas(naturezaId); setLojas(d); } catch (_) {}
+    try { const d = await buscarDashboardLojas(naturezaId, grupoMaterial); setLojas(d); } catch (_) {}
     finally { setCarregando(false); setRefreshing(false); }
-  }, [naturezaId]);
+  }, [naturezaId, grupoMaterial]);
 
   useEffect(() => {
     carregar();
@@ -155,7 +157,12 @@ export default function DashboardLojasScreen({ navigation }) {
           <>
             <NaturezaFiltro
               value={naturezaId}
-              onChange={id => { setNaturezaId(id); setCarregando(true); }}
+              onChange={id => { setNaturezaId(id); setGrupoMaterial(null); setCarregando(true); }}
+            />
+            <GrupoMaterialFiltro
+              grupos={[...new Set(lojas.flatMap(l => l.grupos_material || []))]}
+              value={grupoMaterial}
+              onChange={g => { setGrupoMaterial(g); setCarregando(true); }}
             />
             <Text style={estilos.dica}>Toque para ver o consolidado detalhado</Text>
           </>
@@ -176,14 +183,15 @@ export function DashboardHistoricoScreen({ navigation, route }) {
   const [meses, setMeses] = useState(6);
   const [sessaoIdx, setSessaoIdx] = useState(null);
   const [naturezaId, setNaturezaId] = useState(null);
+  const [grupoMaterial, setGrupoMaterial] = useState(null);
   const timer = useRef(null);
 
   const carregar = useCallback(async (s = false) => {
     if (!s) setCarregando(true);
-    try { const d = await buscarDashboardHistorico(loja.loja_id, meses, naturezaId); setHistorico(d); }
+    try { const d = await buscarDashboardHistorico(loja.loja_id, meses, naturezaId, grupoMaterial); setHistorico(d); }
     catch (_) {}
     finally { setCarregando(false); }
-  }, [loja.loja_id, meses, naturezaId]);
+  }, [loja.loja_id, meses, naturezaId, grupoMaterial]);
 
   useEffect(() => {
     setSessaoIdx(null);
@@ -259,10 +267,15 @@ export function DashboardHistoricoScreen({ navigation, route }) {
         refreshControl={<RefreshControl refreshing={false} onRefresh={carregar}
           colors={[colors.primary]} tintColor={colors.primary} />}>
 
-        {/* Filtro por natureza */}
+        {/* Filtros: natureza + grupo de material */}
         <NaturezaFiltro
           value={naturezaId}
-          onChange={id => { setNaturezaId(id); setSessaoIdx(null); setCarregando(true); }}
+          onChange={id => { setNaturezaId(id); setGrupoMaterial(null); setSessaoIdx(null); setCarregando(true); }}
+        />
+        <GrupoMaterialFiltro
+          grupos={historico?.grupos_material || []}
+          value={grupoMaterial}
+          onChange={g => { setGrupoMaterial(g); setSessaoIdx(null); setCarregando(true); }}
         />
 
         {/* Seletor de periodo */}

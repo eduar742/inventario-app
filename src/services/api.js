@@ -366,20 +366,31 @@ export async function listarMesesImportados(lojaId) {
 // ENDPOINTS DE DASHBOARD
 // ============================================================
 
-export async function buscarDashboardGeral(naturezaFiltroId) {
-  const params = naturezaFiltroId ? `?natureza_filtro_id=${naturezaFiltroId}` : '';
-  return await chamarAPI(`/api/v1/dashboard${params}`);
+function _dashParams(naturezaFiltroId, grupoMaterial) {
+  const p = new URLSearchParams();
+  if (naturezaFiltroId) p.append('natureza_filtro_id', naturezaFiltroId);
+  if (grupoMaterial)    p.append('grupo_material', grupoMaterial);
+  return p.toString() ? `?${p}` : '';
 }
 
-export async function buscarDashboardLojas(naturezaFiltroId) {
-  const params = naturezaFiltroId ? `?natureza_filtro_id=${naturezaFiltroId}` : '';
-  return await chamarAPI(`/api/v1/dashboard/lojas${params}`);
+export async function buscarDashboardGeral(naturezaFiltroId, grupoMaterial) {
+  return await chamarAPI(`/api/v1/dashboard${_dashParams(naturezaFiltroId, grupoMaterial)}`);
 }
 
-export async function buscarDashboardHistorico(lojaId, meses = 6, naturezaFiltroId) {
-  const params = new URLSearchParams({ meses });
-  if (naturezaFiltroId) params.append('natureza_filtro_id', naturezaFiltroId);
-  return await chamarAPI(`/api/v1/dashboard/historico/${lojaId}?${params}`);
+export async function buscarDashboardLojas(naturezaFiltroId, grupoMaterial) {
+  return await chamarAPI(`/api/v1/dashboard/lojas${_dashParams(naturezaFiltroId, grupoMaterial)}`);
+}
+
+export async function buscarDashboardHistorico(lojaId, meses = 6, naturezaFiltroId, grupoMaterial) {
+  const p = new URLSearchParams({ meses });
+  if (naturezaFiltroId) p.append('natureza_filtro_id', naturezaFiltroId);
+  if (grupoMaterial)    p.append('grupo_material', grupoMaterial);
+  return await chamarAPI(`/api/v1/dashboard/historico/${lojaId}?${p}`);
+}
+
+export async function buscarGruposMaterial(lojaId, naturezaFiltroId) {
+  const p = naturezaFiltroId ? `?natureza_filtro_id=${naturezaFiltroId}` : '';
+  return await chamarAPI(`/api/v1/dashboard/grupos-material/${lojaId}${p}`);
 }
 
 // ============================================================

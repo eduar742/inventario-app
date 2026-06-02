@@ -11,6 +11,7 @@ import {
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { buscarDashboardGeral } from '../services/api';
 import NaturezaFiltro from '../components/NaturezaFiltro';
+import GrupoMaterialFiltro from '../components/GrupoMaterialFiltro';
 
 const INTERVALO = 30000;
 
@@ -64,17 +65,18 @@ export default function DashboardScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [ultimaAtu, setUltimaAtu] = useState(null);
   const [naturezaId, setNaturezaId] = useState(null);
+  const [grupoMaterial, setGrupoMaterial] = useState(null);
   const timerRef = useRef(null);
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
     try {
-      const d = await buscarDashboardGeral(naturezaId);
+      const d = await buscarDashboardGeral(naturezaId, grupoMaterial);
       setDados(d);
       setUltimaAtu(new Date());
     } catch (_) {}
     finally { setCarregando(false); setRefreshing(false); }
-  }, [naturezaId]);
+  }, [naturezaId, grupoMaterial]);
 
   useEffect(() => {
     carregar();
@@ -107,10 +109,15 @@ export default function DashboardScreen({ navigation }) {
             colors={[colors.primary]} tintColor={colors.primary} />
         }
       >
-        {/* Filtro por natureza */}
+        {/* Filtros: natureza + grupo de material */}
         <NaturezaFiltro
           value={naturezaId}
-          onChange={id => { setNaturezaId(id); setCarregando(true); }}
+          onChange={id => { setNaturezaId(id); setGrupoMaterial(null); setCarregando(true); }}
+        />
+        <GrupoMaterialFiltro
+          grupos={dados?.grupos_material || []}
+          value={grupoMaterial}
+          onChange={g => { setGrupoMaterial(g); setCarregando(true); }}
         />
 
         {/* Header */}
