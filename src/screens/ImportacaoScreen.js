@@ -1,23 +1,18 @@
-// Tela de importacao de planilhas de estoque. Apenas para ADM.
-// Fluxo: seleciona loja -> informa mes/ano -> seleciona arquivo -> importa
+// Tela de importacao. Duas abas:
+//  1. Estoque — importa saldos de estoque (comportamento atual)
+//  2. Historico — importa inventario ja realizado (cria sessao concluida)
 
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  SafeAreaView,
-  TouchableOpacity,
-  ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, SafeAreaView,
+  TouchableOpacity, ActivityIndicator, TextInput,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
-import { avisar, confirmar } from '../utils/alertas';
+import { avisar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
-import { listarLojas, importarPlanilha } from '../services/api';
+import { listarLojas, listarNaturezas, importarPlanilha, importarInventarioHistorico } from '../services/api';
 
 
 const MODOS = [
@@ -26,24 +21,30 @@ const MODOS = [
 ];
 
 export default function ImportacaoScreen({ navigation }) {
+  const [aba, setAba] = useState('estoque'); // 'estoque' ou 'historico'
   const [lojas, setLojas] = useState([]);
+  const [naturezas, setNaturezas] = useState([]);
   const [carregandoLojas, setCarregandoLojas] = useState(true);
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
-  const [mesAno, setMesAno] = useState('');          // formato MM/YYYY digitado
+  const [mesAno, setMesAno] = useState('');
   const [arquivo, setArquivo] = useState(null);
   const [modo, setModo] = useState('completo');
   const [importando, setImportando] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [expandirLojas, setExpandirLojas] = useState(false);
+  // Campos extras para importacao historica
+  const [nomeSessao, setNomeSessao] = useState('');
+  const [naturezaSel, setNaturezaSel] = useState(null); // objeto natureza
 
   useEffect(() => {
-    carregarLojas();
+    carregarDados();
   }, []);
 
-  async function carregarLojas() {
+  async function carregarDados() {
     try {
-      const dados = await listarLojas();
-      setLojas(dados);
+      const [ls, ns] = await Promise.all([listarLojas(), listarNaturezas().catch(() => [])]);
+      setLojas(ls);
+      setNaturezas(ns);
     } catch (err) {
       avisar('Erro', 'Nao foi possivel carregar as lojas');
     } finally {
@@ -92,42 +93,47 @@ export default function ImportacaoScreen({ navigation }) {
   }
 
   async function handleImportar() {
-    if (!lojaSelecionada) {
-      avisar('Atencao', 'Selecione uma loja');
-      return;
-    }
-    if (!validarMesAno(mesAno)) {
-      avisar('Atencao', 'Informe o mes no formato MM/AAAA (ex: 01/2026)');
-      return;
-    }
-    if (!arquivo) {
-      avisar('Atencao', 'Selecione o arquivo da planilha');
-      return;
-    }
+    if (!lojaSelecionada) { avisar('Atencao', 'Selecione uma loja'); return; }
+    if (!validarMesAno(mesAno)) { avisar('Atencao', 'Informe o mes no formato MM/AAAA (ex: 01/2026)'); return; }
+    if (!arquivo) { avisar('Atencao', 'Selecione o arquivo da planilha'); return; }
 
-    setImportando(true);
-    setResultado(null);
-
+    setImportando(true); setResultado(null);
     try {
       const res = await importarPlanilha({
         lojaId: lojaSelecionada.id,
         mesReferencia: converterMesReferencia(mesAno),
-        arquivo,
-        modo,
+        arquivo, modo,
       });
-      setResultado(res);
+      setResultado({ ...res, tipo: 'estoque' });
     } catch (err) {
       avisar('Erro na importacao', err.message || 'Tente novamente');
-    } finally {
-      setImportando(false);
-    }
+    } finally { setImportando(false); }
+  }
+
+  async function handleImportarHistorico() {
+    if (!lojaSelecionada) { avisar('Atencao', 'Selecione uma loja'); return; }
+    if (!validarMesAno(mesAno)) { avisar('Atencao', 'Informe o mes no formato MM/AAAA'); return; }
+    if (!arquivo) { avisar('Atencao', 'Selecione o arquivo da planilha'); return; }
+
+    setImportando(true); setResultado(null);
+    try {
+      const res = await importarInventarioHistorico({
+        lojaId: lojaSelecionada.id,
+        mesReferencia: converterMesReferencia(mesAno),
+        nomeSessao: nomeSessao.trim() || null,
+        naturezaId: naturezaSel?.id || null,
+        arquivo,
+      });
+      setResultado({ ...res, tipo: 'historico' });
+    } catch (err) {
+      avisar('Erro na importacao', err.message || 'Tente novamente');
+    } finally { setImportando(false); }
   }
 
   function novaImportacao() {
-    setArquivo(null);
-    setResultado(null);
-    setMesAno('');
-    setLojaSelecionada(null);
+    setArquivo(null); setResultado(null);
+    setMesAno(''); setLojaSelecionada(null);
+    setNomeSessao(''); setNaturezaSel(null);
   }
 
   if (carregandoLojas) {
@@ -141,11 +147,9 @@ export default function ImportacaoScreen({ navigation }) {
   // Tela de resultado
   if (resultado) {
     const icone = resultado.status === 'sucesso' ? '✓' : resultado.status === 'parcial' ? '!' : '✗';
-    const corStatus = resultado.status === 'sucesso'
-      ? colors.success
-      : resultado.status === 'parcial'
-        ? colors.warning
-        : colors.danger;
+    const corStatus = resultado.status === 'sucesso' ? colors.success
+      : resultado.status === 'parcial' ? colors.warning : colors.danger;
+    const isHistorico = resultado.tipo === 'historico';
 
     return (
       <SafeAreaView style={estilos.container}>
@@ -155,16 +159,33 @@ export default function ImportacaoScreen({ navigation }) {
           </View>
 
           <Text style={[estilos.resultadoTitulo, { color: corStatus }]}>
-            {resultado.status === 'sucesso' && 'Importacao concluida!'}
-            {resultado.status === 'parcial' && 'Importacao parcial'}
-            {resultado.status === 'falhou' && 'Importacao falhou'}
+            {resultado.status === 'sucesso'
+              ? (isHistorico ? 'Inventario historico importado!' : 'Importacao concluida!')
+              : resultado.status === 'parcial'
+                ? (isHistorico ? 'Importado com alertas' : 'Importacao parcial')
+                : 'Importacao falhou'}
           </Text>
 
           <View style={estilos.cardResultado}>
-            <LinhaStat rotulo="Total de linhas" valor={resultado.linhas_total} />
-            <LinhaStat rotulo="Importadas com sucesso" valor={resultado.linhas_sucesso} cor={colors.success} />
-            {resultado.linhas_erro > 0 && (
-              <LinhaStat rotulo="Com erro" valor={resultado.linhas_erro} cor={colors.danger} />
+            {isHistorico ? (
+              <>
+                <LinhaStat rotulo="Produtos importados" valor={resultado.linhas_importadas} cor={colors.success} />
+                <LinhaStat rotulo="Divergencias criadas" valor={resultado.divergencias_criadas} cor={resultado.divergencias_criadas > 0 ? colors.warning : colors.success} />
+                {resultado.linhas_erro > 0 && (
+                  <LinhaStat rotulo="Linhas com erro" valor={resultado.linhas_erro} cor={colors.danger} />
+                )}
+                {resultado.sessao_nome && (
+                  <LinhaStat rotulo="Sessao criada" valor={resultado.sessao_nome} />
+                )}
+              </>
+            ) : (
+              <>
+                <LinhaStat rotulo="Total de linhas" valor={resultado.linhas_total} />
+                <LinhaStat rotulo="Importadas com sucesso" valor={resultado.linhas_sucesso} cor={colors.success} />
+                {resultado.linhas_erro > 0 && (
+                  <LinhaStat rotulo="Com erro" valor={resultado.linhas_erro} cor={colors.danger} />
+                )}
+              </>
             )}
           </View>
 
@@ -185,136 +206,194 @@ export default function ImportacaoScreen({ navigation }) {
           <View style={{ height: spacing.xl }} />
           <Button titulo="Nova importacao" onPress={novaImportacao} />
           <View style={{ height: spacing.sm }} />
-          <Button
-            titulo="Ver historico"
-            variante="secondary"
-            onPress={() => navigation.navigate('HistoricoImportacoes')}
-          />
+          <Button titulo="Ver historico" variante="secondary" onPress={() => navigation.navigate('HistoricoImportacoes')} />
         </ScrollView>
       </SafeAreaView>
     );
   }
+
+  // Componente reutilizavel: seletor de loja
+  const SeletorLoja = () => (
+    <>
+      <Text style={estilos.rotulo}>Loja</Text>
+      <TouchableOpacity style={estilos.seletor} onPress={() => setExpandirLojas(!expandirLojas)}>
+        <Text style={lojaSelecionada ? estilos.seletorTexto : estilos.seletorPlaceholder}>
+          {lojaSelecionada ? `${lojaSelecionada.codigo} — ${lojaSelecionada.nome}` : 'Selecione a loja'}
+        </Text>
+        <Text style={estilos.seletorSeta}>{expandirLojas ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+      {expandirLojas && (
+        <ScrollView style={estilos.dropdown} nestedScrollEnabled>
+          {lojas.map(loja => (
+            <TouchableOpacity key={loja.id}
+              style={[estilos.dropdownItem, lojaSelecionada?.id === loja.id && estilos.dropdownItemAtivo]}
+              onPress={() => { setLojaSelecionada(loja); setExpandirLojas(false); }}>
+              <Text style={[estilos.dropdownItemTexto, lojaSelecionada?.id === loja.id && estilos.dropdownItemTextoAtivo]}>
+                {loja.codigo} — {loja.nome}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+    </>
+  );
+
+  // Componente reutilizavel: seletor de mes
+  const SeletorMes = () => (
+    <>
+      <View style={{ height: spacing.md }} />
+      <Text style={estilos.rotulo}>Mes de referencia</Text>
+      <View style={estilos.inputContainer}>
+        <Text style={estilos.inputDica}>Formato: MM/AAAA</Text>
+        <View style={estilos.inputRow}>
+          {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => {
+            const anoAtual = new Date().getFullYear();
+            const val = `${m}/${anoAtual}`;
+            const ativo = mesAno === val;
+            return (
+              <TouchableOpacity key={m} style={[estilos.chipMes, ativo && estilos.chipMesAtivo]} onPress={() => setMesAno(val)}>
+                <Text style={[estilos.chipMesTexto, ativo && estilos.chipMesTextoAtivo]}>{m}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        {mesAno ? <Text style={estilos.mesSelecionado}>Selecionado: {mesAno} → {converterMesReferencia(mesAno)}</Text> : null}
+      </View>
+    </>
+  );
+
+  // Componente reutilizavel: seletor de arquivo
+  const SeletorArquivo = () => (
+    <>
+      <View style={{ height: spacing.md }} />
+      <Text style={estilos.rotulo}>Arquivo</Text>
+      <TouchableOpacity style={estilos.botaoArquivo} onPress={selecionarArquivo}>
+        {arquivo ? (
+          <View>
+            <Text style={estilos.arquivoNome}>{arquivo.name}</Text>
+            <Text style={estilos.arquivoTamanho}>{arquivo.size ? `${(arquivo.size / 1024).toFixed(1)} KB` : ''}</Text>
+          </View>
+        ) : (
+          <Text style={estilos.botaoArquivoTexto}>Toque para selecionar .xlsx / .xls / .csv</Text>
+        )}
+      </TouchableOpacity>
+    </>
+  );
 
   // Tela de formulario
   return (
     <SafeAreaView style={estilos.container}>
       <ScrollView contentContainerStyle={estilos.scroll} keyboardShouldPersistTaps="handled">
 
-        {/* Selecao de loja */}
-        <Text style={estilos.rotulo}>Loja</Text>
-        <TouchableOpacity
-          style={estilos.seletor}
-          onPress={() => setExpandirLojas(!expandirLojas)}
-        >
-          <Text style={lojaSelecionada ? estilos.seletorTexto : estilos.seletorPlaceholder}>
-            {lojaSelecionada ? `${lojaSelecionada.codigo} — ${lojaSelecionada.nome}` : 'Selecione a loja'}
-          </Text>
-          <Text style={estilos.seletorSeta}>{expandirLojas ? '▲' : '▼'}</Text>
-        </TouchableOpacity>
-
-        {expandirLojas && (
-          <View style={estilos.dropdown}>
-            {lojas.map(loja => (
-              <TouchableOpacity
-                key={loja.id}
-                style={[
-                  estilos.dropdownItem,
-                  lojaSelecionada?.id === loja.id && estilos.dropdownItemAtivo,
-                ]}
-                onPress={() => {
-                  setLojaSelecionada(loja);
-                  setExpandirLojas(false);
-                }}
-              >
-                <Text style={[
-                  estilos.dropdownItemTexto,
-                  lojaSelecionada?.id === loja.id && estilos.dropdownItemTextoAtivo,
-                ]}>
-                  {loja.codigo} — {loja.nome}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {/* Mes/Ano */}
-        <View style={{ height: spacing.md }} />
-        <Text style={estilos.rotulo}>Mes de referencia</Text>
-        <View style={estilos.inputContainer}>
-          <Text style={estilos.inputDica}>Formato: MM/AAAA</Text>
-          <View style={estilos.inputRow}>
-            {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => {
-              const anoAtual = new Date().getFullYear();
-              const val = `${m}/${anoAtual}`;
-              const ativo = mesAno === val;
-              return (
-                <TouchableOpacity
-                  key={m}
-                  style={[estilos.chipMes, ativo && estilos.chipMesAtivo]}
-                  onPress={() => setMesAno(val)}
-                >
-                  <Text style={[estilos.chipMesTexto, ativo && estilos.chipMesTextoAtivo]}>{m}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          {mesAno ? (
-            <Text style={estilos.mesSelecionado}>
-              Selecionado: {mesAno} → {converterMesReferencia(mesAno)}
-            </Text>
-          ) : null}
+        {/* Abas: Estoque / Historico */}
+        <View style={estilos.abaRow}>
+          <TouchableOpacity
+            style={[estilos.aba, aba === 'estoque' && estilos.abaAtiva]}
+            onPress={() => { setAba('estoque'); setResultado(null); setArquivo(null); }}
+          >
+            <Text style={[estilos.abaTxt, aba === 'estoque' && estilos.abaTxtAtivo]}>📦 Estoque</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[estilos.aba, aba === 'historico' && estilos.abaAtiva]}
+            onPress={() => { setAba('historico'); setResultado(null); setArquivo(null); }}
+          >
+            <Text style={[estilos.abaTxt, aba === 'historico' && estilos.abaTxtAtivo]}>📋 Inventário Histórico</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Modo */}
-        <View style={{ height: spacing.md }} />
-        <Text style={estilos.rotulo}>Modo de importacao</Text>
-        {MODOS.map(m => (
-          <TouchableOpacity
-            key={m.valor}
-            style={[estilos.cardModo, modo === m.valor && estilos.cardModoAtivo]}
-            onPress={() => setModo(m.valor)}
-          >
-            <View style={estilos.cardModoHeader}>
-              <View style={[estilos.radio, modo === m.valor && estilos.radioAtivo]} />
-              <Text style={[estilos.cardModoRotulo, modo === m.valor && estilos.cardModoRotuloAtivo]}>
-                {m.rotulo}
+        {/* ── ABA ESTOQUE (comportamento atual) ────────────────────── */}
+        {aba === 'estoque' && (
+          <>
+            <View style={estilos.infoBox}>
+              <Text style={estilos.infoTxt}>
+                Importa saldos de estoque do ERP.{'\n'}
+                Colunas: Natureza, Codigo, Descricao, UnidadeMedida, SaldoEstoque, CustoUnitario
               </Text>
             </View>
-            <Text style={estilos.cardModoDescricao}>{m.descricao}</Text>
-          </TouchableOpacity>
-        ))}
+            <SeletorLoja />
+            <SeletorMes />
 
-        {/* Arquivo */}
-        <View style={{ height: spacing.md }} />
-        <Text style={estilos.rotulo}>Arquivo</Text>
-        <TouchableOpacity style={estilos.botaoArquivo} onPress={selecionarArquivo}>
-          {arquivo ? (
-            <View>
-              <Text style={estilos.arquivoNome}>{arquivo.name}</Text>
-              <Text style={estilos.arquivoTamanho}>
-                {arquivo.size ? `${(arquivo.size / 1024).toFixed(1)} KB` : ''}
+            <View style={{ height: spacing.md }} />
+            <Text style={estilos.rotulo}>Modo de importacao</Text>
+            {MODOS.map(m => (
+              <TouchableOpacity key={m.valor} style={[estilos.cardModo, modo === m.valor && estilos.cardModoAtivo]} onPress={() => setModo(m.valor)}>
+                <View style={estilos.cardModoHeader}>
+                  <View style={[estilos.radio, modo === m.valor && estilos.radioAtivo]} />
+                  <Text style={[estilos.cardModoRotulo, modo === m.valor && estilos.cardModoRotuloAtivo]}>{m.rotulo}</Text>
+                </View>
+                <Text style={estilos.cardModoDescricao}>{m.descricao}</Text>
+              </TouchableOpacity>
+            ))}
+
+            <SeletorArquivo />
+            <View style={{ height: spacing.xl }} />
+            <Button titulo="Importar estoque" onPress={handleImportar} carregando={importando}
+              desabilitado={!lojaSelecionada || !validarMesAno(mesAno) || !arquivo || importando} />
+          </>
+        )}
+
+        {/* ── ABA HISTÓRICO ─────────────────────────────────────────── */}
+        {aba === 'historico' && (
+          <>
+            <View style={[estilos.infoBox, { borderColor: '#0D9488', backgroundColor: '#F0FDFA' }]}>
+              <Text style={[estilos.infoTxt, { color: '#0D9488' }]}>
+                Importa inventário realizado antes do app.{'\n'}
+                Cria uma sessão já concluída com contagens e divergências.{'\n\n'}
+                Colunas obrigatórias:{'\n'}
+                Natureza | Codigo | Descricao | UnidadeMedida{'\n'}
+                SaldoSistema | QuantidadeContada{'\n\n'}
+                Opcional: CustoUnitario | GrupoMaterial
               </Text>
             </View>
-          ) : (
-            <Text style={estilos.botaoArquivoTexto}>Toque para selecionar .xlsx / .xls / .csv</Text>
-          )}
-        </TouchableOpacity>
 
-        <View style={{ height: spacing.xl }} />
+            <SeletorLoja />
+            <SeletorMes />
 
-        <Button
-          titulo="Importar planilha"
-          onPress={handleImportar}
-          carregando={importando}
-          desabilitado={!lojaSelecionada || !validarMesAno(mesAno) || !arquivo || importando}
-        />
+            {/* Natureza (opcional) */}
+            <View style={{ height: spacing.md }} />
+            <Text style={estilos.rotulo}>Natureza (opcional)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.xs }}>
+              <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                <TouchableOpacity
+                  style={[estilos.chipMes, !naturezaSel && estilos.chipMesAtivo]}
+                  onPress={() => setNaturezaSel(null)}
+                >
+                  <Text style={[estilos.chipMesTexto, !naturezaSel && estilos.chipMesTextoAtivo]}>Todas</Text>
+                </TouchableOpacity>
+                {naturezas.map(n => (
+                  <TouchableOpacity key={n.id}
+                    style={[estilos.chipMes, naturezaSel?.id === n.id && estilos.chipMesAtivo]}
+                    onPress={() => setNaturezaSel(n)}>
+                    <Text style={[estilos.chipMesTexto, naturezaSel?.id === n.id && estilos.chipMesTextoAtivo]}>
+                      {n.nome}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            {/* Nome da sessao */}
+            <View style={{ height: spacing.sm }} />
+            <Text style={estilos.rotulo}>Nome da sessão (opcional)</Text>
+            <TextInput
+              style={estilos.inputNome}
+              value={nomeSessao}
+              onChangeText={setNomeSessao}
+              placeholder={lojaSelecionada && mesAno
+                ? `Inventario Historico ${lojaSelecionada.codigo} ${converterMesReferencia(mesAno)}`
+                : 'Ex: Inventario Maio 2025 — ACM'}
+              placeholderTextColor={colors.textMuted}
+            />
+
+            <SeletorArquivo />
+            <View style={{ height: spacing.xl }} />
+            <Button titulo="Importar inventario historico" onPress={handleImportarHistorico} carregando={importando}
+              desabilitado={!lojaSelecionada || !validarMesAno(mesAno) || !arquivo || importando} />
+          </>
+        )}
 
         <View style={{ height: spacing.sm }} />
-        <Button
-          titulo="Ver historico de importacoes"
-          variante="secondary"
-          onPress={() => navigation.navigate('HistoricoImportacoes')}
-        />
+        <Button titulo="Ver historico de importacoes" variante="secondary" onPress={() => navigation.navigate('HistoricoImportacoes')} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -330,10 +409,18 @@ function LinhaStat({ rotulo, valor, cor }) {
 }
 
 const estilos = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundSoft,
-  },
+  container: { flex: 1, backgroundColor: colors.backgroundSoft },
+  // Abas
+  abaRow: { flexDirection: 'row', marginBottom: spacing.md, borderRadius: radius.md, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  aba:     { flex: 1, padding: spacing.sm, alignItems: 'center', backgroundColor: colors.backgroundSoft },
+  abaAtiva: { backgroundColor: colors.primary },
+  abaTxt:   { fontSize: fontSize.sm, fontWeight: '600', color: colors.textSecondary },
+  abaTxtAtivo: { color: colors.white },
+  // Info box
+  infoBox: { backgroundColor: '#EFF6FF', borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md, borderWidth: 1, borderColor: '#BFDBFE' },
+  infoTxt: { fontSize: 11, color: '#1E40AF', lineHeight: 18 },
+  // Input nome sessao
+  inputNome: { backgroundColor: colors.backgroundSoft, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, fontSize: fontSize.sm, color: colors.text },
   centro: {
     flex: 1,
     alignItems: 'center',

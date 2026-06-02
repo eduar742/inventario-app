@@ -388,6 +388,47 @@ export async function importarPlanilha({ lojaId, mesReferencia, arquivo, modo = 
   }
 }
 
+// Importacao de inventario historico (cria sessao ja concluida)
+export async function importarInventarioHistorico({ lojaId, mesReferencia, nomeSessao, naturezaId, arquivo }) {
+  const url = `${API_BASE_URL}/api/v1/importacoes/historico`;
+  const token = await pegarToken();
+
+  const formData = new FormData();
+  formData.append('loja_id', lojaId);
+  formData.append('mes_referencia', mesReferencia);
+  if (nomeSessao) formData.append('nome_sessao', nomeSessao);
+  if (naturezaId) formData.append('natureza_id', naturezaId);
+
+  if (arquivo.file) {
+    formData.append('arquivo', arquivo.file, arquivo.name);
+  } else {
+    formData.append('arquivo', { uri: arquivo.uri, name: arquivo.name, type: arquivo.mimeType || 'application/octet-stream' });
+  }
+
+  const fetchFn = typeof window !== 'undefined' && window.fetch ? window.fetch.bind(window) : fetch;
+  try {
+    const resposta = await fetchFn(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const texto = await resposta.text();
+    let dados = null;
+    try { dados = texto ? JSON.parse(texto) : null; } catch (_) {}
+    if (!resposta.ok) {
+      const erro = new Error(_extrairMensagem(dados?.detail, resposta.status));
+      erro.status = resposta.status; throw erro;
+    }
+    return dados;
+  } catch (err) {
+    if (typeof window !== 'undefined') console.error('[importarHistorico]', err);
+    if (err.message === 'Network request failed' || err.message === 'Failed to fetch') {
+      const erro = new Error('Sem conexao com o servidor.'); erro.status = 0; throw erro;
+    }
+    throw err;
+  }
+}
+
 export async function listarImportacoes(filtros = {}) {
   const params = new URLSearchParams(filtros).toString();
   const caminho = params ? `/api/v1/importacoes?${params}` : '/api/v1/importacoes';
