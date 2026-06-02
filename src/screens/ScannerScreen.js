@@ -191,16 +191,34 @@ export default function ScannerScreen({ navigation, route }) {
           </TouchableOpacity>
         </SafeAreaView>
 
+        {/* Overlay escuro ao redor do quadrado de leitura */}
         <View style={estilos.scannerArea}>
-          <View style={estilos.scanFrame}>
-            <View style={[estilos.cantoBase, estilos.cantoSE]} />
-            <View style={[estilos.cantoBase, estilos.cantoSD]} />
-            <View style={[estilos.cantoBase, estilos.cantoIE]} />
-            <View style={[estilos.cantoBase, estilos.cantoID]} />
+          {/* Faixa escura superior */}
+          <View style={estilos.overlayTop} />
+
+          {/* Linha do meio: lateral esq. + quadrado limpo + lateral dir. */}
+          <View style={estilos.overlayMeio}>
+            <View style={estilos.overlayLateral} />
+
+            {/* Quadrado de leitura — sem background, camera visivel */}
+            <View style={estilos.scanFrame}>
+              <View style={[estilos.cantoBase, estilos.cantoSE]} />
+              <View style={[estilos.cantoBase, estilos.cantoSD]} />
+              <View style={[estilos.cantoBase, estilos.cantoIE]} />
+              <View style={[estilos.cantoBase, estilos.cantoID]} />
+              {/* Linha animada opcional — indica area ativa */}
+              <View style={estilos.scanLinha} />
+            </View>
+
+            <View style={estilos.overlayLateral} />
           </View>
-          <Text style={estilos.instrucao}>
-            Aponte a camera para o QR Code do produto
-          </Text>
+
+          {/* Faixa escura inferior com instrucao */}
+          <View style={estilos.overlayBottom}>
+            <Text style={estilos.instrucao}>
+              Aponte para o QR Code do produto
+            </Text>
+          </View>
         </View>
 
         <SafeAreaView style={estilos.rodape}>
@@ -384,21 +402,43 @@ const estilos = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  // ── Layout do scanner com overlay escuro ──────────────────────────────────
   scannerArea: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
+  // Faixa preta acima do quadrado
+  overlayTop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+  },
+  // Linha do meio: lateral esq. + janela + lateral dir.
+  overlayMeio: {
+    flexDirection: 'row',
+    height: 260,          // deve ser igual a scanFrame
+  },
+  overlayLateral: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+  },
+  // Quadrado limpo — camera visivel, sem background
   scanFrame: {
-    width: 240,
-    height: 240,
+    width: 260,
+    height: 260,
     position: 'relative',
   },
+  // Faixa preta abaixo do quadrado com instrucao
+  overlayBottom: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    alignItems: 'center',
+    paddingTop: 20,
+  },
+  // Cantos do frame
   cantoBase: {
     position: 'absolute',
-    width: 30,
-    height: 30,
-    borderColor: colors.success,
+    width: 36,
+    height: 36,
+    borderColor: '#4ADE80',  // verde brilhante para contraste
   },
   cantoSE: {
     top: 0,
@@ -424,12 +464,21 @@ const estilos = StyleSheet.create({
     borderBottomWidth: 4,
     borderRightWidth: 4,
   },
+  // Linha central que indica a area de leitura
+  scanLinha: {
+    position: 'absolute',
+    top: '50%',
+    left: 8,
+    right: 8,
+    height: 2,
+    backgroundColor: 'rgba(74,222,128,0.5)',
+    borderRadius: 2,
+  },
   instrucao: {
-    color: colors.white,
-    fontSize: 14,
-    marginTop: 24,
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
     textAlign: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
   },
   rodape: {
     backgroundColor: 'rgba(0,0,0,0.5)',
