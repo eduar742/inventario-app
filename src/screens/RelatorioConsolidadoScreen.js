@@ -10,8 +10,6 @@ import {
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { listarNaturezas, baixarRelatorioConsolidado } from '../services/api';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 
 export default function RelatorioConsolidadoScreen({ navigation }) {
   const [naturezas, setNaturezas] = useState([]);
@@ -47,6 +45,9 @@ export default function RelatorioConsolidadoScreen({ navigation }) {
         link.click();
         URL.revokeObjectURL(url);
       } else {
+        // Mobile: usa expo-file-system e expo-sharing via require dinamico
+        const FileSystem = require('expo-file-system');
+        const Sharing = require('expo-sharing');
         const caminho = `${FileSystem.documentDirectory}${nomeArquivo}`;
         await FileSystem.writeAsStringAsync(caminho, base64, {
           encoding: FileSystem.EncodingType.Base64,
