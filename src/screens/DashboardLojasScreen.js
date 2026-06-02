@@ -225,12 +225,12 @@ export function DashboardHistoricoScreen({ navigation, route }) {
           // Impacto bruto: |sobra|+|falta| — exposicao financeira REAL.
           // Nao usar ajuste_liquido (sobra-falta) como principal pois compensa
           // valores opostos e mascara o tamanho real do problema.
-          { label: 'Impacto Financeiro Total', valor: fmtR$(av.impacto_bruto ?? (av.acerto_positivo + av.acerto_negativo)),
-            corValor: '#DC2626', destaque: true },
-          { label: 'Falta (−)  deficit real', valor: `− ${fmtR$(av.acerto_negativo)}`, corValor: '#DC2626' },
-          { label: 'Sobra (+)  excesso', valor: `+ ${fmtR$(av.acerto_positivo)}`, corValor: '#D97706' },
-          { label: 'Ajuste Líquido (net)', valor: fmtR$(av.ajuste_liquido),
-            corValor: (av.ajuste_liquido || 0) < 0 ? '#DC2626' : '#475569' },
+          { label: 'Ajuste Líquido (real)', valor: fmtR$(av.ajuste_liquido),
+            corValor: (av.ajuste_liquido || 0) < 0 ? '#DC2626' : '#D97706', destaque: true },
+          { label: 'Falta (−)', valor: `− ${fmtR$(av.acerto_negativo)}`, corValor: '#DC2626' },
+          { label: 'Sobra (+)', valor: `+ ${fmtR$(av.acerto_positivo)}`, corValor: '#D97706' },
+          { label: 'Impacto Bruto (|+|+|−|)', valor: fmtR$(av.impacto_bruto ?? (av.acerto_positivo + av.acerto_negativo)),
+            corValor: '#475569' },
           { label: 'Diferença em %', valor: `${fmtNum(av.diferenca_pct, 2)}%` },
         ],
       },
@@ -241,12 +241,12 @@ export function DashboardHistoricoScreen({ navigation, route }) {
         linhas: au ? [
           { label: 'Total de Unidades', valor: fmtNum(au.total_sistema, 0) },
           // Mesmo criterio: impacto bruto em destaque
-          { label: 'Impacto Total (unid)', valor: fmtNum((au.acerto_positivo || 0) + (au.acerto_negativo || 0), 0),
-            corValor: '#DC2626', destaque: true },
+          { label: 'Ajuste Líquido (real)', valor: fmtNum(au.ajuste_liquido, 0),
+            corValor: (au.ajuste_liquido || 0) < 0 ? '#DC2626' : '#D97706', destaque: true },
           { label: 'Falta (−)', valor: `− ${fmtNum(au.acerto_negativo, 0)}`, corValor: '#DC2626' },
           { label: 'Sobra (+)', valor: `+ ${fmtNum(au.acerto_positivo, 0)}`, corValor: '#D97706' },
-          { label: 'Ajuste Líquido (net)', valor: fmtNum(au.ajuste_liquido, 0),
-            corValor: (au.ajuste_liquido || 0) < 0 ? '#DC2626' : '#475569' },
+          { label: 'Impacto Bruto', valor: fmtNum((au.acerto_positivo || 0) + (au.acerto_negativo || 0), 0),
+            corValor: '#475569' },
           { label: 'Diferença em %', valor: `${fmtNum(au.diferenca_pct, 2)}%` },
         ] : [],
       },
