@@ -622,20 +622,29 @@ const estilos = StyleSheet.create({
   },
 
   // Modal de selecao de loja
-  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
   modalContainer: {
     backgroundColor: colors.background,
-    borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    maxHeight: '75%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    // Altura fixa em pixels (funciona em web e mobile)
+    height: 480,
+    flexDirection: 'column',
   },
   modalHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border,
+    flexShrink: 0,
   },
   modalTitulo:      { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
   modalFechar:      { padding: spacing.xs },
   modalFecharTexto: { fontSize: fontSize.lg, color: colors.textMuted },
-  modalLista:       { flexGrow: 0 },   // nao cresce alem do maxHeight do pai
+  // flex: 1 para o ScrollView ocupar todo o espaco restante
+  modalLista: { flex: 1 },
 
   modalItem: {
     flexDirection: 'row', alignItems: 'center',
