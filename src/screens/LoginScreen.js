@@ -55,7 +55,7 @@ export default function LoginScreen({ navigation }) {
     setCarregando(true);
     try {
       await login(email.toLowerCase().trim(), senha);
-      navigation.reset({ index: 0, routes: [{ name: 'Lojas' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
     } catch (err) {
       let mensagem = err.message || 'Tente novamente';
       if (err.status === 401) mensagem = 'Email ou senha invalidos';
@@ -198,18 +198,5 @@ const estilos = StyleSheet.create({
   textoRodape: {
     fontSize: fontSize.xs,
     color: colors.textMuted,
-  },
-  bannerErro: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 8,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderLeftWidth: 4,
-    borderLeftColor: '#DC2626',
-  },
-  bannerErroTexto: {
-    fontSize: fontSize.sm,
-    color: '#DC2626',
-    fontWeight: '500',
   },
 });

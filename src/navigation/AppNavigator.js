@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import LoginScreen               from '../screens/LoginScreen';
+import HomeScreen                from '../screens/HomeScreen';
 import LojasScreen               from '../screens/LojasScreen';
 import SessoesScreen             from '../screens/SessoesScreen';
 import ScannerScreen             from '../screens/ScannerScreen';
@@ -39,6 +40,7 @@ export default function AppNavigator() {
       <Stack.Navigator initialRouteName="Login" screenOptions={opcoesHeader}>
 
         <Stack.Screen name="Login"    component={LoginScreen}   options={{ headerShown: false }} />
+        <Stack.Screen name="Home"     component={HomeScreen}    options={{ headerShown: false }} />
         <Stack.Screen name="Lojas"    component={LojasScreen}   options={{ title: 'Selecione a loja' }} />
         <Stack.Screen name="Sessoes"  component={SessoesScreen} options={{ title: 'Sessoes' }} />
         <Stack.Screen name="Scanner"  component={ScannerScreen} options={{ headerShown: false }} />
