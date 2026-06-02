@@ -153,12 +153,14 @@ export default function DashboardConsolidadoScreen({ navigation }) {
 
   const lojas = dados?.lojas || [];
   const consol = dados?.consolidado;
-  const lojasColunas = lojas.filter(l => l.sessao_nome); // apenas lojas com sessao
+  // Todas as lojas aparecem — sem sessao exibe zeros (nao filtra)
+  const lojasColunas = lojas;
 
+  // Retorna o valor do campo, ou 0 quando a loja nao fez inventario
   function getVal(obj, campo, key) {
     const section = obj?.[campo];
-    if (!section) return null;
-    return section[key];
+    if (!section) return 0;
+    return section[key] ?? 0;
   }
 
   if (carregando) {
@@ -246,16 +248,29 @@ export default function DashboardConsolidadoScreen({ navigation }) {
                   <Text style={[est.headerLojaTxt, { color: '#FEF3C7' }]}>Consolidado</Text>
                   <Text style={[est.headerLojaSubTxt, { color: '#FDE68A' }]}>Todas as lojas</Text>
                 </View>
-                {/* Lojas com sessao */}
-                {lojasColunas.map((loja, li) => (
-                  <View key={loja.loja_id} style={[est.headerLojaBox, {
-                    width: COL_LOJA, height: HEADER_H,
-                    backgroundColor: li % 2 === 0 ? COR_NAVY : '#263D5A',
-                  }]}>
-                    <Text style={est.headerLojaTxt}>{loja.codigo}</Text>
-                    <Text style={est.headerLojaSubTxt} numberOfLines={1}>{loja.nome.split(' - ')[1] || loja.nome}</Text>
-                  </View>
-                ))}
+                {/* Todas as lojas — com ou sem sessao */}
+                {lojasColunas.map((loja, li) => {
+                  const temDados = !!loja.sessao_nome;
+                  return (
+                    <View key={loja.loja_id} style={[est.headerLojaBox, {
+                      width: COL_LOJA, height: HEADER_H,
+                      backgroundColor: !temDados
+                        ? '#334155'  // cinza escuro para sem dados
+                        : li % 2 === 0 ? COR_NAVY : '#263D5A',
+                      opacity: temDados ? 1 : 0.7,
+                    }]}>
+                      <Text style={est.headerLojaTxt}>{loja.codigo}</Text>
+                      <Text style={est.headerLojaSubTxt} numberOfLines={1}>
+                        {loja.nome.split(' - ')[1] || loja.nome}
+                      </Text>
+                      {!temDados && (
+                        <Text style={[est.headerLojaSubTxt, { color: '#94A3B8', fontSize: 8 }]}>
+                          sem dados
+                        </Text>
+                      )}
+                    </View>
+                  );
+                })}
               </View>
 
               {/* ── Dados por seção ────────────────────────────── */}
@@ -293,19 +308,23 @@ export default function DashboardConsolidadoScreen({ navigation }) {
                         })()}
                         {/* Colunas por loja */}
                         {lojasColunas.map(loja => {
+                          const temDados = !!loja.sessao_nome;
                           const v = getVal(loja, metrica.campo, metrica.key);
-                          const txt = v != null ? metrica.fmt(v) : '—';
-                          const cor = metrica.cor === 'acur'
-                            ? _corAcur(v)
-                            : metrica.cor;
+                          const txt = metrica.fmt(v);
+                          const cor = !temDados
+                            ? '#94A3B8'                          // cinza para sem dados
+                            : metrica.cor === 'acur'
+                              ? _corAcur(v)
+                              : metrica.cor;
+                          const bg = !temDados ? '#F8FAFC' : bgRow;
                           return (
                             <Cel
                               key={loja.loja_id}
                               width={COL_LOJA}
                               valor={txt}
                               cor={cor}
-                              bg={bgRow}
-                              bold={metrica.destaque}
+                              bg={bg}
+                              bold={metrica.destaque && temDados}
                               height={ROW_H}
                             />
                           );
@@ -316,12 +335,11 @@ export default function DashboardConsolidadoScreen({ navigation }) {
                 </View>
               ))}
 
-              {/* Linha de lojas sem sessao */}
-              {lojas.filter(l => !l.sessao_nome).length > 0 && (
+              {/* Legenda: lojas cinzas = sem inventario neste periodo */}
+              {lojas.some(l => !l.sessao_nome) && (
                 <View style={est.semSessaoBox}>
                   <Text style={est.semSessaoTxt}>
-                    Sem sessão concluída neste período:{' '}
-                    {lojas.filter(l => !l.sessao_nome).map(l => l.codigo).join(' · ')}
+                    Colunas em cinza = sem inventario concluido no periodo selecionado
                   </Text>
                 </View>
               )}
