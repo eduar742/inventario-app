@@ -245,20 +245,56 @@ export default function ScannerScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Barra com contagem e botão de encerrar */}
+          {/* Barra de progresso: Total / Contados / Faltam */}
           {contagens.length > 0 && (
             <View style={estilos.barraContagem}>
-              <View style={estilos.barraTotais}>
-                <Text style={estilos.barraTotaisTexto}>
-                  {contagens.length} {contagens.length === 1 ? 'leitura' : 'leituras'}
-                </Text>
-                <Text style={estilos.barraTotaisSub}>
-                  {skusUnicos} SKU{skusUnicos !== 1 ? 's' : ''}
-                </Text>
+              {/* Progresso em relacao ao total de SKUs da sessao */}
+              <View style={estilos.progressoBloco}>
+                {/* Linha de numeros */}
+                <View style={estilos.progressoNums}>
+                  <View style={estilos.progressoStat}>
+                    <Text style={estilos.progressoValor}>{sessao.total_produtos_loja ?? '—'}</Text>
+                    <Text style={estilos.progressoLabel}>Total</Text>
+                  </View>
+                  <View style={estilos.progressoDiv} />
+                  <View style={estilos.progressoStat}>
+                    <Text style={[estilos.progressoValor, { color: '#4ADE80' }]}>{skusUnicos}</Text>
+                    <Text style={estilos.progressoLabel}>Bipados</Text>
+                  </View>
+                  <View style={estilos.progressoDiv} />
+                  <View style={estilos.progressoStat}>
+                    {(() => {
+                      const faltam = (sessao.total_produtos_loja ?? 0) - skusUnicos;
+                      return (
+                        <>
+                          <Text style={[estilos.progressoValor, { color: faltam > 0 ? '#FCA5A5' : '#4ADE80' }]}>
+                            {faltam > 0 ? faltam : 0}
+                          </Text>
+                          <Text style={estilos.progressoLabel}>Faltam</Text>
+                        </>
+                      );
+                    })()}
+                  </View>
+                  <View style={estilos.progressoDiv} />
+                  <View style={estilos.progressoStat}>
+                    <Text style={estilos.progressoValor}>{contagens.length}</Text>
+                    <Text style={estilos.progressoLabel}>Leituras</Text>
+                  </View>
+                </View>
+                {/* Barra de progresso visual */}
+                {(sessao.total_produtos_loja ?? 0) > 0 && (
+                  <View style={estilos.progressoBarraFundo}>
+                    <View style={[
+                      estilos.progressoBarraFill,
+                      { width: `${Math.min(skusUnicos / sessao.total_produtos_loja * 100, 100)}%` }
+                    ]} />
+                  </View>
+                )}
               </View>
+
               <TouchableOpacity style={estilos.botaoFinalizar} onPress={handleFinalizar}>
                 <Text style={estilos.botaoFinalizarTexto}>
-                  Encerrar {ORDINAL[rodada] || `${rodada}ª`} contagem
+                  Finalizar {ORDINAL[rodada] || `${rodada}ª`}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -503,26 +539,54 @@ const estilos = StyleSheet.create({
   barraContagem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.1)',
+    gap: 10,
   },
-  barraTotais: {
+  // Bloco de progresso (Total / Bipados / Faltam / Leituras)
+  progressoBloco: {
+    flex: 1,
+  },
+  progressoNums: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
+    alignItems: 'center',
+    marginBottom: 6,
   },
-  barraTotaisTexto: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '700',
+  progressoStat: {
+    flex: 1,
+    alignItems: 'center',
   },
-  barraTotaisSub: {
+  progressoDiv: {
+    width: 1,
+    height: 28,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  progressoValor: {
     color: colors.white,
-    fontSize: 12,
-    opacity: 0.7,
+    fontSize: 16,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  progressoLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    marginTop: 1,
+  },
+  // Barra de progresso visual
+  progressoBarraFundo: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressoBarraFill: {
+    height: '100%',
+    backgroundColor: '#4ADE80',
+    borderRadius: 2,
   },
   botaoFinalizar: {
     backgroundColor: colors.success,
