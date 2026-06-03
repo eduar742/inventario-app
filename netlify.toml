@@ -3,9 +3,8 @@
   publish   = "dist"
 
 [build.environment]
-  NODE_VERSION    = "20"
-  NODE_OPTIONS    = "--max-old-space-size=4096"
-  NPM_FLAGS       = "--legacy-peer-deps"
+  NODE_VERSION = "20.17.0"
+  NODE_OPTIONS = "--max-old-space-size=4096"
 
 # Redireciona todas as rotas para index.html (SPA)
 [[redirects]]
