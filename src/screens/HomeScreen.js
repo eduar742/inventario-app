@@ -93,6 +93,17 @@ const BLOCOS = [
     tela: 'Gestores',
     papeis: ['admin'],
   },
+  {
+    id: 'ajuda',
+    titulo: 'Ajuda',
+    descricao: 'Guia de uso do sistema',
+    emoji: '📖',
+    cor: '#0369A1',
+    corBg: '#F0F9FF',
+    corBorda: '#BAE6FD',
+    tela: 'Ajuda',
+    papeis: ['admin', 'gestor', 'gerente', 'auditor', 'operador'],
+  },
 ];
 
 // ── Componente de bloco ────────────────────────────────────────────

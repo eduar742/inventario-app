@@ -22,6 +22,7 @@ import DivergenciasScreen              from '../screens/DivergenciasScreen';
 import HistoricoContagensScreen        from '../screens/HistoricoContagensScreen';
 import RelatorioConsolidadoScreen        from '../screens/RelatorioConsolidadoScreen';
 import DashboardConsolidadoScreen        from '../screens/DashboardConsolidadoScreen';
+import AjudaScreen                       from '../screens/AjudaScreen';
 
 import { colors } from '../theme/colors';
 
@@ -68,6 +69,7 @@ export default function AppNavigator() {
         <Stack.Screen name="HistoricoContagens"      component={HistoricoContagensScreen}      options={{ title: 'Historico de contagens' }} />
         <Stack.Screen name="RelatorioConsolidado"    component={RelatorioConsolidadoScreen}    options={{ title: 'Relatorio Geral' }} />
         <Stack.Screen name="DashboardConsolidado"   component={DashboardConsolidadoScreen}    options={{ title: 'Dashboard Consolidado' }} />
+        <Stack.Screen name="Ajuda"                  component={AjudaScreen}                   options={{ title: 'Guia de Uso' }} />
 
       </Stack.Navigator>
     </NavigationContainer>
