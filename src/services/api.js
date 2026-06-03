@@ -266,13 +266,14 @@ export async function buscarProdutoPorQR(codigoQr) {
 // ENDPOINT DE CONTAGEM (o mais usado!)
 // ============================================================
 
-export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada, observacoes }) {
+export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada, localizacao, observacoes }) {
   return await chamarAPI('/api/v1/contagens', {
     method: 'POST',
     body: JSON.stringify({
       sessao_id: sessaoId,
       codigo_qr: codigoQr,
       quantidade_contada: quantidadeContada,
+      localizacao: localizacao || null,
       observacoes: observacoes || null,
     }),
   });

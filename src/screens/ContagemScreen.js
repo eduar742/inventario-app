@@ -30,6 +30,7 @@ export default function ContagemScreen({ navigation, route }) {
   const [carregandoProduto, setCarregandoProduto] = useState(true);
   const [produto, setProduto] = useState(null);
   const [quantidade, setQuantidade] = useState('');
+  const [localizacao, setLocalizacao] = useState('');
   const [observacoes, setObservacoes] = useState('');
 
   useEffect(() => {
@@ -73,6 +74,7 @@ export default function ContagemScreen({ navigation, route }) {
       descricao: produto.descricao,
       unidadeMedida: produto.unidade_medida,
       quantidade: qtd,
+      localizacao: localizacao.trim() || null,
       observacoes: observacoes || null,
     });
 
@@ -165,12 +167,24 @@ export default function ContagemScreen({ navigation, route }) {
             autoFocus
           />
 
+          <Text style={estilos.inputLabelPequeno}>Localização (opcional)</Text>
+          <TextInput
+            style={estilos.inputLoc}
+            value={localizacao}
+            onChangeText={setLocalizacao}
+            placeholder="Ex: Prateleira A3, Corredor 2, Galpão 1..."
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="characters"
+            maxLength={100}
+            returnKeyType="next"
+          />
+
           <Text style={estilos.inputLabelPequeno}>Observacoes (opcional)</Text>
           <TextInput
             style={estilos.inputObs}
             value={observacoes}
             onChangeText={setObservacoes}
-            placeholder="Ex: produto danificado, na prateleira X..."
+            placeholder="Ex: produto danificado, embalagem aberta..."
             placeholderTextColor={colors.textMuted}
             multiline
             maxLength={500}
@@ -331,6 +345,16 @@ const estilos = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     color: colors.text,
+  },
+  inputLoc: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    fontSize: fontSize.md,
+    color: colors.text,
+    letterSpacing: 0.5,
   },
   inputObs: {
     backgroundColor: colors.background,

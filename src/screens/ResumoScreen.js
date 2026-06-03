@@ -112,7 +112,9 @@ export default function ResumoScreen({ navigation, route }) {
         const obs = item.obsLista.length > 0 ? item.obsLista.join('; ') : null;
         const resp = await registrarContagem({
           sessaoId: sessao.id, codigoQr: item.codigoQr,
-          quantidadeContada: item.quantidadeTotal, observacoes: obs,
+          quantidadeContada: item.quantidadeTotal,
+          localizacao: item.localizacao || null,
+          observacoes: obs,
         });
         if (resp.status_produto === 'aguardando_recontagem') {
           novosPendentes.push({ item, resp });
