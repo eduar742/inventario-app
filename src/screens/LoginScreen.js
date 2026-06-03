@@ -86,7 +86,7 @@ export default function LoginScreen({ navigation }) {
         >
           <View style={estilos.logoContainer}>
             <View style={estilos.logoBox}>
-              <Text style={estilos.logoTexto}>INV</Text>
+              <Text style={estilos.logoTexto}>BOLD</Text>
             </View>
             <Text style={estilos.titulo}>Inventario</Text>
             <Text style={estilos.subtitulo}>Acesse com suas credenciais</Text>
@@ -174,9 +174,9 @@ const estilos = StyleSheet.create({
   },
   logoTexto: {
     color: colors.white,
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 1.5,
   },
   titulo: {
     fontSize: fontSize.xxl,
