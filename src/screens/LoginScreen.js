@@ -20,8 +20,8 @@ import { colors, spacing, fontSize } from '../theme/colors';
 import { login } from '../services/api';
 
 export default function LoginScreen({ navigation }) {
-  const [email, setEmail] = useState('admin@inventario.local');
-  const [senha, setSenha] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [erroEmail, setErroEmail] = useState('');
   const [erroSenha, setErroSenha] = useState('');
