@@ -307,7 +307,7 @@ export async function criarUsuarioAPI({ nome, email, senha, papel, lojaId, lojas
   });
 }
 
-export async function atualizarUsuario(usuarioId, { nome, papel, lojaId, lojasIds, ativo }) {
+export async function atualizarUsuario(usuarioId, { nome, papel, lojaId, lojasIds, ativo, novaSenha }) {
   return await chamarAPI(`/api/v1/usuarios/${usuarioId}`, {
     method: 'PATCH',
     body: JSON.stringify({
@@ -316,6 +316,7 @@ export async function atualizarUsuario(usuarioId, { nome, papel, lojaId, lojasId
       loja_id: lojaId !== undefined ? (lojaId || '') : undefined,
       lojas_ids: lojasIds !== undefined ? lojasIds : undefined,
       ativo,
+      nova_senha: novaSenha || undefined,
     }),
   });
 }

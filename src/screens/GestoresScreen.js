@@ -41,8 +41,10 @@ export default function GestoresScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [papel, setPapel] = useState('operador');
-  const [lojasSelecionadas, setLojasSelecionadas] = useState([]); // array de IDs
+  const [lojasSelecionadas, setLojasSelecionadas] = useState([]);
   const [ativo, setAtivo] = useState(true);
+  const [novaSenha, setNovaSenha] = useState('');          // redefinicao de senha (edicao)
+  const [mostrarSenha, setMostrarSenha] = useState(false); // toggle visibilidade
 
   useEffect(() => { carregar(); }, []);
 
@@ -63,6 +65,7 @@ export default function GestoresScreen({ navigation }) {
     setEditando(null);
     setNome(''); setEmail(''); setSenha(''); setPapel('operador');
     setLojasSelecionadas([]); setAtivo(true);
+    setNovaSenha(''); setMostrarSenha(false);
     setModalVisivel(true);
   }
 
@@ -71,6 +74,7 @@ export default function GestoresScreen({ navigation }) {
     setNome(u.nome); setEmail(u.email); setSenha(''); setPapel(u.papel);
     setLojasSelecionadas(u.lojas_ids || (u.loja_id ? [u.loja_id] : []));
     setAtivo(u.ativo);
+    setNovaSenha(''); setMostrarSenha(false);
     setModalVisivel(true);
   }
 
@@ -87,6 +91,7 @@ export default function GestoresScreen({ navigation }) {
         lojaId: lojasSelecionadas[0] || null,
         lojasIds: lojasSelecionadas.length > 0 ? lojasSelecionadas : [],
         ativo,
+        novaSenha: novaSenha.trim() || undefined,
       };
       if (editando) {
         await atualizarUsuario(editando.id, payload);
@@ -131,10 +136,7 @@ export default function GestoresScreen({ navigation }) {
   function renderUsuario({ item }) {
     const cor = COR_PAPEL[item.papel] || COR_PAPEL.operador;
     const ids = item.lojas_ids || (item.loja_id ? [item.loja_id] : []);
-    const codigos = ids
-      .map(id => lojas.find(l => l.id === id)?.codigo || '')
-      .filter(Boolean)
-      .join(', ');
+    const codigos = ids.map(id => lojas.find(l => l.id === id)?.codigo || '').filter(Boolean).join(', ');
     return (
       <TouchableOpacity style={estilos.card} onPress={() => abrirEdicao(item)} activeOpacity={0.7}>
         <View style={estilos.cardTopo}>
@@ -142,7 +144,17 @@ export default function GestoresScreen({ navigation }) {
             <Text style={[estilos.nomeUsuario, !item.ativo && { color: colors.textMuted }]}>
               {item.nome} {!item.ativo ? '(inativo)' : ''}
             </Text>
-            <Text style={estilos.emailUsuario}>{item.email}</Text>
+            {/* Credenciais de acesso — visivel apenas para ADM */}
+            <View style={estilos.credenciaisBox}>
+              <Text style={estilos.credencialItem}>📧 {item.email}</Text>
+              {item.senha_legivel ? (
+                <Text style={estilos.credencialItem}>🔑 {item.senha_legivel}</Text>
+              ) : (
+                <Text style={[estilos.credencialItem, { color: colors.textMuted }]}>
+                  🔑 Senha não registrada — edite para definir
+                </Text>
+              )}
+            </View>
             {codigos ? (
               <Text style={estilos.lojaUsuario}>
                 {ids.length > 1 ? `${ids.length} lojas: ` : ''}{codigos}
@@ -239,6 +251,35 @@ export default function GestoresScreen({ navigation }) {
                 </Text>
                 <Text style={estilos.seletorChevron}>›</Text>
               </TouchableOpacity>
+
+              {/* Redefinir senha (edicao) */}
+              {editando && (
+                <>
+                  <Text style={estilos.rotulo}>Redefinir senha (opcional)</Text>
+                  <View style={estilos.senhaRow}>
+                    <TextInput
+                      style={[estilos.input, { flex: 1 }]}
+                      value={novaSenha}
+                      onChangeText={setNovaSenha}
+                      placeholder="Nova senha (deixe vazio para manter)"
+                      placeholderTextColor={colors.textMuted}
+                      secureTextEntry={!mostrarSenha}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      style={estilos.botaoMostrar}
+                      onPress={() => setMostrarSenha(v => !v)}
+                    >
+                      <Text style={estilos.botaoMostrarTxt}>{mostrarSenha ? '🙈' : '👁️'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {editando.senha_legivel && (
+                    <Text style={estilos.senhaAtual}>
+                      Senha atual registrada: <Text style={{ fontWeight: '700', color: colors.primary }}>{editando.senha_legivel}</Text>
+                    </Text>
+                  )}
+                </>
+              )}
 
               {/* Ativo */}
               {editando && (
@@ -375,6 +416,23 @@ const estilos = StyleSheet.create({
   },
   seletorLojasTxt: { flex: 1, fontSize: fontSize.sm, color: colors.text, fontWeight: '500' },
   seletorChevron: { fontSize: 20, color: colors.primary, marginLeft: spacing.sm },
+
+  // Credenciais no card
+  credenciaisBox: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: radius.sm,
+    padding: spacing.xs,
+    marginTop: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: '#16A34A',
+  },
+  credencialItem: { fontSize: 11, color: '#166534', fontWeight: '500', marginBottom: 1 },
+
+  // Redefinir senha
+  senhaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  botaoMostrar: { padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundSoft },
+  botaoMostrarTxt: { fontSize: 16 },
+  senhaAtual: { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 4 },
 
   // Ativo toggle
   toggleAtivo: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
