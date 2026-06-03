@@ -138,8 +138,18 @@ export default function DivergenciasScreen({ navigation, route }) {
         {/* Cabecalho do card */}
         <View style={estilos.cardTopo}>
           <View style={estilos.cardTextos}>
-            <Text style={estilos.produto} numberOfLines={2}>{div.descricao_produto || div.sku}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              {div.bloqueado_lote && (
+                <Text style={estilos.alertaIcone} accessibilityLabel="Aprovacao individual obrigatoria">
+                  ⚠️
+                </Text>
+              )}
+              <Text style={estilos.produto} numberOfLines={2}>{div.descricao_produto || div.sku}</Text>
+            </View>
             <Text style={estilos.sku}>{div.sku}</Text>
+            {div.bloqueado_lote && div.motivo_bloqueio && (
+              <Text style={estilos.motivoBloqueio}>{div.motivo_bloqueio}</Text>
+            )}
           </View>
           <View style={[estilos.badge, { backgroundColor: cores.bg }]}>
             <Text style={[estilos.badgeTexto, { color: cores.txt }]}>
@@ -230,16 +240,29 @@ export default function DivergenciasScreen({ navigation, route }) {
   const aprovadas  = divergencias.filter(d => d.status === 'aprovada').length;
   const rejeitadas = divergencias.filter(d => d.status === 'rejeitada').length;
 
-  // M5: aprova todas as divergencias e conclui em um passo
+  // Quantidade de divergencias pendentes bloqueadas do lote (excedem limites)
+  const bloqueadasLote = divergencias.filter(d => d.status === 'pendente' && d.bloqueado_lote);
+  const aprovaveisPorLote = divergencias.filter(d => d.status === 'pendente' && !d.bloqueado_lote);
+
+  // M5: aprova em lote (somente as que passam nos limites)
   async function handleAprovarTudo() {
-    const msg = `Aprovar TODAS as ${pendentes} divergencia(s) pendente(s) e concluir o inventario de uma vez?`;
+    const nBloq = bloqueadasLote.length;
+    const nAprov = aprovaveisPorLote.length;
+    const limite = divergencias[0]
+      ? `R$ ${(divergencias[0].limite_valor_brl || 500).toLocaleString('pt-BR', {minimumFractionDigits:2})} ou ${divergencias[0].limite_diferenca_pct || 10}% de diferença`
+      : 'limites configurados';
+
+    let msg = `Aprovar em lote ${nAprov} divergencia(s)?`;
+    if (nBloq > 0) {
+      msg += `\n\n⚠️ ${nBloq} divergencia(s) NÃO serão incluídas por excederem ${limite}.\nElas exigem aprovação individual.`;
+    }
     const confirmar = () => executarAprovarTudo();
     if (Platform.OS === 'web') {
       if (window.confirm(`Aprovar inventario\n\n${msg}`)) confirmar();
     } else {
       Alert.alert('Aprovar inventario', msg, [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Aprovar tudo', style: 'default', onPress: confirmar },
+        { text: 'Aprovar em lote', style: 'default', onPress: confirmar },
       ]);
     }
   }
@@ -247,9 +270,19 @@ export default function DivergenciasScreen({ navigation, route }) {
   async function executarAprovarTudo() {
     setAprovandoTudo(true);
     try {
-      await aprovarInventario(sessao.id);
-      avisar('Inventario aprovado!', 'Todas as divergencias foram aprovadas e a sessao foi concluida.');
-      navigation.navigate('Sessoes', { loja, filtroInicial: 'concluidas' });
+      const resultado = await aprovarInventario(sessao.id);
+      const nAprov = resultado.total_aprovadas || 0;
+      const nBloq = resultado.total_bloqueadas || 0;
+      if (nBloq > 0) {
+        avisar(
+          `${nAprov} aprovada(s) em lote`,
+          `${nBloq} divergencia(s) bloqueada(s) requerem aprovação individual.\n\n${resultado.mensagem}`
+        );
+        carregar(pagina); // recarrega para mostrar as restantes
+      } else {
+        avisar('Inventario aprovado!', resultado.mensagem || 'Sessao concluida.');
+        navigation.navigate('Sessoes', { loja, filtroInicial: 'concluidas' });
+      }
     } catch (err) {
       avisar('Erro', err.message || 'Nao foi possivel aprovar o inventario');
     } finally {
@@ -276,20 +309,32 @@ export default function DivergenciasScreen({ navigation, route }) {
         <ResumoItem valor={rejeitadas}          rotulo="Rejeitadas" cor={colors.danger} />
       </View>
 
-      {/* M5: Botao unico de aprovacao — apenas para quem pode escrever */}
+      {/* M5: Botao de aprovacao em lote — apenas para quem pode escrever */}
       {divergencias.length > 0 && pendentes > 0 && !isReadOnly && (
-        <TouchableOpacity
-          style={estilos.botaoAprovarTudo}
-          onPress={handleAprovarTudo}
-          disabled={aprovandoTudo}
-        >
-          {aprovandoTudo
-            ? <ActivityIndicator size="small" color={colors.white} />
-            : <Text style={estilos.botaoAprovarTudoTexto}>
-                Aprovar todo o inventario ({pendentes} pendente{pendentes > 1 ? 's' : ''})
+        <View>
+          {bloqueadasLote.length > 0 && (
+            <View style={estilos.alertaLote}>
+              <Text style={estilos.alertaLoteTxt}>
+                ⚠️ {bloqueadasLote.length} divergência{bloqueadasLote.length > 1 ? 's' : ''} marcada{bloqueadasLote.length > 1 ? 's' : ''} com ⚠️ excedem os limites configurados e exigem aprovação individual.
               </Text>
-          }
-        </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity
+            style={estilos.botaoAprovarTudo}
+            onPress={handleAprovarTudo}
+            disabled={aprovandoTudo}
+          >
+            {aprovandoTudo
+              ? <ActivityIndicator size="small" color={colors.white} />
+              : <Text style={estilos.botaoAprovarTudoTexto}>
+                  {bloqueadasLote.length > 0
+                    ? `Aprovar em lote (${aprovaveisPorLote.length} de ${pendentes})`
+                    : `Aprovar todo o inventario (${pendentes} pendente${pendentes > 1 ? 's' : ''})`
+                  }
+                </Text>
+            }
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Banner: todas resolvidas, aguardando conclusao */}
@@ -461,6 +506,20 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
   },
   botaoConcluirTexto: { color: colors.white, fontWeight: '700', fontSize: fontSize.md },
+  // Alerta de limite de aprovacao em lote
+  alertaLote: {
+    marginHorizontal: spacing.md,
+    marginBottom: 0,
+    backgroundColor: '#FEF3C7',
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    borderLeftWidth: 4,
+    borderLeftColor: '#D97706',
+  },
+  alertaLoteTxt: { fontSize: fontSize.sm, color: '#92400E', lineHeight: 18 },
+  alertaIcone:   { fontSize: 14 },
+  motivoBloqueio:{ fontSize: 10, color: '#D97706', fontWeight: '600', marginTop: 2 },
+
   // M5: botao de aprovacao em lote
   botaoAprovarTudo: {
     margin: spacing.md,
