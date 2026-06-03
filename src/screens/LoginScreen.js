@@ -86,10 +86,12 @@ export default function LoginScreen({ navigation }) {
         >
           <View style={estilos.logoContainer}>
             <View style={estilos.logoBox}>
-              {/* translate="no" via accessibilityLabel evita traducao automatica */}
-              <Text style={estilos.logoTexto} accessibilityLabel="BOLD">
-                {'B​OL​D'}
-              </Text>
+              {/* Letras separadas: impede traducao automatica do browser */}
+              <View style={{ flexDirection: 'row' }}>
+                {['B','O','L','D'].map((l, i) => (
+                  <Text key={i} style={estilos.logoTexto}>{l}</Text>
+                ))}
+              </View>
             </View>
             <Text style={estilos.titulo}>Inventario</Text>
             <Text style={estilos.subtitulo}>Acesse com suas credenciais</Text>
