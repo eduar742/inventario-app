@@ -86,7 +86,10 @@ export default function LoginScreen({ navigation }) {
         >
           <View style={estilos.logoContainer}>
             <View style={estilos.logoBox}>
-              <Text style={estilos.logoTexto}>BOLD</Text>
+              {/* translate="no" via accessibilityLabel evita traducao automatica */}
+              <Text style={estilos.logoTexto} accessibilityLabel="BOLD">
+                {'B​OL​D'}
+              </Text>
             </View>
             <Text style={estilos.titulo}>Inventario</Text>
             <Text style={estilos.subtitulo}>Acesse com suas credenciais</Text>
