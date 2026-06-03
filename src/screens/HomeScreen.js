@@ -269,7 +269,8 @@ const est = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  blocoWrapper: { flex: 1 },
+  // minWidth: 0 impede que itens flex estourem a coluna (comportamento padrão auto)
+  blocoWrapper: { flex: 1, minWidth: 0 },
 
   bloco: {
     borderRadius: radius.lg,
@@ -290,14 +291,27 @@ const est = StyleSheet.create({
   blocoConteudo: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.md,
-    gap: spacing.sm,
+    padding: spacing.sm,   // padding menor para dar espaço ao texto no mobile
+    gap: 6,
   },
-  blocoEmoji:    { fontSize: 28 },
-  blocoTextos:   { flex: 1 },
-  blocoTitulo:   { fontSize: fontSize.md, fontWeight: '800', marginBottom: 2 },
-  blocoDescricao:{ fontSize: 11, color: '#64748B', lineHeight: 15 },
-  blocoSeta:     { fontSize: 22, fontWeight: '300', opacity: 0.7 },
+  // flexShrink: 0 impede o emoji de ser comprimido
+  blocoEmoji: { fontSize: 24, flexShrink: 0 },
+  // minWidth: 0 + flexShrink: 1 permite que o texto encolha e quebre linha corretamente
+  blocoTextos: { flex: 1, minWidth: 0, flexShrink: 1 },
+  blocoTitulo: {
+    fontSize: fontSize.sm,   // menor para caber no mobile sem quebrar no meio
+    fontWeight: '800',
+    marginBottom: 2,
+    flexWrap: 'wrap',        // garante quebra de linha natural entre palavras
+  },
+  blocoDescricao: {
+    fontSize: 10,
+    color: '#64748B',
+    lineHeight: 14,
+    flexWrap: 'wrap',        // garante quebra de linha natural
+  },
+  // flexShrink: 0 impede a seta de sumir; display none em cards pequenos seria ideal
+  blocoSeta: { fontSize: 18, fontWeight: '300', opacity: 0.7, flexShrink: 0 },
 
   versao: {
     fontSize: fontSize.xs, color: '#94A3B8',
