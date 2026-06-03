@@ -163,6 +163,33 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         </View>
 
+        {/* Parcelas por localização — aparece quando há mais de 1 bipagem */}
+        {div.parcelas && div.parcelas.length > 1 && (
+          <View style={estilos.parcelasBox}>
+            <Text style={estilos.parcelasTitulo}>Parcelas por localização:</Text>
+            <View style={estilos.parcelasLinha}>
+              {div.parcelas.map((p, i) => (
+                <View key={i} style={estilos.parcelaChip}>
+                  {p.localizacao ? (
+                    <Text style={estilos.parcelaLocal}>{p.localizacao}</Text>
+                  ) : (
+                    <Text style={estilos.parcelaLocal}>#{p.numero}</Text>
+                  )}
+                  <Text style={estilos.parcelaQtd}>
+                    {parseFloat(p.quantidade).toFixed(0)}
+                    {p.operador ? ` · ${p.operador.split(' ')[0]}` : ''}
+                  </Text>
+                </View>
+              ))}
+              <View style={estilos.parcelaSoma}>
+                <Text style={estilos.parcelaSomaTxt}>
+                  = {parseFloat(div.quantidade_final).toFixed(0)} {div.unidade_medida || ''}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Botoes de acao apenas para quem pode escrever */}
         {div.status === 'pendente' && !isReadOnly && (
           <View style={estilos.acoes}>
@@ -359,6 +386,31 @@ const estilos = StyleSheet.create({
   numeroDivisor: { width: 1, backgroundColor: colors.border },
   numeroValor:  { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
   numeroLabel:  { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+  // Parcelas por localização
+  parcelasBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: '#0D9488',
+  },
+  parcelasTitulo: { fontSize: 10, fontWeight: '700', color: '#0D9488', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  parcelasLinha:  { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  parcelaChip: {
+    backgroundColor: '#FFFFFF', borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: 3,
+    borderWidth: 1, borderColor: '#CBD5E1',
+    alignItems: 'center',
+  },
+  parcelaLocal: { fontSize: 10, fontWeight: '700', color: '#0F172A' },
+  parcelaQtd:   { fontSize: 11, color: '#475569', marginTop: 1 },
+  parcelaSoma: {
+    backgroundColor: '#0D9488', borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: 3,
+  },
+  parcelaSomaTxt: { fontSize: 11, fontWeight: '800', color: '#FFFFFF' },
+
   acoes:        { flexDirection: 'row', gap: spacing.sm, borderTopWidth: 1,
                   borderTopColor: colors.border, paddingTop: spacing.sm },
   botaoAcao:    { flex: 1, padding: spacing.sm, borderRadius: radius.sm, alignItems: 'center' },
