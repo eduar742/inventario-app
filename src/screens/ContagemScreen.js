@@ -24,6 +24,8 @@ export default function ContagemScreen({ navigation, route }) {
   // Limpa asteriscos e caracteres extras que alguns coletores adicionam ao codigo
   const codigoQr = (route.params.codigoQr || '').trim().replace(/[*\r\n\t]+/g, '').trim();
   const { sessao, loja, quantidadeAnterior = 0 } = route.params;
+  // Quantidade ja contada por OUTROS operadores nesta sessao (multi-operador)
+  const qtdPorOutros = route.params?.qtdPorOutros ?? 0;
 
   const [carregandoProduto, setCarregandoProduto] = useState(true);
   const [produto, setProduto] = useState(null);
@@ -117,8 +119,24 @@ export default function ContagemScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Aviso de soma quando o mesmo SKU ja foi bipado antes */}
-          {quantidadeAnterior > 0 && (
+          {/* Aviso: outro operador ja bipou este produto nesta sessao */}
+          {qtdPorOutros > 0 && (
+            <View style={[estilos.cardSoma, { borderLeftColor: '#7C3AED', backgroundColor: '#F5F3FF' }]}>
+              <Text style={[estilos.somaLabel, { color: '#7C3AED' }]}>
+                Outro operador ja contou este produto
+              </Text>
+              <Text style={estilos.somaTexto}>
+                Total ja registrado por outros:{' '}
+                <Text style={[estilos.somaValor, { color: '#7C3AED' }]}>
+                  {qtdPorOutros} {produto?.unidade_medida || ''}
+                </Text>
+                {'\n'}Digite apenas a quantidade do SEU local. Os totais serao somados.
+              </Text>
+            </View>
+          )}
+
+          {/* Aviso de soma quando o mesmo SKU ja foi bipado pelo MESMO operador */}
+          {quantidadeAnterior > 0 && qtdPorOutros === 0 && (
             <View style={estilos.cardSoma}>
               <Text style={estilos.somaLabel}>Bipagem adicional — sera somada</Text>
               <Text style={estilos.somaTexto}>

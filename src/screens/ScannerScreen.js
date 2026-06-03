@@ -20,6 +20,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
+import { listarContagensDaSessao } from '../services/api';
 
 // Sufixos de ordinal feminino (contagem)
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
@@ -38,6 +39,8 @@ export default function ScannerScreen({ navigation, route }) {
   const [modalVisivel, setModalVisivel] = useState(false);
   const [codigoManual, setCodigoManual] = useState('');
   const [contagens, setContagens] = useState([]);
+  // Cache de contagens de outros operadores: { [codigoQr]: qtd }
+  const [qtdOutrosRef, setQtdOutros] = useState({});
 
   // Reseta a lista de contagens quando uma nova rodada começa
   useEffect(() => {
@@ -46,6 +49,27 @@ export default function ScannerScreen({ navigation, route }) {
       navigation.setParams({ resetContagens: undefined });
     }
   }, [route.params?.resetContagens]);
+
+  // Carrega contagens existentes de outros operadores na sessao (multi-operador)
+  useEffect(() => {
+    async function carregarOutros() {
+      try {
+        const { pegarUsuario } = require('../services/api');
+        const usuario = await pegarUsuario();
+        const lista = await listarContagensDaSessao(sessao.id);
+        // Agrupa por codigoQr a soma de contagens de OUTROS usuarios
+        const mapa = {};
+        for (const c of lista) {
+          if (c.nome_usuario && usuario && c.usuario_id === usuario.id) continue;
+          const qr = c.sku || c.produto_id;
+          mapa[qr] = (mapa[qr] || 0) + parseFloat(c.quantidade_contada || 0);
+        }
+        setQtdOutros(mapa);
+      } catch (_) {}
+    }
+    carregarOutros();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessao.id]);
 
   function adicionarContagem(novaContagem) {
     setContagens(prev => [...prev, novaContagem]);
@@ -73,6 +97,7 @@ export default function ScannerScreen({ navigation, route }) {
       loja,
       onAdicionar: adicionarContagem,
       quantidadeAnterior: totalAcumulado(codigo),
+      qtdPorOutros: qtdOutrosRef[codigo] || 0,
     });
   }
 
@@ -101,7 +126,8 @@ export default function ScannerScreen({ navigation, route }) {
       sessao,
       loja,
       onAdicionar: adicionarContagem,
-      quantidadeAnterior: totalAcumulado(codigo), // total ja bipado para este SKU
+      quantidadeAnterior: totalAcumulado(codigo),
+      qtdPorOutros: qtdOutrosRef[codigo] || 0, // quantidade ja contada por outros operadores
     });
 
     // Reseta apos um pequeno delay para permitir nova leitura ao voltar
