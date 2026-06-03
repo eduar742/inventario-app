@@ -19,6 +19,7 @@ import {
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarSessoes, pegarUsuario, cancelarSessao, encerrarSessao, gerarDivergencias } from '../services/api';
 import Button from '../components/Button';
+import Paginacao from '../components/Paginacao';
 import { exportarEstoque } from '../services/exportacao';
 
 // ── Helpers compatíveis com web ──────────────────────────────────────────────
@@ -51,7 +52,11 @@ export default function SessoesScreen({ navigation, route }) {
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [papel, setPapel] = useState('operador'); // papel real do usuario
+  const [papel, setPapel] = useState('operador');
+  const [pagina, setPagina] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 50;
   const [cancelando, setCancelando] = useState(null);
   const [encerrando, setEncerrando] = useState(null);
   const [exportando, setExportando] = useState(false);
@@ -80,15 +85,19 @@ export default function SessoesScreen({ navigation, route }) {
 
     try {
       if (filtroVisao === 'concluidas') {
-        const dados = await listarSessoes({ loja_id: loja.id, status: 'concluida' });
-        setSessoes(dados);
+        const dados = await listarSessoes({ loja_id: loja.id, status: 'concluida' }, pagina, PAGE_SIZE);
+        setSessoes(dados.items || []);
+        setTotalPaginas(dados.total_paginas || 1);
+        setTotal(dados.total || 0);
       } else {
-        // Busca em_andamento + aguardando_aprovacao em paralelo
+        // Busca em_andamento + aguardando_aprovacao (sem paginacao — costumam ser poucas)
         const [andamento, aguardando] = await Promise.all([
-          listarSessoes({ loja_id: loja.id, status: 'em_andamento' }),
-          listarSessoes({ loja_id: loja.id, status: 'aguardando_aprovacao' }),
+          listarSessoes({ loja_id: loja.id, status: 'em_andamento' }, 1, 200),
+          listarSessoes({ loja_id: loja.id, status: 'aguardando_aprovacao' }, 1, 200),
         ]);
-        setSessoes([...aguardando, ...andamento]); // aguardando primeiro (precisa atenção)
+        setSessoes([...(aguardando.items || []), ...(andamento.items || [])]);
+        setTotalPaginas(1);
+        setTotal((aguardando.total || 0) + (andamento.total || 0));
       }
     } catch (err) {
       avisar('Erro', err.message || 'Nao foi possivel carregar as sessoes');
@@ -457,10 +466,22 @@ export default function SessoesScreen({ navigation, route }) {
         keyExtractor={(item) => item.id}
         contentContainerStyle={estilos.lista}
         ListEmptyComponent={ListaVazia}
+        ListFooterComponent={
+          filtroVisao === 'concluidas' ? (
+            <Paginacao
+              pagina={pagina}
+              totalPaginas={totalPaginas}
+              total={total}
+              porPagina={PAGE_SIZE}
+              onAnterior={() => { setPagina(p => p - 1); setCarregando(true); }}
+              onProxima={() => { setPagina(p => p + 1); setCarregando(true); }}
+            />
+          ) : null
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={() => { setPagina(1); setRefreshing(true); carregarDados(); }}
             colors={[colors.primary]}
             tintColor={colors.primary}
           />

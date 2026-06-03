@@ -9,6 +9,7 @@ import {
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario } from '../services/api';
+import Paginacao from '../components/Paginacao';
 
 
 const STATUS_COR = {
@@ -50,7 +51,11 @@ export default function DivergenciasScreen({ navigation, route }) {
   const [divergencias, setDivergencias] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [processando, setProcessando] = useState(null); // id da div em processamento
+  const [processando, setProcessando] = useState(null);
+  const [pagina, setPagina] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 50;
 
   useEffect(() => {
     carregar();
@@ -59,10 +64,12 @@ export default function DivergenciasScreen({ navigation, route }) {
     });
   }, []);
 
-  async function carregar() {
+  async function carregar(p = pagina) {
     try {
-      const dados = await listarDivergencias(sessao.id);
-      setDivergencias(dados);
+      const dados = await listarDivergencias(sessao.id, p, PAGE_SIZE);
+      setDivergencias(dados.items || []);
+      setTotalPaginas(dados.total_paginas || 1);
+      setTotal(dados.total || 0);
     } catch (err) {
       avisar('Erro', err.message || 'Nao foi possivel carregar as divergencias');
     } finally {
@@ -333,10 +340,20 @@ export default function DivergenciasScreen({ navigation, route }) {
             <Text style={estilos.vazioTexto}>Nenhuma divergencia encontrada nesta sessao</Text>
           </View>
         }
+        ListFooterComponent={
+          <Paginacao
+            pagina={pagina}
+            totalPaginas={totalPaginas}
+            total={total}
+            porPagina={PAGE_SIZE}
+            onAnterior={() => { const p = pagina - 1; setPagina(p); setCarregando(true); carregar(p); }}
+            onProxima={() => { const p = pagina + 1; setPagina(p); setCarregando(true); carregar(p); }}
+          />
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); carregar(); }}
+            onRefresh={() => { setPagina(1); setRefreshing(true); carregar(1); }}
             colors={[colors.primary]}
             tintColor={colors.primary}
           />

@@ -144,10 +144,10 @@ export async function listarLojas() {
 // ENDPOINTS DE SESSOES
 // ============================================================
 
-export async function listarSessoes(filtros = {}) {
-  const params = new URLSearchParams(filtros).toString();
-  const caminho = params ? `/api/v1/sessoes?${params}` : '/api/v1/sessoes';
-  return await chamarAPI(caminho);
+export async function listarSessoes(filtros = {}, page = 1, pageSize = 50) {
+  const params = new URLSearchParams({ ...filtros, page, page_size: pageSize }).toString();
+  return await chamarAPI(`/api/v1/sessoes?${params}`);
+  // Retorna {items, total, pagina, por_pagina, total_paginas}
 }
 
 export async function buscarSessao(sessaoId) {
@@ -189,8 +189,11 @@ export async function concluirSessao(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/concluir`, { method: 'POST' });
 }
 
-export async function listarDivergencias(sessaoId) {
-  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/divergencias`);
+export async function listarDivergencias(sessaoId, page = 1, pageSize = 50, status = null) {
+  const params = new URLSearchParams({ page, page_size: pageSize });
+  if (status) params.append('status', status);
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/divergencias?${params}`);
+  // Retorna {items, total, pagina, por_pagina, total_paginas}
 }
 
 export async function aprovarDivergencia(divergenciaId, acao = 'ajustar_para_contado') {
@@ -279,8 +282,10 @@ export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada,
   });
 }
 
-export async function listarContagensDaSessao(sessaoId) {
-  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/contagens`);
+export async function listarContagensDaSessao(sessaoId, page = 1, pageSize = 50) {
+  const params = new URLSearchParams({ page, page_size: pageSize }).toString();
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/contagens?${params}`);
+  // Retorna {items, total, pagina, por_pagina, total_paginas}
 }
 
 export async function cancelarSessao(sessaoId) {

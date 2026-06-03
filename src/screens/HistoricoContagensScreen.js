@@ -7,9 +7,10 @@ import {
   ActivityIndicator, Alert, RefreshControl, TextInput,
 } from 'react-native';
 
-import { avisar, confirmar } from '../utils/alertas';
+import { avisar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarContagensDaSessao } from '../services/api';
+import Paginacao from '../components/Paginacao';
 
 
 export default function HistoricoContagensScreen({ navigation, route }) {
@@ -20,16 +21,23 @@ export default function HistoricoContagensScreen({ navigation, route }) {
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busca, setBusca] = useState('');
+  const [pagina, setPagina] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 50;
 
   useEffect(() => {
     carregar();
   }, []);
 
-  async function carregar() {
+  async function carregar(p = pagina) {
     try {
-      const dados = await listarContagensDaSessao(sessao.id);
-      setContagens(dados);
-      agrupar(dados, '');
+      const dados = await listarContagensDaSessao(sessao.id, p, PAGE_SIZE);
+      const items = dados.items || [];
+      setContagens(items);
+      setTotalPaginas(dados.total_paginas || 1);
+      setTotal(dados.total || 0);
+      agrupar(items, busca);
     } catch (err) {
       avisar('Erro', err.message || 'Nao foi possivel carregar o historico');
     } finally {
@@ -169,10 +177,20 @@ export default function HistoricoContagensScreen({ navigation, route }) {
             </Text>
           </View>
         }
+        ListFooterComponent={
+          <Paginacao
+            pagina={pagina}
+            totalPaginas={totalPaginas}
+            total={total}
+            porPagina={PAGE_SIZE}
+            onAnterior={() => { const p = pagina - 1; setPagina(p); setCarregando(true); carregar(p); }}
+            onProxima={() => { const p = pagina + 1; setPagina(p); setCarregando(true); carregar(p); }}
+          />
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); carregar(); }}
+            onRefresh={() => { setPagina(1); setRefreshing(true); carregar(1); }}
             colors={[colors.primary]}
             tintColor={colors.primary}
           />

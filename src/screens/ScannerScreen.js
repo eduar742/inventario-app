@@ -55,7 +55,8 @@ export default function ScannerScreen({ navigation, route }) {
     async function carregarOutros() {
       try {
         const usuario = await pegarUsuario();
-        const lista = await listarContagensDaSessao(sessao.id);
+        const resp = await listarContagensDaSessao(sessao.id, 1, 500); // carrega tudo para calculo multi-operador
+        const lista = resp.items || resp;
         // Agrupa por codigoQr a soma de contagens de OUTROS usuarios
         const mapa = {};
         for (const c of lista) {
