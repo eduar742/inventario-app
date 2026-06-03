@@ -1,6 +1,6 @@
 // Tela de Treinamento / Ajuda do sistema.
-// Secoes expansiveis (accordion) com busca no topo.
-// Acessivel pelo menu principal (HomeScreen).
+// Atualizada com: multi-operador, localizacao, papeis novos,
+// importacao historica, parcelas, dash consolidado e credenciais.
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -10,8 +10,8 @@ import {
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 
-// ── Conteudo das secoes ─────────────────────────────────────────────
 const SECOES = [
+  // ─────────────────────────────────────────────────────────────────
   {
     id: 'usuarios',
     emoji: '👥',
@@ -21,34 +21,43 @@ const SECOES = [
     conteudo: [
       {
         tipo: 'texto',
-        texto: 'Apenas o perfil ADM pode criar e gerenciar usuários. Acesse pelo menu principal → bloco "Usuários".',
+        texto: 'Apenas o ADM pode criar e gerenciar usuários. Acesse pelo menu principal → bloco "Usuários".',
       },
       {
         tipo: 'passos',
         titulo: 'Como criar um novo usuário:',
         itens: [
           'Toque em "+ Novo usuário" no topo da lista.',
-          'Preencha o Nome completo do usuário.',
+          'Preencha o Nome completo.',
           'Informe o E-mail (será o login de acesso).',
-          'Defina uma Senha forte (mínimo 10 caracteres, letras maiúsculas, minúsculas, números e caracteres especiais).',
-          'Selecione o Papel (perfil de acesso): Gestor, Gerente, Auditor ou Operador.',
-          'Vincule as Lojas: toque no seletor de lojas para escolher uma ou mais unidades.',
+          'Defina uma Senha forte (mín. 10 caracteres, mai/min/num/especial).',
+          'Selecione o Papel: Gestor, Gerente, Auditor ou Operador.',
+          'Vincule as Lojas: toque no seletor para escolher uma ou mais unidades. Use "Selecionar todas" para gerentes/auditores.',
           'Toque em "Salvar".',
         ],
+      },
+      {
+        tipo: 'texto',
+        texto: '🔑 Credenciais visíveis: o card de cada usuário exibe o e-mail e a senha cadastrada pelo ADM. Use o campo "Redefinir senha" para atualizar — a nova senha aparece no card imediatamente.',
       },
       {
         tipo: 'passos',
         titulo: 'Como editar ou inativar:',
         itens: [
-          'Na lista de usuários, toque no card do usuário desejado.',
-          'Altere os campos necessários (nome, papel, lojas).',
-          'Para redefinir a senha, preencha o campo "Redefinir senha".',
-          'Para inativar: desmarque a opção "Usuário ativo" e salve.',
+          'Toque no card do usuário na lista.',
+          'Altere os campos necessários (nome, papel, lojas vinculadas).',
+          'Para trocar a senha: preencha "Redefinir senha" e salve.',
+          'Para inativar: desmarque "Usuário ativo" e salve.',
           'Usuários inativos não conseguem fazer login.',
         ],
       },
+      {
+        tipo: 'texto',
+        texto: '📍 Operador com loja vinculada: ao fazer login, o operador é redirecionado automaticamente para as sessões da(s) sua(s) loja(s) — sem precisar selecionar.',
+      },
     ],
   },
+  // ─────────────────────────────────────────────────────────────────
   {
     id: 'permissoes',
     emoji: '🔐',
@@ -58,7 +67,7 @@ const SECOES = [
     conteudo: [
       {
         tipo: 'texto',
-        texto: 'O sistema possui 5 perfis de acesso. Cada perfil tem permissões diferentes para garantir segurança e rastreabilidade.',
+        texto: 'O sistema possui 5 perfis de acesso. Somente o ADM pode alterar dados — os demais têm acesso somente leitura ou contagem.',
       },
       {
         tipo: 'tabela',
@@ -67,19 +76,21 @@ const SECOES = [
           ['Realizar inventário (scanner)', '✓', '✓', '✗', '✗', '✓'],
           ['Criar/encerrar sessões', '✓', '✓', '✗', '✗', '✗'],
           ['Aprovar divergências', '✓', '✓', '✗', '✗', '✗'],
-          ['Ver dashboards', '✓', '✓', '✓', '✓', '✗'],
+          ['Ver dashboards e KPIs', '✓', '✓', '✓', '✓', '✗'],
           ['Exportar relatórios', '✓', '✓', '✓', '✓', '✗'],
           ['Importar planilhas', '✓', '✓', '✗', '✗', '✗'],
           ['Gerenciar usuários', '✓', '✗', '✗', '✗', '✗'],
           ['Excluir sessões concluídas', '✓', '✗', '✗', '✗', '✗'],
+          ['Ver credenciais de acesso', '✓', '✗', '✗', '✗', '✗'],
         ],
       },
       {
         tipo: 'texto',
-        texto: '⚠️ Operadores veem apenas as lojas vinculadas ao seu perfil. Gerente e Auditor têm acesso somente leitura.',
+        texto: '⚠️ Gerente e Auditor têm acesso somente leitura — veem dashboards e relatórios, mas não executam ações. Operadores veem apenas as lojas vinculadas ao seu perfil.',
       },
     ],
   },
+  // ─────────────────────────────────────────────────────────────────
   {
     id: 'sessao',
     emoji: '📋',
@@ -89,35 +100,43 @@ const SECOES = [
     conteudo: [
       {
         tipo: 'texto',
-        texto: 'Uma sessão organiza o inventário de uma loja em um período específico. É necessário ter o estoque importado antes de criar a sessão.',
+        texto: 'Uma sessão organiza o inventário de uma loja em um período. É obrigatório ter o estoque importado antes de criar a sessão.',
+      },
+      {
+        tipo: 'passos',
+        titulo: 'Pré-requisitos:',
+        itens: [
+          'Importe a planilha de estoque (menu → Importar → aba Estoque) para a loja e mês desejados.',
+          'O mês aparece automaticamente como opção ao selecionar a loja na criação.',
+        ],
       },
       {
         tipo: 'passos',
         titulo: 'Passo a passo:',
         itens: [
-          'Acesse o menu principal → "Inventário" → selecione a loja.',
-          'Toque em "+ Nova sessão" no cabeçalho.',
-          'Selecione a Loja e o Mês de referência (os meses disponíveis aparecem automaticamente).',
-          'Defina o Nome da sessão (gerado automaticamente se deixar em branco).',
+          'Menu → "Inventário" → selecione a loja → "+ Nova sessão".',
+          'Selecione a Loja e o Mês de referência.',
+          'Defina o Nome (gerado automaticamente se deixar em branco).',
           'Escolha o Tipo: Geral, Parcial, Cíclico ou Recontagem.',
-          'Selecione a Natureza: Venda, Quarentena ou Todas.',
+          'Selecione a Natureza: Natureza Venda, Quarentena ou Todas.',
           'Marque "Iniciar imediatamente" para liberar aos operadores.',
           'Toque em "Criar sessão".',
         ],
       },
       {
         tipo: 'passos',
-        titulo: 'Encerrar ou pausar:',
+        titulo: 'Encerrar a sessão:',
         itens: [
-          'Na lista de sessões, localize a sessão "Em andamento".',
-          'Toque em "Encerrar sessão" (apenas ADM/Gestor).',
-          'O sistema gera automaticamente as divergências.',
+          'ADM/Gestor: toque em "Encerrar sessão" no card da sessão ativa.',
+          'Operador: toque em "Finalizar inventário" no Resumo ao terminar de bipar.',
+          'Se ainda houver pendentes, o operador pode tocar em "Finalizar agora" — os itens restantes ficam como não bipados.',
+          'Após encerramento, o sistema gera as divergências automaticamente.',
           'A sessão passa para "Aguardando aprovação".',
-          'Para cancelar uma sessão, toque em "Cancelar sessão" (irreversível).',
         ],
       },
     ],
   },
+  // ─────────────────────────────────────────────────────────────────
   {
     id: 'contagem',
     emoji: '📦',
@@ -127,34 +146,93 @@ const SECOES = [
     conteudo: [
       {
         tipo: 'texto',
-        texto: 'O inventário é CEGO: o operador não vê o saldo do sistema antes de contar. Isso garante contagens imparciais.',
+        texto: 'O inventário é CEGO: o operador não vê o saldo do sistema antes de contar, garantindo contagens imparciais.',
       },
       {
         tipo: 'passos',
         titulo: 'Como o operador realiza a contagem:',
         itens: [
-          'Faça login → toque em "Inventário" → sistema direciona automaticamente para sua loja.',
+          'Login → "Inventário" → sistema vai direto para a loja vinculada.',
           'Selecione a sessão "Em andamento".',
-          'Toque na sessão para acessar o Scanner.',
           'Aponte a câmera para o QR Code do produto.',
-          'Na tela de contagem, digite a quantidade física encontrada.',
+          'Na tela de contagem, informe a Quantidade física encontrada.',
+          'Informe a Localização do produto: ex. "Prateleira A3", "Corredor 2" (opcional, mas recomendado).',
           'Toque em "Adicionar ao inventário".',
-          'Repita para todos os produtos.',
-          'Ao finalizar, toque em "Encerrar contagem".',
+          'Repita para todos os produtos da sua área.',
+          'Ao finalizar, vá ao Resumo e toque em "Finalizar inventário".',
+        ],
+      },
+      {
+        tipo: 'texto',
+        texto: '📍 Campo Localização: informe onde o produto foi encontrado. Isso permite rastrear produtos distribuídos em múltiplos locais do depósito.',
+      },
+      {
+        tipo: 'passos',
+        titulo: 'Bipagem do mesmo SKU em locais diferentes:',
+        itens: [
+          'Bipe o produto na Prateleira A → informe a localização "A" e a quantidade (ex: 30).',
+          'Bipe o mesmo produto na Prateleira B → informe "B" e a quantidade (ex: 80).',
+          'O sistema SOMA automaticamente: 30 + 80 = 110 unidades.',
+          'Na tela de divergências aparece: "A: 30 + B: 80 = 110".',
+          'Não há erro ou conflito — é o comportamento esperado para produtos multi-posição.',
         ],
       },
       {
         tipo: 'passos',
-        titulo: 'Lógica das 3 contagens:',
+        titulo: 'Multi-operador na mesma sessão:',
         itens: [
-          '1ª contagem: se diverge do sistema → solicita 2ª contagem.',
-          '2ª contagem: se igual à 1ª → diferença confirmada.',
-          '2ª contagem: se diferente da 1ª → solicita 3ª (desempate).',
-          '3ª contagem: valor final registrado como diferença.',
+          'Dois ou mais operadores podem bipar produtos diferentes simultaneamente na mesma sessão.',
+          'Se um operador já bipou um produto, o segundo operador vê um aviso roxo: "Outro operador já contou X unidades".',
+          'Cada operador bipa apenas a sua área — os totais são somados automaticamente.',
+          'ADM/Gestor deve encerrar a sessão somente após todos os operadores finalizarem.',
+        ],
+      },
+      {
+        tipo: 'texto',
+        texto: '📊 Barra de progresso no scanner: exibe Total (SKUs no sistema) · Bipados · Faltam · Leituras em tempo real durante a contagem.',
+      },
+    ],
+  },
+  // ─────────────────────────────────────────────────────────────────
+  {
+    id: 'divergencias',
+    emoji: '⚖️',
+    titulo: 'Divergências e Aprovação',
+    cor: '#D97706',
+    corBg: '#FFFBEB',
+    conteudo: [
+      {
+        tipo: 'texto',
+        texto: 'Após encerrar a sessão, o sistema compara o contado vs o sistema e gera divergências para revisão do gestor/ADM.',
+      },
+      {
+        tipo: 'passos',
+        titulo: 'Como revisar divergências:',
+        itens: [
+          'No card da sessão (status "Aguard. aprovação"), toque em "Revisar divergências".',
+          'Cada card mostra: Sistema | Contado | Diferença.',
+          'Se o produto foi bipado em múltiplos locais, aparecem as parcelas: "A: 30 + B: 80 = 110".',
+          'Para cada divergência: toque em "Aprovar ajuste" ou "Rejeitar".',
+          'Ou use o botão azul "Aprovar todo o inventário" para aprovar tudo de uma vez.',
+          'Após aprovar/rejeitar todas, toque em "Concluir sessão de inventário".',
+        ],
+      },
+      {
+        tipo: 'texto',
+        texto: '📌 O sistema NÃO altera o saldo do estoque automaticamente após aprovação. As divergências ficam registradas como histórico para auditoria. O ajuste no ERP é feito manualmente.',
+      },
+      {
+        tipo: 'passos',
+        titulo: 'Produtos não bipados:',
+        itens: [
+          'Produtos que existem no sistema mas não foram contados geram divergência negativa.',
+          'São exibidos no card como "NÃO BIPADO" com o saldo do sistema como diferença.',
+          'Devem ser aprovados ou rejeitados da mesma forma.',
         ],
       },
     ],
   },
+  // ─────────────────────────────────────────────────────────────────
   {
     id: 'importacao',
     emoji: '📥',
@@ -164,11 +242,11 @@ const SECOES = [
     conteudo: [
       {
         tipo: 'texto',
-        texto: 'A importação carrega o saldo de estoque do ERP para o sistema, criando a base para o inventário.',
+        texto: 'A tela de Importar tem duas abas: Estoque (saldo atual do ERP) e Inventário Histórico (inventário realizado antes do app).',
       },
       {
         tipo: 'passos',
-        titulo: 'Formato aceito — colunas obrigatórias:',
+        titulo: 'Aba Estoque — colunas obrigatórias:',
         itens: [
           'Natureza — ex: "Natureza Venda" ou "Natureza Quarentena"',
           'Codigo — código único do produto (SKU)',
@@ -176,27 +254,36 @@ const SECOES = [
           'UnidadeMedida — ex: UN, CX, KG',
           'SaldoEstoque — quantidade em estoque (número ≥ 0)',
           'CustoUnitario — valor unitário (opcional)',
-          'GrupoMaterial — grupo do produto (opcional, ex: ACM)',
+          'GrupoMaterial — grupo do produto (opcional, ex: ACM, CHAPAS)',
         ],
       },
       {
         tipo: 'passos',
-        titulo: 'Como importar:',
+        titulo: 'Aba Inventário Histórico — colunas obrigatórias:',
         itens: [
-          'Acesse o menu → "Importar" → aba "Estoque".',
-          'Selecione a Loja e o Mês de referência.',
-          'Escolha o Modo: Completo (zera ausentes) ou Parcial (só atualiza).',
-          'Toque em "Selecionar planilha" e escolha o arquivo .xlsx ou .csv.',
-          'Toque em "Importar estoque".',
-          'Verifique o resultado: linhas importadas com sucesso e erros, se houver.',
+          'Natureza, Codigo, Descricao, UnidadeMedida — igual ao Estoque.',
+          'SaldoSistema — saldo que o ERP mostrava na época do inventário.',
+          'QuantidadeContada — o que foi fisicamente contado.',
+          'CustoUnitario e GrupoMaterial — opcionais.',
+          'O sistema cria automaticamente uma sessão já concluída com contagens e divergências.',
+          'Useful para ter histórico de inventários anteriores ao app nos dashboards.',
         ],
       },
       {
-        tipo: 'texto',
-        texto: '📋 Para importar inventários históricos (realizados antes do app), use a aba "Inventário Histórico" e adicione as colunas SaldoSistema e QuantidadeContada.',
+        tipo: 'passos',
+        titulo: 'Como importar (ambas as abas):',
+        itens: [
+          'Menu → "Importar" → escolha a aba desejada.',
+          'Selecione a Loja e o Mês de referência.',
+          'Escolha o Modo (Estoque): Completo (zera ausentes) ou Parcial (só atualiza).',
+          'Toque em "Selecionar planilha" → escolha o arquivo .xlsx ou .csv.',
+          'Toque em "Importar".',
+          'Verifique o resultado: linhas com sucesso e erros, se houver.',
+        ],
       },
     ],
   },
+  // ─────────────────────────────────────────────────────────────────
   {
     id: 'relatorios',
     emoji: '📈',
@@ -206,32 +293,38 @@ const SECOES = [
     conteudo: [
       {
         tipo: 'texto',
-        texto: 'O sistema gera relatórios em Excel (xlsx), PDF e CSV com todas as contagens, divergências e análises financeiras.',
+        texto: 'O sistema gera relatórios em Excel (xlsx), PDF e CSV. As colunas de localização e parcelas são incluídas automaticamente quando informadas na contagem.',
       },
       {
         tipo: 'passos',
-        titulo: 'Relatório por sessão:',
+        titulo: 'Relatório por sessão (aba Contagens e Divergências):',
         itens: [
-          'Nas Sessões, selecione uma sessão "Concluída".',
-          'Toque em "Exportar".',
-          'Escolha o Perfil: Operacional, Financeiro, Auditoria TI ou Completo.',
-          'Escolha o Formato: Excel, PDF ou CSV.',
-          'O arquivo é baixado automaticamente.',
+          'Nas Sessões, selecione uma sessão "Concluída" → "Exportar".',
+          'Perfil Operacional: sem dados financeiros.',
+          'Perfil Financeiro: com custos e valores.',
+          'Perfil Completo: todas as abas.',
+          'Colunas de localização: Local 1, Local 2, Local 3 ao lado de cada contagem.',
+          'Coluna Parcelas: resumo "L01: 30 + L02: 80 = 110" quando há múltiplos locais.',
         ],
+      },
+      {
+        tipo: 'texto',
+        texto: '💡 Indicadores financeiros: o relatório mostra Ajuste Líquido (sobra − falta = o que precisa ser ajustado) e o Impacto Bruto (|sobra| + |falta| = total de exposição financeira). São métricas diferentes e complementares.',
       },
       {
         tipo: 'passos',
         titulo: 'Relatório Geral (todas as lojas):',
         itens: [
-          'No menu → "Rel. Geral".',
-          'Filtre por Natureza (Venda, Quarentena ou Todas) e Mês.',
+          'Menu → "Rel. Geral".',
+          'Filtre por Natureza e Mês.',
           'Toque em "Gerar e baixar Excel".',
-          'O Excel terá uma aba por natureza com todas as lojas.',
-          'Cores: verde ≥ 99% acuracidade, amarelo ≥ 90%, vermelho < 90%.',
+          'Uma aba por natureza, com todas as lojas e indicadores.',
+          'Cores: verde ≥ 99%, amarelo ≥ 90%, vermelho < 90% de acuracidade.',
         ],
       },
     ],
   },
+  // ─────────────────────────────────────────────────────────────────
   {
     id: 'dashboard',
     emoji: '📊',
@@ -241,33 +334,36 @@ const SECOES = [
     conteudo: [
       {
         tipo: 'texto',
-        texto: 'O Dashboard mostra indicadores em tempo real das sessões e inventários. Acesse pelo menu → "Dashboard".',
+        texto: 'O Dashboard mostra indicadores em tempo real. Acesse pelo menu → "Dashboard". Disponível para ADM, Gestor, Gerente e Auditor.',
       },
       {
         tipo: 'passos',
         titulo: 'Principais indicadores:',
         itens: [
-          'Sessões ativas: quantas sessões estão em andamento agora.',
-          'Aguardando aprovação: sessões encerradas aguardando o gestor revisar.',
-          'Acuracidade média: % de itens sem divergência (meta: acima de 95%).',
-          'Valor total divergente: ajuste líquido financeiro necessário (sobra − falta).',
-          'Top divergências: os 8 produtos com maior valor de diferença.',
-          'Acuracidade por loja: desempenho de cada unidade na última sessão.',
+          'Sessões ativas: quantas estão em andamento agora.',
+          'Aguardando aprovação: sessões encerradas pendentes de revisão.',
+          'Acuracidade média: % de itens sem divergência (meta: acima de 99%).',
+          'Valor total divergente: AJUSTE LÍQUIDO (sobra − falta) que precisa ser feito no ERP.',
         ],
       },
       {
         tipo: 'passos',
-        titulo: 'Como interpretar os 3 painéis de apuração:',
+        titulo: 'Os 3 painéis de apuração por sessão:',
         itens: [
-          'Apuração de Valor: diferença em R$ entre o contado e o sistema (ajuste líquido).',
-          'Apuração de Unidades: diferença em unidades físicas (ajuste líquido).',
-          'Apuração de Itens (SKU): quantos SKUs tiveram alguma diferença.',
+          'Apuração de Valor (R$): usa ajuste LÍQUIDO — o que efetivamente precisa ser ajustado.',
+          'Apuração de Unidades: usa ajuste LÍQUIDO — unidades para ajustar.',
+          'Apuração de Itens (SKU): conta quantos SKUs tiveram QUALQUER diferença (positiva ou negativa).',
           'Diferença em %: |ajuste líquido| ÷ total. Quanto menor, melhor.',
-          'Acuracidade: 100% − diferença%. Meta mínima: 95%.',
+          'Acuracidade: 100% − diferença%. Meta mínima: 99%.',
         ],
+      },
+      {
+        tipo: 'texto',
+        texto: '⚠️ Diferença entre Ajuste Líquido e Impacto Bruto: Ajuste Líquido = sobra − falta (o que você precisa registrar no ERP). Impacto Bruto = |sobra| + |falta| (total de exposição). Ex: sobra R$95k e falta R$93k → Ajuste = R$2k, mas o Impacto Bruto = R$188k.',
       },
     ],
   },
+  // ─────────────────────────────────────────────────────────────────
   {
     id: 'consolidado',
     emoji: '🏢',
@@ -277,45 +373,44 @@ const SECOES = [
     conteudo: [
       {
         tipo: 'texto',
-        texto: 'O Dashboard Consolidado mostra todas as lojas em uma única tabela comparativa. Acesse pelo menu → "Consolidado".',
+        texto: 'O Dashboard Consolidado mostra todas as lojas em uma única tabela comparativa por período. Menu → "Consolidado".',
       },
       {
         tipo: 'passos',
         titulo: 'Como usar:',
         itens: [
           'Selecione o Mês de competência nos chips no topo.',
-          'Filtre por Natureza se necessário (Venda ou Quarentena).',
-          'A coluna amarela "Consolidado" é a soma de todas as lojas com sessão.',
+          'Filtre por Natureza se necessário.',
+          'A coluna amarela "Consolidado" é a SOMA de todas as lojas com inventário no período.',
           'Cada coluna à direita é uma loja individualmente.',
-          'Lojas sem inventário no período aparecem com valores zerados em cinza.',
+          'Lojas sem inventário no período aparecem em cinza com valores zerados.',
+          'O campo "Grupos contados nas lojas" no cabeçalho indica quais grupos de materiais foram inventariados.',
         ],
       },
       {
         tipo: 'passos',
         titulo: 'Como interpretar as linhas:',
         itens: [
-          'Total de R$ valor: valor total do estoque auditado.',
-          'Ajuste positivo (+): valor dos itens encontrados a mais (sobra).',
-          'Ajuste negativo (−): valor dos itens encontrados a menos (falta).',
-          'Diferença líquida: sobra − falta. Valor real do ajuste necessário.',
-          'Diferença em %: |líquido| ÷ total. Indica o nível de divergência.',
-          'Acuracidade: 100% − diferença%. Meta: acima de 99%.',
+          'Ajuste Líquido (em destaque): sobra − falta — o ajuste real necessário.',
+          'Falta (−): déficit real de estoque.',
+          'Sobra (+): excesso encontrado.',
+          'Diferença em %: |ajuste líquido| ÷ total. Quanto menor, melhor.',
+          'Acuracidade: 100% − diferença%. Meta mínima: 99%.',
         ],
       },
       {
         tipo: 'texto',
-        texto: '📋 Os "Grupos contados nas lojas" no cabeçalho indicam quais grupos de materiais foram inventariados no período selecionado.',
+        texto: '📊 Regra do Consolidado: se só L01 fez inventário, o consolidado espelha L01. Se L01 e L02 fizeram, os valores se somam e os percentuais são calculados sobre o total somado das duas lojas.',
       },
     ],
   },
 ];
 
-// ── Componente de tabela comparativa ──────────────────────────────
+// ── Tabela de permissões ──────────────────────────────────────────
 function TabelaPermissoes({ colunas, linhas }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator style={{ marginTop: spacing.sm }}>
       <View>
-        {/* Header */}
         <View style={est.tabelaLinha}>
           {colunas.map((c, i) => (
             <View key={i} style={[est.tabelaCel, i === 0 ? est.tabelaCelAcao : est.tabelaCelPerfil]}>
@@ -323,7 +418,6 @@ function TabelaPermissoes({ colunas, linhas }) {
             </View>
           ))}
         </View>
-        {/* Linhas */}
         {linhas.map((linha, li) => (
           <View key={li} style={[est.tabelaLinha, li % 2 === 0 && { backgroundColor: '#F8FAFC' }]}>
             {linha.map((cel, ci) => (
@@ -342,11 +436,10 @@ function TabelaPermissoes({ colunas, linhas }) {
   );
 }
 
-// ── Componente de secao accordion ─────────────────────────────────
+// ── Accordion ─────────────────────────────────────────────────────
 function Secao({ secao, expandida, onToggle }) {
   return (
     <View style={[est.secao, { borderLeftColor: secao.cor }]}>
-      {/* Header clicavel */}
       <TouchableOpacity style={est.secaoHeader} onPress={onToggle} activeOpacity={0.7}>
         <View style={[est.secaoEmojiBg, { backgroundColor: secao.corBg }]}>
           <Text style={est.secaoEmoji}>{secao.emoji}</Text>
@@ -359,14 +452,11 @@ function Secao({ secao, expandida, onToggle }) {
         </Text>
       </TouchableOpacity>
 
-      {/* Conteudo expansivel */}
       {expandida && (
         <View style={est.secaoCorpo}>
           {secao.conteudo.map((bloco, bi) => {
             if (bloco.tipo === 'texto') {
-              return (
-                <Text key={bi} style={est.texto}>{bloco.texto}</Text>
-              );
+              return <Text key={bi} style={est.texto}>{bloco.texto}</Text>;
             }
             if (bloco.tipo === 'passos') {
               return (
@@ -386,9 +476,7 @@ function Secao({ secao, expandida, onToggle }) {
               );
             }
             if (bloco.tipo === 'tabela') {
-              return (
-                <TabelaPermissoes key={bi} colunas={bloco.colunas} linhas={bloco.linhas} />
-              );
+              return <TabelaPermissoes key={bi} colunas={bloco.colunas} linhas={bloco.linhas} />;
             }
             return null;
           })}
@@ -407,12 +495,11 @@ export default function AjudaScreen({ navigation }) {
     setExpandidas(prev => ({ ...prev, [id]: !prev[id] }));
   }
 
-  // Filtra secoes pelo texto de busca
   const secoesFiltradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return SECOES;
     return SECOES.filter(s => {
-      const textoSecao = [
+      const txt = [
         s.titulo,
         ...s.conteudo.map(b =>
           b.tipo === 'passos'
@@ -420,13 +507,13 @@ export default function AjudaScreen({ navigation }) {
             : b.texto || ''
         ),
       ].join(' ').toLowerCase();
-      return textoSecao.includes(q);
+      return txt.includes(q);
     });
   }, [busca]);
 
   return (
     <SafeAreaView style={est.container}>
-      {/* Campo de busca */}
+      {/* Busca */}
       <View style={est.buscaBox}>
         <Text style={est.buscaIcone}>🔍</Text>
         <TextInput
@@ -446,17 +533,18 @@ export default function AjudaScreen({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={est.scroll}>
-
-        {/* Titulo */}
+        {/* Topo */}
         <View style={est.topoTitulo}>
           <Text style={est.topoEmoji}>📖</Text>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={est.topoTituloTxt}>Guia de Uso</Text>
-            <Text style={est.topoSubTxt}>Toque em cada seção para expandir</Text>
+            <Text style={est.topoSubTxt}>
+              {SECOES.length} seções · Toque para expandir
+            </Text>
           </View>
         </View>
 
-        {/* Secoes */}
+        {/* Seções */}
         {secoesFiltradas.length === 0 ? (
           <View style={est.semResultado}>
             <Text style={est.semResultadoEmoji}>🔍</Text>
@@ -473,12 +561,10 @@ export default function AjudaScreen({ navigation }) {
           ))
         )}
 
-        {/* Rodape */}
+        {/* Rodapé */}
         <View style={est.rodape}>
           <Text style={est.rodapeVersao}>Sistema de Inventário BOLD — v0.1.0</Text>
-          <Text style={est.rodapeSuporte}>
-            Dúvidas ou problemas? Contate o administrador do sistema
-          </Text>
+          <Text style={est.rodapeSuporte}>Dúvidas? Contate o administrador do sistema</Text>
           <Text style={est.rodapeEmail}>operacoes.claude@bold.net</Text>
         </View>
       </ScrollView>
@@ -488,111 +574,56 @@ export default function AjudaScreen({ navigation }) {
 
 const est = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F1F5F9' },
-
-  // Busca
   buscaBox: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1, borderBottomColor: '#E2E8F0',
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    gap: spacing.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm,
   },
   buscaIcone: { fontSize: 16 },
-  buscaInput: {
-    flex: 1, fontSize: fontSize.md,
-    color: colors.text, minWidth: 0,
-  },
-
+  buscaInput: { flex: 1, fontSize: fontSize.md, color: colors.text, minWidth: 0 },
   scroll: { padding: spacing.md, paddingBottom: spacing.xxl },
-
-  // Topo
   topoTitulo: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: spacing.sm, marginBottom: spacing.md,
-    backgroundColor: '#FFFFFF', borderRadius: radius.md,
-    padding: spacing.md, borderWidth: 1, borderColor: '#E2E8F0',
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    marginBottom: spacing.md, backgroundColor: '#FFFFFF',
+    borderRadius: radius.md, padding: spacing.md,
+    borderWidth: 1, borderColor: '#E2E8F0',
   },
-  topoEmoji:    { fontSize: 32 },
-  topoTituloTxt:{ fontSize: fontSize.xl, fontWeight: '800', color: '#0F172A' },
-  topoSubTxt:   { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2 },
-
-  // Accordion
+  topoEmoji:     { fontSize: 32 },
+  topoTituloTxt: { fontSize: fontSize.xl, fontWeight: '800', color: '#0F172A' },
+  topoSubTxt:    { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2 },
   secao: {
     backgroundColor: '#FFFFFF', borderRadius: radius.md,
     borderWidth: 1, borderColor: '#E2E8F0',
-    borderLeftWidth: 4, marginBottom: spacing.sm,
-    overflow: 'hidden',
+    borderLeftWidth: 4, marginBottom: spacing.sm, overflow: 'hidden',
   },
-  secaoHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: spacing.md, gap: spacing.sm,
-  },
-  secaoEmojiBg: {
-    width: 40, height: 40, borderRadius: radius.md,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
+  secaoHeader: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, gap: spacing.sm },
+  secaoEmojiBg: { width: 40, height: 40, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   secaoEmoji:   { fontSize: 20 },
-  secaoTitulo:  {
-    fontSize: fontSize.md, fontWeight: '700', color: '#0F172A',
-    flexWrap: 'wrap',
-  },
+  secaoTitulo:  { fontSize: fontSize.md, fontWeight: '700', color: '#0F172A', flexWrap: 'wrap' },
   secaoChevron: { fontSize: 12, fontWeight: '700', flexShrink: 0 },
-
-  // Corpo do accordion
   secaoCorpo: {
     paddingHorizontal: spacing.md, paddingBottom: spacing.md,
-    borderTopWidth: 1, borderTopColor: '#F1F5F9',
-    paddingTop: spacing.sm,
+    borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: spacing.sm,
   },
-
-  // Texto livre
-  texto: {
-    fontSize: fontSize.sm, color: '#334155',
-    lineHeight: 22, marginBottom: spacing.sm,
-    flexWrap: 'wrap',
-  },
-
-  // Passos numerados
+  texto: { fontSize: fontSize.sm, color: '#334155', lineHeight: 22, marginBottom: spacing.sm, flexWrap: 'wrap' },
   passosBox: { marginBottom: spacing.sm },
-  passosTitulo: {
-    fontSize: fontSize.sm, fontWeight: '700',
-    marginBottom: spacing.xs, flexWrap: 'wrap',
-  },
-  passoLinha: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    gap: spacing.sm, marginBottom: 8,
-  },
-  passoBullet: {
-    width: 22, height: 22, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    marginTop: 1,
-  },
+  passosTitulo: { fontSize: fontSize.sm, fontWeight: '700', marginBottom: spacing.xs, flexWrap: 'wrap' },
+  passoLinha: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginBottom: 8 },
+  passoBullet: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
   passoBulletTxt: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
-  passoTxt: {
-    fontSize: fontSize.sm, color: '#334155',
-    lineHeight: 20, flexWrap: 'wrap',
-  },
-
-  // Tabela de permissoes
+  passoTxt: { fontSize: fontSize.sm, color: '#334155', lineHeight: 20, flexWrap: 'wrap' },
   tabelaLinha:    { flexDirection: 'row' },
   tabelaCel:      { padding: 8, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', justifyContent: 'center' },
-  tabelaCelAcao:  { width: 180, backgroundColor: '#F8FAFC' },
+  tabelaCelAcao:  { width: 200, backgroundColor: '#F8FAFC' },
   tabelaCelPerfil:{ width: 72, alignItems: 'center' },
   tabelaHeaderTxt:{ fontSize: 11, fontWeight: '800', color: '#1E40AF', textAlign: 'center' },
   tabelaAcaoTxt:  { fontSize: 11, color: '#334155', flexWrap: 'wrap' },
   tabelaValTxt:   { fontSize: 14, textAlign: 'center' },
-
-  // Sem resultado
   semResultado: { alignItems: 'center', paddingVertical: spacing.xxl },
   semResultadoEmoji: { fontSize: 40, marginBottom: spacing.md },
   semResultadoTxt:   { fontSize: fontSize.md, color: colors.textMuted, textAlign: 'center' },
-
-  // Rodape
-  rodape: {
-    marginTop: spacing.xl, paddingTop: spacing.lg,
-    borderTopWidth: 1, borderTopColor: '#E2E8F0',
-    alignItems: 'center', gap: 4,
-  },
+  rodape: { marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: '#E2E8F0', alignItems: 'center', gap: 4 },
   rodapeVersao:  { fontSize: fontSize.xs, color: colors.textSecondary, fontWeight: '600' },
   rodapeSuporte: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'center' },
   rodapeEmail:   { fontSize: fontSize.xs, color: colors.primary, fontWeight: '600' },
