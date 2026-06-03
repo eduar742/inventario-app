@@ -27,11 +27,17 @@ export default function ContagemScreen({ navigation, route }) {
   // Quantidade ja contada por OUTROS operadores nesta sessao (multi-operador)
   const qtdPorOutros = route.params?.qtdPorOutros ?? 0;
 
+  // Localização obrigatória somente para Loja 01 (L01 - Matriz)
+  const localizacaoObrigatoria = loja?.codigo === 'L01';
+
   const [carregandoProduto, setCarregandoProduto] = useState(true);
   const [produto, setProduto] = useState(null);
   const [quantidade, setQuantidade] = useState('');
   const [localizacao, setLocalizacao] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  // Controle de confirmação de localização diferente da esperada
+  const [locDiferente, setLocDiferente] = useState(false);      // alerta visivel
+  const [locConfirmada, setLocConfirmada] = useState(false);    // operador confirmou
 
   useEffect(() => {
     carregarProduto();
@@ -61,10 +67,27 @@ export default function ContagemScreen({ navigation, route }) {
     }
   }
 
+  // Localização esperada do produto (cadastrada na importação)
+  const locEsperada = (produto?.localizacao || '').trim();
+  const locDigitada = localizacao.trim();
+  const locDifereDoEsperado = Boolean(
+    locEsperada && locDigitada && locDigitada.toUpperCase() !== locEsperada.toUpperCase()
+  );
+
   function handleConfirmar() {
     const qtd = parseFloat(quantidade.replace(',', '.'));
     if (isNaN(qtd) || qtd < 0) {
       avisar('Quantidade invalida', 'Digite um numero valido (ex: 60 ou 12,5)');
+      return;
+    }
+    // Valida campo obrigatorio para L01
+    if (localizacaoObrigatoria && !locDigitada) {
+      avisar('Localizacao obrigatoria', 'Informe a localizacao do produto (ex: Prateleira A3).');
+      return;
+    }
+    // Se localização difere e ainda não confirmou, exibe o alerta de confirmação
+    if (locDifereDoEsperado && !locConfirmada) {
+      setLocDiferente(true);
       return;
     }
 
@@ -74,7 +97,8 @@ export default function ContagemScreen({ navigation, route }) {
       descricao: produto.descricao,
       unidadeMedida: produto.unidade_medida,
       quantidade: qtd,
-      localizacao: localizacao.trim() || null,
+      localizacao: locDigitada || null,
+      confirmarLocalizacao: locConfirmada,
       observacoes: observacoes || null,
     });
 
@@ -167,17 +191,77 @@ export default function ContagemScreen({ navigation, route }) {
             autoFocus
           />
 
-          <Text style={estilos.inputLabelPequeno}>Localização (opcional)</Text>
+          {/* Label com indicador de obrigatório para L01 */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: spacing.md, marginBottom: spacing.xs, gap: 6 }}>
+            <Text style={estilos.inputLabelPequeno} numberOfLines={1}>
+              Localização{localizacaoObrigatoria ? '' : ' (opcional)'}
+            </Text>
+            {localizacaoObrigatoria && (
+              <View style={estilos.badgeObrigatorio}>
+                <Text style={estilos.badgeObrigatorioTxt}>Obrigatório · L01</Text>
+              </View>
+            )}
+          </View>
           <TextInput
-            style={estilos.inputLoc}
+            style={[estilos.inputLoc, localizacaoObrigatoria && !locDigitada && { borderColor: colors.danger }]}
             value={localizacao}
-            onChangeText={setLocalizacao}
-            placeholder="Ex: Prateleira A3, Corredor 2, Galpão 1..."
+            onChangeText={v => { setLocalizacao(v); setLocDiferente(false); setLocConfirmada(false); }}
+            placeholder={localizacaoObrigatoria ? 'Obrigatório: ex. Prateleira A3' : 'Ex: Prateleira A3, Corredor 2...'}
             placeholderTextColor={colors.textMuted}
             autoCapitalize="characters"
             maxLength={100}
             returnKeyType="next"
           />
+
+          {/* Localização esperada do produto */}
+          {locEsperada && !locDifereDoEsperado && (
+            <Text style={estilos.locEsperadaDica}>
+              Localização cadastrada no sistema: {locEsperada}
+            </Text>
+          )}
+
+          {/* Alerta: localização diferente da esperada */}
+          {locDiferente && locDifereDoEsperado && !locConfirmada && (
+            <View style={estilos.cardLocDiferente}>
+              <Text style={estilos.cardLocDiferenteTitulo}>
+                ⚠️ Localização diferente da esperada
+              </Text>
+              <Text style={estilos.cardLocDiferenteTexto}>
+                Sistema registra: <Text style={{ fontWeight: '700' }}>{locEsperada}</Text>
+                {'\n'}Você informou: <Text style={{ fontWeight: '700' }}>{locDigitada}</Text>
+              </Text>
+              <Text style={estilos.cardLocDiferenteTexto}>
+                Confirme apenas se o produto foi encontrado em local diferente do cadastrado.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+                <TouchableOpacity
+                  style={[estilos.botaoLocAcao, { flex: 1, backgroundColor: colors.backgroundSoft, borderColor: colors.border }]}
+                  onPress={() => { setLocalizacao(locEsperada); setLocDiferente(false); }}
+                >
+                  <Text style={[estilos.botaoLocAcaoTxt, { color: colors.textSecondary }]}>
+                    Usar {locEsperada}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[estilos.botaoLocAcao, { flex: 1, backgroundColor: '#FEF3C7', borderColor: '#D97706' }]}
+                  onPress={() => { setLocConfirmada(true); setLocDiferente(false); }}
+                >
+                  <Text style={[estilos.botaoLocAcaoTxt, { color: '#92400E' }]}>
+                    Confirmar {locDigitada}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Confirmação visual quando localização foi aceita */}
+          {locConfirmada && locDifereDoEsperado && (
+            <View style={estilos.locConfirmadaBox}>
+              <Text style={estilos.locConfirmadaTxt}>
+                ✓ Nova localização confirmada: {locDigitada} (esperada: {locEsperada})
+              </Text>
+            </View>
+          )}
 
           <Text style={estilos.inputLabelPequeno}>Observacoes (opcional)</Text>
           <TextInput
@@ -195,7 +279,7 @@ export default function ContagemScreen({ navigation, route }) {
           <Button
             titulo="Adicionar ao inventario"
             onPress={handleConfirmar}
-            desabilitado={!quantidade}
+            desabilitado={!quantidade || (localizacaoObrigatoria && !locDigitada)}
           />
 
           <View style={{ height: spacing.sm }} />
@@ -356,6 +440,39 @@ const estilos = StyleSheet.create({
     color: colors.text,
     letterSpacing: 0.5,
   },
+  // Badge obrigatório (L01)
+  badgeObrigatorio: {
+    backgroundColor: '#FEF2F2', borderRadius: radius.full,
+    paddingHorizontal: spacing.sm, paddingVertical: 2,
+    borderWidth: 1, borderColor: '#FECACA',
+  },
+  badgeObrigatorioTxt: { fontSize: 10, fontWeight: '700', color: '#DC2626' },
+  // Dica da localização esperada
+  locEsperadaDica: {
+    fontSize: 11, color: colors.textMuted, marginTop: 4,
+    fontStyle: 'italic',
+  },
+  // Card de alerta de localização diferente
+  cardLocDiferente: {
+    backgroundColor: '#FFFBEB', borderRadius: radius.md,
+    padding: spacing.md, marginTop: spacing.sm,
+    borderWidth: 1, borderColor: '#FDE68A',
+    borderLeftWidth: 4, borderLeftColor: '#D97706',
+  },
+  cardLocDiferenteTitulo: { fontSize: fontSize.sm, fontWeight: '700', color: '#92400E', marginBottom: 4 },
+  cardLocDiferenteTexto: { fontSize: fontSize.xs, color: '#78350F', lineHeight: 18, marginBottom: 2 },
+  botaoLocAcao: {
+    padding: spacing.sm, borderRadius: radius.md,
+    alignItems: 'center', borderWidth: 1,
+  },
+  botaoLocAcaoTxt: { fontSize: fontSize.xs, fontWeight: '700' },
+  // Confirmação aceita
+  locConfirmadaBox: {
+    backgroundColor: '#F0FDF4', borderRadius: radius.sm,
+    padding: spacing.xs, marginTop: 4,
+    borderLeftWidth: 3, borderLeftColor: colors.success,
+  },
+  locConfirmadaTxt: { fontSize: 11, color: '#166534', fontWeight: '500' },
   inputObs: {
     backgroundColor: colors.background,
     borderWidth: 1,

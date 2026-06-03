@@ -114,6 +114,7 @@ export default function ResumoScreen({ navigation, route }) {
           sessaoId: sessao.id, codigoQr: item.codigoQr,
           quantidadeContada: item.quantidadeTotal,
           localizacao: item.localizacao || null,
+          confirmarLocalizacao: item.confirmarLocalizacao || false,
           observacoes: obs,
         });
         if (resp.status_produto === 'aguardando_recontagem') {
