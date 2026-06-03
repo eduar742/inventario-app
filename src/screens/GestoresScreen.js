@@ -144,17 +144,7 @@ export default function GestoresScreen({ navigation }) {
             <Text style={[estilos.nomeUsuario, !item.ativo && { color: colors.textMuted }]}>
               {item.nome} {!item.ativo ? '(inativo)' : ''}
             </Text>
-            {/* Credenciais de acesso — visivel apenas para ADM */}
-            <View style={estilos.credenciaisBox}>
-              <Text style={estilos.credencialItem}>📧 {item.email}</Text>
-              {item.senha_legivel ? (
-                <Text style={estilos.credencialItem}>🔑 {item.senha_legivel}</Text>
-              ) : (
-                <Text style={[estilos.credencialItem, { color: colors.textMuted }]}>
-                  🔑 Senha não registrada — edite para definir
-                </Text>
-              )}
-            </View>
+            <Text style={estilos.emailUsuario}>{item.email}</Text>
             {codigos ? (
               <Text style={estilos.lojaUsuario}>
                 {ids.length > 1 ? `${ids.length} lojas: ` : ''}{codigos}
@@ -273,11 +263,9 @@ export default function GestoresScreen({ navigation }) {
                       <Text style={estilos.botaoMostrarTxt}>{mostrarSenha ? '🙈' : '👁️'}</Text>
                     </TouchableOpacity>
                   </View>
-                  {editando.senha_legivel && (
-                    <Text style={estilos.senhaAtual}>
-                      Senha atual registrada: <Text style={{ fontWeight: '700', color: colors.primary }}>{editando.senha_legivel}</Text>
-                    </Text>
-                  )}
+                  <Text style={estilos.senhaAtual}>
+                    Deixe em branco para manter a senha atual do usuário.
+                  </Text>
                 </>
               )}
 
@@ -416,17 +404,6 @@ const estilos = StyleSheet.create({
   },
   seletorLojasTxt: { flex: 1, fontSize: fontSize.sm, color: colors.text, fontWeight: '500' },
   seletorChevron: { fontSize: 20, color: colors.primary, marginLeft: spacing.sm },
-
-  // Credenciais no card
-  credenciaisBox: {
-    backgroundColor: '#F0FDF4',
-    borderRadius: radius.sm,
-    padding: spacing.xs,
-    marginTop: 4,
-    borderLeftWidth: 3,
-    borderLeftColor: '#16A34A',
-  },
-  credencialItem: { fontSize: 11, color: '#166534', fontWeight: '500', marginBottom: 1 },
 
   // Redefinir senha
   senhaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
