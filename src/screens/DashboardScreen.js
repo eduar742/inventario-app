@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { buscarDashboardGeral } from '../services/api';
+import { buscarDashboardGeral, buscarSkusProblematicos } from '../services/api';
 import NaturezaFiltro from '../components/NaturezaFiltro';
 import GrupoMaterialFiltro from '../components/GrupoMaterialFiltro';
 
@@ -66,13 +66,18 @@ export default function DashboardScreen({ navigation }) {
   const [ultimaAtu, setUltimaAtu] = useState(null);
   const [naturezaId, setNaturezaId] = useState(null);
   const [grupoMaterial, setGrupoMaterial] = useState(null);
+  const [skusProblematicos, setSkusProblematicos] = useState([]);
   const timerRef = useRef(null);
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
     try {
-      const d = await buscarDashboardGeral(naturezaId, grupoMaterial);
+      const [d, skus] = await Promise.all([
+        buscarDashboardGeral(naturezaId, grupoMaterial),
+        buscarSkusProblematicos(6, 10).catch(() => ({ skus: [] })),
+      ]);
       setDados(d);
+      setSkusProblematicos(skus.skus || []);
       setUltimaAtu(new Date());
     } catch (_) {}
     finally { setCarregando(false); setRefreshing(false); }
@@ -244,6 +249,40 @@ export default function DashboardScreen({ navigation }) {
           </TouchableOpacity>
         </Secao>
 
+        {/* ── Atenção Recorrente ─────────────────────────────────── */}
+        {skusProblematicos.length > 0 && (
+          <Secao titulo="⚠️ Atenção Recorrente">
+            <Text style={estilos.secaoSub}>
+              SKUs com divergência em múltiplas sessões (últimas 6 por loja)
+            </Text>
+            {skusProblematicos.map((sku, i) => (
+              <View key={sku.sku} style={[estilos.skuCard, i % 2 === 0 && { backgroundColor: '#F8FAFC' }]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={estilos.skuCod}>{sku.sku}</Text>
+                  <Text style={estilos.skuDesc} numberOfLines={1}>{sku.descricao}</Text>
+                  {sku.lojas_afetadas?.length > 0 && (
+                    <Text style={estilos.skuLojas}>{sku.lojas_afetadas.join(' · ')}</Text>
+                  )}
+                </View>
+                <View style={estilos.skuMeta}>
+                  <View style={[estilos.skuBadge, {
+                    backgroundColor: sku.direcao_predominante === 'sobra' ? '#FEF3C7' : '#FEE2E2',
+                  }]}>
+                    <Text style={[estilos.skuBadgeTxt, {
+                      color: sku.direcao_predominante === 'sobra' ? '#92400E' : '#DC2626',
+                    }]}>
+                      {sku.direcao_predominante === 'sobra' ? '↑ Sobra' : '↓ Falta'}
+                    </Text>
+                  </View>
+                  <Text style={estilos.skuSessoes}>
+                    {sku.num_sessoes_com_divergencia}x
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </Secao>
+        )}
+
         <View style={{ height: spacing.xl }} />
       </ScrollView>
     </SafeAreaView>
@@ -329,4 +368,15 @@ const estilos = StyleSheet.create({
 
   botaoLojas:  { backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: spacing.md, alignItems: 'center' },
   botaoLojasT: { fontSize: fontSize.sm, fontWeight: '600', color: colors.primary },
+  // Atenção recorrente
+  secaoSub:   { fontSize: fontSize.xs, color: colors.textMuted, marginBottom: spacing.sm },
+  skuCard:    { flexDirection: 'row', alignItems: 'center', padding: spacing.sm,
+                borderRadius: radius.sm, marginBottom: 2, gap: spacing.sm },
+  skuCod:     { fontSize: fontSize.xs, fontWeight: '700', color: colors.primary },
+  skuDesc:    { fontSize: fontSize.xs, color: colors.text, marginTop: 1 },
+  skuLojas:   { fontSize: 10, color: colors.textMuted, marginTop: 1 },
+  skuMeta:    { alignItems: 'center', gap: 4 },
+  skuBadge:   { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full },
+  skuBadgeTxt:{ fontSize: 10, fontWeight: '700' },
+  skuSessoes: { fontSize: fontSize.sm, fontWeight: '800', color: '#DC2626' },
 });

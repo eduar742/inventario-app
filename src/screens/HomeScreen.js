@@ -94,6 +94,17 @@ const BLOCOS = [
     papeis: ['admin'],
   },
   {
+    id: 'auditoria',
+    titulo: 'Auditoria',
+    descricao: 'Audit log e participação de operadores',
+    emoji: '🔍',
+    cor: '#0F766E',
+    corBg: '#F0FDFA',
+    corBorda: '#99F6E4',
+    tela: 'Auditoria',
+    papeis: ['admin'],
+  },
+  {
     id: 'ajuda',
     titulo: 'Ajuda',
     descricao: 'Guia de uso do sistema',

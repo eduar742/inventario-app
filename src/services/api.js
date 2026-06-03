@@ -214,6 +214,49 @@ export async function listarRecontagemNecessaria(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/recontagem-necessaria`);
 }
 
+// FASE 5.1: SKUs com divergencia recorrente
+export async function buscarSkusProblematicos(ultimasSessoes = 6, top = 10, lojaId = null) {
+  const p = new URLSearchParams({ ultimas_sessoes: ultimasSessoes, top });
+  if (lojaId) p.append('loja_id', lojaId);
+  return await chamarAPI(`/api/v1/dashboard/skus-problematicos?${p}`);
+}
+
+// FASE 5.2: Métricas de participação por operador em uma sessão
+export async function buscarParticipacaoOperadores(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/participacao-operadores`);
+}
+
+// FASE 5.3: Exportar audit log como xlsx
+export async function exportarAuditLog({ dataInicio, dataFim, usuarioId, tipoAcao } = {}) {
+  const url_base = 'https://inventario-api-bc1p.onrender.com';
+  const token = await pegarToken();
+  const p = new URLSearchParams();
+  if (dataInicio) p.append('data_inicio', dataInicio);
+  if (dataFim)    p.append('data_fim',    dataFim);
+  if (usuarioId)  p.append('usuario_id',  usuarioId);
+  if (tipoAcao)   p.append('tipo_acao',   tipoAcao);
+  const url = `${url_base}/api/v1/audit-log/export${p.toString() ? '?' + p : ''}`;
+  const resposta = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!resposta.ok) {
+    const texto = await resposta.text();
+    let msg = `Erro ${resposta.status}`;
+    try { const d = JSON.parse(texto); msg = _extrairMensagem(d?.detail, resposta.status) || msg; } catch (_) {}
+    const erro = new Error(msg); erro.status = resposta.status; throw erro;
+  }
+  const blob = await resposta.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result.split(',')[1];
+      const cd = resposta.headers.get('content-disposition') || '';
+      const match = cd.match(/filename="([^"]+)"/);
+      resolve({ base64, nomeArquivo: match ? match[1] : 'audit_log.xlsx' });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 // M5: aprova todas as divergencias e conclui a sessao em um unico passo
 export async function aprovarInventario(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/aprovar-inventario`, { method: 'POST' });
