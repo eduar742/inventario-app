@@ -23,7 +23,14 @@
       "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "static",
+      "name": "Inventário BOLD",
+      "shortName": "BOLD",
+      "lang": "pt-BR",
+      "themeColor": "#1E40AF",
+      "backgroundColor": "#FFFFFF"
     }
   }
 }
