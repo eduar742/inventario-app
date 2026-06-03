@@ -1,9 +1,11 @@
 [build]
-  command   = "npx expo export --platform web"
+  command   = "npm install && npx expo export --platform web"
   publish   = "dist"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION    = "20"
+  NODE_OPTIONS    = "--max-old-space-size=4096"
+  NPM_FLAGS       = "--legacy-peer-deps"
 
 # Redireciona todas as rotas para index.html (SPA)
 [[redirects]]
