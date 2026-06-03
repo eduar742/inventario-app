@@ -20,7 +20,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
-import { listarContagensDaSessao } from '../services/api';
+import { listarContagensDaSessao, pegarUsuario } from '../services/api';
 
 // Sufixos de ordinal feminino (contagem)
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
@@ -54,7 +54,6 @@ export default function ScannerScreen({ navigation, route }) {
   useEffect(() => {
     async function carregarOutros() {
       try {
-        const { pegarUsuario } = require('../services/api');
         const usuario = await pegarUsuario();
         const lista = await listarContagensDaSessao(sessao.id);
         // Agrupa por codigoQr a soma de contagens de OUTROS usuarios
