@@ -265,6 +265,18 @@ export default function SessoesScreen({ navigation, route }) {
           </View>
         </View>
 
+        {/* Breakdown por natureza — aparece quando a sessao abrange mais de uma */}
+        {item.skus_por_natureza && item.skus_por_natureza.length > 1 && (
+          <View style={estilos.naturezaRow}>
+            <Text style={estilos.naturezaLabel}>Naturezas: </Text>
+            {item.skus_por_natureza.map(n => (
+              <View key={n.natureza_id} style={estilos.naturezaChip}>
+                <Text style={estilos.naturezaChipTxt}>{n.natureza_nome} ({n.total_skus})</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Encerrar sessao: apenas em_andamento + admin + sem leitura-somente */}
         {isAdmin && item.status === 'em_andamento' && podeEscrever && (
           <TouchableOpacity
@@ -697,6 +709,18 @@ const estilos = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     borderColor: colors.primary,
   },
+  naturezaRow: {
+    flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
+    gap: 4, marginTop: spacing.xs, paddingTop: spacing.xs,
+    borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  naturezaLabel: { fontSize: 10, color: colors.textMuted },
+  naturezaChip: {
+    backgroundColor: '#FEF3C7', borderRadius: radius.sm,
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderWidth: 1, borderColor: '#FDE68A',
+  },
+  naturezaChipTxt: { fontSize: 10, color: '#92400E', fontWeight: '600' },
   acoesCard: {
     flexDirection: 'row',
     gap: spacing.sm,

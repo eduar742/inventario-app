@@ -338,6 +338,13 @@ export async function cancelarSessao(sessaoId) {
   });
 }
 
+// Distribuicao de SKUs por natureza para uma loja/mes — usado na criacao de sessao
+export async function listarEstoqueNaturezas(lojaId, mesReferencia) {
+  return await chamarAPI(
+    `/api/v1/sessoes/estoque-naturezas?loja_id=${lojaId}&mes_referencia=${mesReferencia}`
+  );
+}
+
 // ============================================================
 // ENDPOINTS DE USUARIOS (ADM)
 // ============================================================

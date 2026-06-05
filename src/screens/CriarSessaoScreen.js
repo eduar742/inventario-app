@@ -11,7 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
-import { listarLojas, listarNaturezas, listarMesesImportados, criarSessao, iniciarSessao, importarPlanilha } from '../services/api';
+import { listarLojas, listarNaturezas, listarMesesImportados, listarEstoqueNaturezas, criarSessao, iniciarSessao, importarPlanilha } from '../services/api';
 
 
 const TIPOS = [
@@ -41,6 +41,8 @@ export default function CriarSessaoScreen({ navigation }) {
   // Filtro de natureza (None = todas)
   const [naturezas, setNaturezas] = useState([]);
   const [naturezaFiltroId, setNaturezaFiltroId] = useState(null);
+  // Breakdown de naturezas detectadas no estoque para loja/mes selecionados
+  const [naturezasDoMes, setNaturezasDoMes] = useState([]);
 
   // Planilha de referencia (arquivo do coletor)
   const [arquivo, setArquivo] = useState(null);
@@ -77,6 +79,19 @@ export default function CriarSessaoScreen({ navigation }) {
       .finally(() => setCarregando(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Busca distribuicao de naturezas ao mudar loja ou mes — exibe aviso se multiplas
+  useEffect(() => {
+    const mes = mesReferencia || converterMes(mesManual);
+    if (lojaSelecionada && mes && mes.length === 7) {
+      listarEstoqueNaturezas(lojaSelecionada.id, mes)
+        .then(r => setNaturezasDoMes(Array.isArray(r) ? r : []))
+        .catch(() => setNaturezasDoMes([]));
+    } else {
+      setNaturezasDoMes([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaSelecionada?.id, mesReferencia, mesManual]);
 
   async function aoSelecionarLoja(loja) {
     setLojaSelecionada(loja);
@@ -446,6 +461,20 @@ export default function CriarSessaoScreen({ navigation }) {
                 </View>
               </TouchableOpacity>
             ))}
+
+            {/* Aviso quando ha multiplas naturezas no estoque e nenhum filtro selecionado */}
+            {naturezasDoMes.length > 1 && naturezaFiltroId === null && (
+              <View style={estilos.avisoNatureza}>
+                <Text style={estilos.avisoNaturezaTitulo}>
+                  Atencao: {naturezasDoMes.length} naturezas detectadas neste mes
+                </Text>
+                <Text style={estilos.avisoNaturezaTxt}>
+                  {naturezasDoMes.map(n => `${n.natureza_nome}: ${n.total_skus} SKUs`).join('  •  ')}
+                  {'\n'}
+                  Criar sessoes separadas por natureza evita contar produtos de tipos distintos juntos.
+                </Text>
+              </View>
+            )}
           </>
         )}
 
@@ -701,6 +730,12 @@ const estilos = StyleSheet.create({
     color: '#DC2626',
     fontWeight: '500',
   },
+  avisoNatureza: {
+    backgroundColor: '#FFFBEB', borderRadius: radius.sm, padding: spacing.md,
+    borderLeftWidth: 4, borderLeftColor: '#D97706', marginTop: spacing.sm,
+  },
+  avisoNaturezaTitulo: { fontSize: fontSize.xs, fontWeight: '700', color: '#92400E', marginBottom: 4 },
+  avisoNaturezaTxt: { fontSize: fontSize.xs, color: '#92400E', lineHeight: 18 },
 
   // Modal de selecao de loja
   modalOverlay: {
