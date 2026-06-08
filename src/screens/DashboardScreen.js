@@ -1,62 +1,613 @@
-// Dashboard principal do sistema de inventario.
-// Charts implementados com Views puras (sem biblioteca externa) — funciona em web e mobile.
-// Auto-refresh a cada 30 segundos.
+// Dashboard principal — redesenhado para layout sidebar + area principal.
+// Charts com react-native-svg (ja instalado). Toda logica de dados preservada.
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
   TouchableOpacity, ActivityIndicator, RefreshControl,
+  useWindowDimensions, TextInput,
 } from 'react-native';
+import Svg, {
+  Path, Circle, Line, Rect, Polygon, Text as SvgText,
+} from 'react-native-svg';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { buscarDashboardGeral, buscarSkusProblematicos } from '../services/api';
+import { buscarDashboardGeral, buscarSkusProblematicos, pegarUsuario } from '../services/api';
 import NaturezaFiltro from '../components/NaturezaFiltro';
 import GrupoMaterialFiltro from '../components/GrupoMaterialFiltro';
 
 const INTERVALO = 30000;
+const P_ICO = { fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtMoeda(v) {
   if (!v && v !== 0) return '—';
   return `R$ ${parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-
 function fmtDt(d) {
-  if (!d) return '';
+  if (!d) return '--:--';
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
-
 function corAcur(v) {
-  if (v >= 95) return colors.success;
-  if (v >= 85) return colors.warning;
-  return colors.danger;
+  if (v >= 95) return '#16A34A';
+  if (v >= 85) return '#F97316';
+  return '#EF4444';
 }
 
-// ── Chart de barras verticais (puro RN) ─────────────────────────────────────
-function BarChart({ labels, data, suffixo = '' }) {
-  if (!data || data.length === 0) return null;
-  const max = Math.max(...data, 1);
+// ── Icones SVG Tabler ────────────────────────────────────────────────────────
+function IcoLayoutDashboard({ size = 20, cor = '#4B5563' }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 150, paddingHorizontal: 4, gap: 6 }}>
-        {data.map((val, i) => {
-          const altPct = Math.max((val / max) * 100, 3);
-          const cor = corAcur(val);
-          return (
-            <View key={i} style={{ alignItems: 'center', width: 44 }}>
-              <Text style={{ fontSize: 9, color: cor, fontWeight: '700', marginBottom: 3 }}>
-                {val}{suffixo}
-              </Text>
-              <View style={{ width: 28, height: altPct, backgroundColor: cor, borderRadius: 4 }} />
-              <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 4 }} numberOfLines={1}>
-                {labels[i]}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
-    </ScrollView>
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Rect x="3" y="3" width="7" height="9" rx="1" />
+      <Rect x="3" y="15" width="7" height="6" rx="1" />
+      <Rect x="13" y="3" width="8" height="6" rx="1" />
+      <Rect x="13" y="12" width="8" height="9" rx="1" />
+    </Svg>
   );
 }
+function IcoPackage({ size = 20, cor = '#4B5563' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M12 3l9 4.5v9L12 21 3 16.5v-9L12 3z" />
+      <Path d="M12 12L3 7.5M12 12v9M12 12l9-4.5M7.5 5.25l9 4.5" />
+    </Svg>
+  );
+}
+function IcoBuildingStore({ size = 20, cor = '#4B5563' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M3 21v-9M21 21v-9" />
+      <Path d="M4 3h16l1 7H3L4 3z" />
+      <Path d="M9 21v-6h6v6M3 10h18" />
+      <Path d="M9 10a3 3 0 0 0 6 0" />
+    </Svg>
+  );
+}
+function IcoBox({ size = 20, cor = '#4B5563' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M12 3l9 4.5v9L12 21 3 16.5v-9L12 3z" />
+      <Path d="M12 12L3 7.5M12 12l9-4.5M12 12v9" />
+    </Svg>
+  );
+}
+function IcoArrowsExchange({ size = 20, cor = '#4B5563' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+    </Svg>
+  );
+}
+function IcoGitMerge({ size = 20, cor = '#4B5563' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Circle cx="6" cy="6" r="2" />
+      <Circle cx="18" cy="18" r="2" />
+      <Circle cx="6" cy="18" r="2" />
+      <Path d="M6 8v8M6 8c0 2 2 4 6 4s6 2 6 4" />
+    </Svg>
+  );
+}
+function IcoFileAnalytics({ size = 20, cor = '#4B5563' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M14 3v4a1 1 0 0 0 1 1h4" />
+      <Path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+      <Path d="M9 17l2-2 2 2 2-4" />
+    </Svg>
+  );
+}
+function IcoSettings({ size = 20, cor = '#4B5563' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Circle cx="12" cy="12" r="3" />
+      <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </Svg>
+  );
+}
+function IcoChevronRight({ size = 14, cor = '#9CA3AF' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M9 6l6 6-6 6" />
+    </Svg>
+  );
+}
+function IcoChevronDown({ size = 13, cor = '#374151' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M6 9l6 6 6-6" />
+    </Svg>
+  );
+}
+function IcoClock({ size = 13, cor = '#9CA3AF' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="M12 7v5l3 3" />
+    </Svg>
+  );
+}
+function IcoBell({ size = 20, cor = '#374151' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M10 5a2 2 0 0 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6" />
+      <Path d="M9 17v1a3 3 0 0 0 6 0v-1" />
+    </Svg>
+  );
+}
+function IcoHelpCircle({ size = 20, cor = '#374151' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="M12 17v.01M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    </Svg>
+  );
+}
+function IcoSearch({ size = 16, cor = '#9CA3AF' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Circle cx="11" cy="11" r="8" />
+      <Path d="m21 21-4.35-4.35" />
+    </Svg>
+  );
+}
+function IcoCalendar({ size = 15, cor = '#374151' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Rect x="3" y="4" width="18" height="18" rx="2" />
+      <Path d="M16 2v4M8 2v4M3 10h18" />
+    </Svg>
+  );
+}
+function IcoAdjustments({ size = 15, cor = '#FFFFFF' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M4 6h16M7 12h10M10 18h4" />
+    </Svg>
+  );
+}
+function IcoHourglass({ size = 24, cor = '#D97706' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M6.5 4h11M6.5 20h11M8 4c0 4 8 4 8 8s-8 4-8 8" />
+      <Path d="M16 4c0 4-8 4-8 8s8 4 8 8" />
+    </Svg>
+  );
+}
+function IcoCircleCheck({ size = 24, cor = '#16A34A' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="M9 12l2 2 4-4" />
+    </Svg>
+  );
+}
+function IcoTrendingDown({ size = 28, cor = '#EF4444' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M3 7l5 5 4-4 8 8" />
+      <Path d="M21 21h-6M21 21v-6" />
+    </Svg>
+  );
+}
+function IcoDownload({ size = 18, cor = '#9CA3AF' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M12 5v14M5 15l7 7 7-7M5 20h14" />
+    </Svg>
+  );
+}
+
+// ── Logo BOLD SVG ─────────────────────────────────────────────────────────────
+function LogoBoldSidebar() {
+  return (
+    <Svg width={80} height={30} viewBox="0 0 80 30">
+      <Polygon points="0,30 9,0 22,0 13,30" fill="#F5A623" />
+      <Polygon points="11,30 20,0 33,0 24,30" fill="#22C55E" />
+      <Path d="M38 24V6h6q4 0 4 4t-4 4h-4v4h5q5 0 5 5t-5 5z" fill="#1E3A5F" strokeWidth={0} />
+      <Path d="M56 6h5q9 0 9 9t-9 9h-5z" fill="#1E3A5F" strokeWidth={0} />
+    </Svg>
+  );
+}
+
+// ── Gauge Semicircular (SVG) ──────────────────────────────────────────────────
+function pctToXY(cx, cy, r, pct) {
+  const angle = Math.PI * (1 - pct / 100);
+  return {
+    x: cx + r * Math.cos(angle),
+    y: cy - r * Math.sin(angle),
+  };
+}
+
+function donutSlice(cx, cy, rO, rI, pct1, pct2) {
+  const a = pctToXY(cx, cy, rO, pct1);
+  const b = pctToXY(cx, cy, rO, pct2);
+  const c = pctToXY(cx, cy, rI, pct2);
+  const d = pctToXY(cx, cy, rI, pct1);
+  const spanDeg = ((pct2 - pct1) / 100) * 180;
+  const la = spanDeg >= 180 ? 1 : 0;
+  const f = v => v.toFixed(2);
+  return [
+    `M ${f(a.x)} ${f(a.y)}`,
+    `A ${rO} ${rO} 0 ${la} 0 ${f(b.x)} ${f(b.y)}`,
+    `L ${f(c.x)} ${f(c.y)}`,
+    `A ${rI} ${rI} 0 ${la} 1 ${f(d.x)} ${f(d.y)}`,
+    'Z',
+  ].join(' ');
+}
+
+function GaugeSemiCircle({ valor = 0, tamanho = 200 }) {
+  const cx = tamanho / 2;
+  const cy = tamanho * 0.48;
+  const rO = tamanho * 0.36;
+  const rI = tamanho * 0.24;
+  const lblR = rO + tamanho * 0.08;
+
+  const needleAngle = Math.PI * (1 - Math.min(Math.max(valor, 0), 100) / 100);
+  const needleLen = rI - 2;
+  const nx = cx + needleLen * Math.cos(needleAngle);
+  const ny = cy - needleLen * Math.sin(needleAngle);
+
+  const lbl0   = pctToXY(cx, cy, lblR, 0);
+  const lbl85  = pctToXY(cx, cy, lblR, 85);
+  const lbl95  = pctToXY(cx, cy, lblR, 95);
+  const lbl100 = pctToXY(cx, cy, lblR, 100);
+
+  const svgH = cy + 18;
+
+  return (
+    <Svg width={tamanho} height={svgH} viewBox={`0 0 ${tamanho} ${svgH}`}>
+      {/* Zonas coloridas */}
+      <Path d={donutSlice(cx, cy, rO, rI, 0, 85)}  fill="#EF4444" />
+      <Path d={donutSlice(cx, cy, rO, rI, 85, 95)} fill="#F97316" />
+      <Path d={donutSlice(cx, cy, rO, rI, 95, 100)} fill="#16A34A" />
+      {/* Ponteiro */}
+      <Line x1={cx.toFixed(2)} y1={cy.toFixed(2)} x2={nx.toFixed(2)} y2={ny.toFixed(2)}
+        stroke="#1F2937" strokeWidth={2.5} strokeLinecap="round" />
+      <Circle cx={cx.toFixed(2)} cy={cy.toFixed(2)} r={4} fill="#1F2937" />
+      {/* Labels */}
+      <SvgText x={lbl0.x.toFixed(2)}   y={(lbl0.y + 4).toFixed(2)}   fontSize={9} fill="#6B7280" textAnchor="end">0%</SvgText>
+      <SvgText x={lbl85.x.toFixed(2)}  y={(lbl85.y - 2).toFixed(2)}  fontSize={9} fill="#6B7280" textAnchor="middle">85%</SvgText>
+      <SvgText x={lbl95.x.toFixed(2)}  y={(lbl95.y - 2).toFixed(2)}  fontSize={9} fill="#6B7280" textAnchor="middle">95%</SvgText>
+      <SvgText x={lbl100.x.toFixed(2)} y={(lbl100.y + 4).toFixed(2)} fontSize={9} fill="#6B7280" textAnchor="start">100%</SvgText>
+    </Svg>
+  );
+}
+
+// ── Grafico de barras ─────────────────────────────────────────────────────────
+function BarChartV2({ labels, data }) {
+  if (!data || data.length === 0) return null;
+  const altMax = 120;
+  return (
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: altMax + 40, paddingHorizontal: 4, gap: 4 }}>
+          {data.map((val, i) => {
+            const h = Math.max((val / 100) * altMax, 4);
+            const cor = corAcur(val);
+            return (
+              <View key={i} style={{ alignItems: 'center', width: 46, minWidth: 0 }}>
+                <Text style={{ fontSize: 10, color: cor, fontWeight: '700', marginBottom: 3, textAlign: 'center' }}>
+                  {val.toFixed(1)}%
+                </Text>
+                <View style={{ width: 32, height: h, backgroundColor: cor, borderRadius: 3 }} />
+                <Text style={{ fontSize: 9, color: '#6B7280', marginTop: 4, textAlign: 'center' }} numberOfLines={1}>
+                  {labels[i]}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+      <View style={{ flexDirection: 'row', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
+        {[
+          { cor: '#16A34A', txt: '≥ 95% Excelente'   },
+          { cor: '#F97316', txt: '85% – 94% Atenção'  },
+          { cor: '#EF4444', txt: '< 85% Crítico'      },
+        ].map(({ cor, txt }) => (
+          <View key={txt} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: cor }} />
+            <Text style={{ fontSize: 12, color: '#6B7280' }}>{txt}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+const MENU = [
+  { id: 'Dashboard',    label: 'Dashboard',      Ico: IcoLayoutDashboard, sub: false },
+  { id: 'Inventario',  label: 'Inventário',      Ico: IcoPackage,         sub: true  },
+  { id: 'Lojas',       label: 'Lojas',           Ico: IcoBuildingStore,   sub: true  },
+  { id: 'Produtos',    label: 'Produtos',         Ico: IcoBox,             sub: false },
+  { id: 'Movimentos',  label: 'Movimentações',   Ico: IcoArrowsExchange,  sub: true  },
+  { id: 'Conciliacoes',label: 'Conciliações',    Ico: IcoGitMerge,        sub: true  },
+  { id: 'Relatorios',  label: 'Relatórios',      Ico: IcoFileAnalytics,   sub: true  },
+  { id: 'Configuracoes',label: 'Configurações',  Ico: IcoSettings,        sub: false },
+];
+
+function Sidebar({ navigation, ultimaAtu }) {
+  return (
+    <View style={sid.wrap}>
+      <View style={sid.logo}><LogoBoldSidebar /></View>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <View style={sid.menu}>
+          {MENU.map(({ id, label, Ico, sub }) => {
+            const ativo = id === 'Dashboard';
+            const cor = ativo ? '#4F46E5' : '#4B5563';
+            return (
+              <TouchableOpacity
+                key={id}
+                style={[sid.item, ativo && sid.itemAtivo]}
+                onPress={() => id !== 'Dashboard' && navigation.navigate(id)}
+                activeOpacity={0.7}
+              >
+                <Ico size={20} cor={cor} />
+                <Text style={[sid.lbl, ativo && sid.lblAtivo]}>{label}</Text>
+                {sub && <IcoChevronRight size={14} cor={ativo ? '#4F46E5' : '#9CA3AF'} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ScrollView>
+      <View style={sid.rodape}>
+        <View style={sid.rdRow}>
+          <IcoClock size={13} cor="#9CA3AF" />
+          <View>
+            <Text style={sid.rdLabel}>Última atualização</Text>
+            <Text style={sid.rdHora}>Hoje às {fmtDt(ultimaAtu)}</Text>
+          </View>
+        </View>
+        <View style={sid.liveLine}>
+          <View style={sid.liveDot} />
+          <Text style={sid.liveTxt}>Ao vivo</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const sid = StyleSheet.create({
+  wrap:    { width: 200, backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: '#E5E7EB', flexShrink: 0 },
+  logo:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28 },
+  menu:    { paddingHorizontal: 12, gap: 2, paddingBottom: 16 },
+  item:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8 },
+  itemAtivo: { backgroundColor: '#EEF2FF' },
+  lbl:     { flex: 1, fontSize: 14, fontWeight: '500', color: '#4B5563' },
+  lblAtivo: { color: '#4F46E5' },
+  rodape:  { padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', gap: 8 },
+  rdRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  rdLabel: { fontSize: 12, color: '#9CA3AF' },
+  rdHora:  { fontSize: 12, color: '#6B7280' },
+  liveLine:{ flexDirection: 'row', alignItems: 'center', gap: 6 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
+  liveTxt: { fontSize: 12, color: '#22C55E' },
+});
+
+// ── Header area principal ─────────────────────────────────────────────────────
+function HeaderPrincipal({ usuario, isDesktop }) {
+  const iniciais = usuario?.nome
+    ? usuario.nome.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase()
+    : 'AV';
+  return (
+    <View style={hp.wrap}>
+      <View style={hp.esq}>
+        <Text style={hp.titulo}>Dashboard de Inventário</Text>
+        <Text style={hp.sub}>Visão geral da acuracidade e divergências</Text>
+      </View>
+      {isDesktop && (
+        <View style={hp.busca}>
+          <IcoSearch size={15} cor="#9CA3AF" />
+          <TextInput
+            style={hp.buscaInput}
+            placeholder="Buscar produtos, SKUs, lojas..."
+            placeholderTextColor="#9CA3AF"
+          />
+          <View style={hp.atalho}><Text style={hp.atalhoTxt}>⌘ K</Text></View>
+        </View>
+      )}
+      <View style={hp.dir}>
+        {isDesktop && (
+          <>
+            <TouchableOpacity style={hp.btnPer}>
+              <IcoCalendar size={15} cor="#374151" />
+              <Text style={hp.btnPerTxt}>Última sessão</Text>
+              <IcoChevronDown size={13} cor="#374151" />
+            </TouchableOpacity>
+            <TouchableOpacity style={hp.btnFil}>
+              <IcoAdjustments size={15} cor="#FFFFFF" />
+              <Text style={hp.btnFilTxt}>Filtros</Text>
+              <IcoChevronDown size={13} cor="#FFFFFF" />
+            </TouchableOpacity>
+          </>
+        )}
+        <View style={hp.sinoWrap}>
+          <IcoBell size={20} cor="#374151" />
+          <View style={hp.sinoBadge}><Text style={hp.sinoBadgeTxt}>3</Text></View>
+        </View>
+        <IcoHelpCircle size={20} cor="#374151" />
+        <View style={hp.avatar}><Text style={hp.avatarTxt}>{iniciais}</Text></View>
+        <IcoChevronDown size={13} cor="#374151" />
+      </View>
+    </View>
+  );
+}
+
+const hp = StyleSheet.create({
+  wrap:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, gap: 16, minWidth: 0 },
+  esq:       { minWidth: 0, flexShrink: 1 },
+  titulo:    { fontSize: 22, fontWeight: '700', color: '#111827' },
+  sub:       { fontSize: 14, color: '#6B7280', marginTop: 2 },
+  busca:     { flex: 1, maxWidth: 340, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, gap: 8, backgroundColor: '#FFFFFF' },
+  buscaInput:{ flex: 1, fontSize: 14, color: '#374151', outlineStyle: 'none' },
+  atalho:    { backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  atalhoTxt: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
+  dir:       { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
+  btnPer:    { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  btnPerTxt: { fontSize: 14, color: '#374151', fontWeight: '500' },
+  btnFil:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#4F46E5', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  btnFilTxt: { fontSize: 14, color: '#FFFFFF', fontWeight: '500' },
+  sinoWrap:  { position: 'relative' },
+  sinoBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
+  sinoBadgeTxt:{ fontSize: 10, color: '#FFFFFF', fontWeight: '700' },
+  avatar:    { width: 32, height: 32, borderRadius: 16, backgroundColor: '#4F46E5', alignItems: 'center', justifyContent: 'center' },
+  avatarTxt: { fontSize: 12, color: '#FFFFFF', fontWeight: '700' },
+});
+
+// ── Cards KPI ─────────────────────────────────────────────────────────────────
+const KPI_DEF = [
+  { corFundo: '#EEF2FF', corIco: '#4F46E5', corNum: '#4F46E5', titulo: 'Lojas',        sub: 'Total de lojas',          Ico: IcoBuildingStore },
+  { corFundo: '#FFF7ED', corIco: '#F97316', corNum: '#F97316', titulo: 'Em Andamento', sub: 'Contagens em progresso',   Ico: IcoClock         },
+  { corFundo: '#FFFBEB', corIco: '#D97706', corNum: '#D97706', titulo: 'Aguardando',   sub: 'Contagens aguardando',     Ico: IcoHourglass     },
+  { corFundo: '#F0FDF4', corIco: '#16A34A', corNum: '#16A34A', titulo: 'Concluídas',   sub: 'Contagens finalizadas',    Ico: IcoCircleCheck   },
+];
+
+function CardKpi({ def, valor }) {
+  const { corFundo, corIco, corNum, titulo, sub, Ico } = def;
+  return (
+    <View style={ck.card}>
+      <View style={[ck.icoBox, { backgroundColor: corFundo }]}>
+        <Ico size={24} cor={corIco} />
+      </View>
+      <View style={ck.txts}>
+        <Text style={[ck.valor, { color: corNum }]}>{valor ?? '—'}</Text>
+        <Text style={ck.titulo}>{titulo}</Text>
+        <Text style={ck.sub}>{sub}</Text>
+      </View>
+    </View>
+  );
+}
+
+const ck = StyleSheet.create({
+  card:   { flex: 1, minWidth: 0, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', padding: 20, flexDirection: 'row', alignItems: 'center', gap: 16 },
+  icoBox: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  txts:   { flex: 1, minWidth: 0 },
+  valor:  { fontSize: 28, fontWeight: '700', lineHeight: 34 },
+  titulo: { fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 2 },
+  sub:    { fontSize: 12, color: '#9CA3AF', marginTop: 1 },
+});
+
+// ── Tabela de divergencias ────────────────────────────────────────────────────
+const STATUS_PILL = {
+  aprovada:  { bg: '#F0FDF4', cor: '#16A34A', label: 'Aprovada'  },
+  pendente:  { bg: '#FFFBEB', cor: '#D97706', label: 'Pendente'  },
+  rejeitada: { bg: '#FEF2F2', cor: '#EF4444', label: 'Rejeitada' },
+};
+
+function TabelaDivergencias({ rows }) {
+  const [pag, setPag] = useState(1);
+  const [itensPp, setItensPp] = useState(5);
+
+  const total = rows.length;
+  const totalPags = Math.max(1, Math.ceil(total / itensPp));
+  const ini = (pag - 1) * itensPp;
+  const fim = Math.min(ini + itensPp, total);
+  const pagAtual = rows.slice(ini, fim);
+
+  const pagNums = [];
+  if (totalPags <= 7) {
+    for (let i = 1; i <= totalPags; i++) pagNums.push(i);
+  } else {
+    pagNums.push(1);
+    if (pag > 3) pagNums.push('…');
+    for (let i = Math.max(2, pag - 1); i <= Math.min(totalPags - 1, pag + 1); i++) pagNums.push(i);
+    if (pag < totalPags - 2) pagNums.push('…');
+    pagNums.push(totalPags);
+  }
+
+  return (
+    <View style={tb.card}>
+      <Text style={tb.titulo}>Top Divergências por Valor</Text>
+      {/* Header */}
+      <View style={tb.hRow}>
+        <Text style={[tb.hCell, { width: 36 }]}>#</Text>
+        <Text style={[tb.hCell, { flex: 1, minWidth: 160 }]}>Produto</Text>
+        <Text style={[tb.hCell, { width: 170 }]}>SKU</Text>
+        <Text style={[tb.hCell, { width: 70 }]}>Loja</Text>
+        <Text style={[tb.hCell, { width: 135 }]}>Valor Divergente</Text>
+        <Text style={[tb.hCell, { width: 90 }]}>Status</Text>
+      </View>
+      {/* Linhas */}
+      {pagAtual.map((d, i) => {
+        const v = d.valor_diferenca || 0;
+        const corV = v < 0 ? '#EF4444' : '#16A34A';
+        const stt = STATUS_PILL[d.status] || STATUS_PILL.pendente;
+        return (
+          <View key={i} style={[tb.linha, (ini + i) % 2 === 1 && { backgroundColor: '#F9FAFB' }]}>
+            <Text style={[tb.cell, { width: 36, fontWeight: '600', textAlign: 'center' }]}>{ini + i + 1}</Text>
+            <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 160 }]}>
+              <View style={tb.imgBox} />
+              <Text style={[tb.cell, { flex: 1, minWidth: 0 }]} numberOfLines={2}>{d.produto_descricao}</Text>
+            </View>
+            <Text style={[tb.cell, { width: 170 }]} numberOfLines={1}>{d.produto_sku}</Text>
+            <Text style={[tb.cell, { width: 70 }]} numberOfLines={1}>{d.loja_codigo}</Text>
+            <Text style={[tb.cell, { width: 135, color: corV, fontWeight: '600' }]}>{fmtMoeda(v)}</Text>
+            <View style={{ width: 90 }}>
+              <View style={[tb.pill, { backgroundColor: stt.bg }]}>
+                <Text style={[tb.pillTxt, { color: stt.cor }]}>{stt.label}</Text>
+              </View>
+            </View>
+          </View>
+        );
+      })}
+      {/* Rodape */}
+      <View style={tb.rodape}>
+        <Text style={tb.rdTxt}>Mostrando {ini + 1} a {fim} de {total} itens</Text>
+        <View style={tb.pagRow}>
+          <TouchableOpacity style={tb.pagBtn} onPress={() => setPag(p => Math.max(1, p - 1))} disabled={pag === 1}>
+            <Text style={tb.pagBtnTxt}>‹</Text>
+          </TouchableOpacity>
+          {pagNums.map((p, i) =>
+            p === '…'
+              ? <Text key={`el${i}`} style={{ fontSize: 14, color: '#6B7280', paddingHorizontal: 4 }}>…</Text>
+              : (
+                <TouchableOpacity key={p} style={[tb.pagBtn, pag === p && tb.pagBtnAt]} onPress={() => setPag(p)}>
+                  <Text style={[tb.pagBtnTxt, pag === p && tb.pagBtnAtTxt]}>{p}</Text>
+                </TouchableOpacity>
+              )
+          )}
+          <TouchableOpacity style={tb.pagBtn} onPress={() => setPag(p => Math.min(totalPags, p + 1))} disabled={pag === totalPags}>
+            <Text style={tb.pagBtnTxt}>›</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={tb.ippRow}>
+          <Text style={tb.rdTxt}>Itens por página: </Text>
+          {[5, 10, 25, 50].map(n => (
+            <TouchableOpacity key={n} style={[tb.ippBtn, itensPp === n && tb.ippBtnAt]}
+              onPress={() => { setItensPp(n); setPag(1); }}>
+              <Text style={[tb.ippTxt, itensPp === n && tb.ippTxtAt]}>{n}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const tb = StyleSheet.create({
+  card:      { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', padding: 24, marginBottom: 24, overflow: 'hidden' },
+  titulo:    { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 16 },
+  hRow:      { flexDirection: 'row', backgroundColor: '#1E3A5F', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 6, marginBottom: 2, gap: 8 },
+  hCell:     { fontSize: 13, fontWeight: '600', color: '#FFFFFF', minWidth: 0 },
+  linha:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 8, minHeight: 48 },
+  cell:      { fontSize: 13, color: '#374151', minWidth: 0 },
+  imgBox:    { width: 32, height: 32, borderRadius: 4, backgroundColor: '#E5E7EB', flexShrink: 0 },
+  pill:      { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start' },
+  pillTxt:   { fontSize: 12, fontWeight: '500' },
+  rodape:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, flexWrap: 'wrap', gap: 8 },
+  rdTxt:     { fontSize: 13, color: '#6B7280' },
+  pagRow:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pagBtn:    { width: 32, height: 32, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  pagBtnAt:  { backgroundColor: '#4F46E5' },
+  pagBtnTxt: { fontSize: 14, color: '#374151', fontWeight: '500' },
+  pagBtnAtTxt:{ color: '#FFFFFF' },
+  ippRow:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ippBtn:    { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: '#E5E7EB' },
+  ippBtnAt:  { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
+  ippTxt:    { fontSize: 12, color: '#374151' },
+  ippTxtAt:  { color: '#FFFFFF' },
+});
 
 // ── Tela principal ────────────────────────────────────────────────────────────
 export default function DashboardScreen({ navigation }) {
@@ -67,7 +618,10 @@ export default function DashboardScreen({ navigation }) {
   const [naturezaId, setNaturezaId] = useState(null);
   const [grupoMaterial, setGrupoMaterial] = useState(null);
   const [skusProblematicos, setSkusProblematicos] = useState([]);
+  const [usuario, setUsuario] = useState(null);
   const timerRef = useRef(null);
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
@@ -85,15 +639,19 @@ export default function DashboardScreen({ navigation }) {
 
   useEffect(() => {
     carregar();
+    pegarUsuario().then(u => setUsuario(u)).catch(() => {});
     timerRef.current = setInterval(() => carregar(true), INTERVALO);
     return () => clearInterval(timerRef.current);
   }, [carregar]);
 
   if (carregando && !dados) {
     return (
-      <SafeAreaView style={estilos.centro}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={estilos.textoLoad}>Carregando dashboard...</Text>
+      <SafeAreaView style={{ flex: 1, flexDirection: 'row', backgroundColor: '#F8F9FA' }}>
+        {isDesktop && <Sidebar navigation={navigation} ultimaAtu={null} />}
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color="#4F46E5" />
+          <Text style={{ marginTop: 12, fontSize: 14, color: '#6B7280' }}>Carregando dashboard...</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -103,18 +661,24 @@ export default function DashboardScreen({ navigation }) {
   const top    = dados?.top_divergencias || [];
   const ativas = dados?.sessoes_ativas   || [];
   const acLoja = dados?.acuracidade_por_loja || [];
+  const acMedia = parseFloat(kpis.acuracidade_media ?? 0);
 
   return (
-    <SafeAreaView style={estilos.container}>
+    <SafeAreaView style={{ flex: 1, flexDirection: 'row', backgroundColor: '#F8F9FA' }}>
+      {isDesktop && <Sidebar navigation={navigation} ultimaAtu={ultimaAtu} />}
+
       <ScrollView
-        contentContainerStyle={estilos.scroll}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: isDesktop ? 32 : 16 }}
         refreshControl={
-          <RefreshControl refreshing={refreshing}
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={() => { setRefreshing(true); carregar(); }}
-            colors={[colors.primary]} tintColor={colors.primary} />
+            colors={['#4F46E5']} tintColor="#4F46E5"
+          />
         }
       >
-        {/* Filtros: natureza + grupo de material */}
+        {/* Filtros natureza + grupo */}
         <NaturezaFiltro
           value={naturezaId}
           onChange={id => { setNaturezaId(id); setGrupoMaterial(null); setCarregando(true); }}
@@ -126,257 +690,180 @@ export default function DashboardScreen({ navigation }) {
         />
 
         {/* Header */}
-        <View style={estilos.header}>
-          <View>
-            <Text style={estilos.headerTitulo}>Dashboard</Text>
-            {ultimaAtu && (
-              <Text style={estilos.headerSub}>Atualizado às {fmtDt(ultimaAtu)}</Text>
-            )}
+        <HeaderPrincipal usuario={usuario} isDesktop={isDesktop} />
+
+        {/* KPIs */}
+        <View style={[{ flexDirection: 'row', gap: 16, marginBottom: 24 }, !isDesktop && { flexWrap: 'wrap' }]}>
+          <CardKpi def={KPI_DEF[0]} valor={kpis.total_lojas ?? '—'} />
+          <CardKpi def={KPI_DEF[1]} valor={sess.ativas ?? 0} />
+          <CardKpi def={KPI_DEF[2]} valor={sess.aguardando_aprovacao ?? 0} />
+          <CardKpi def={KPI_DEF[3]} valor={sess.concluidas_total ?? 0} />
+        </View>
+
+        {/* Metricas: acuracidade + valor divergente */}
+        <View style={[{ gap: 16, marginBottom: 24 }, isDesktop ? { flexDirection: 'row' } : { flexDirection: 'column' }]}>
+          {/* Acuracidade Media */}
+          <View style={[mt.card, { flex: 1, minWidth: 0 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={mt.titulo}>Acuracidade Média</Text>
+                <Text style={[mt.valorGde, { color: corAcur(acMedia) }]}>
+                  {acMedia.toFixed(1)}%
+                </Text>
+                <Text style={mt.sub}>Índice de acuracidade geral</Text>
+              </View>
+              <GaugeSemiCircle valor={acMedia} tamanho={isDesktop ? 190 : 150} />
+            </View>
           </View>
-          <View style={estilos.liveBadge}>
-            <View style={estilos.livePonto} />
-            <Text style={estilos.liveTexto}>Ao vivo</Text>
+
+          {/* Valor Divergente */}
+          <View style={[mt.card, { flex: 1, minWidth: 0, justifyContent: 'center' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={mt.titulo}>Valor Divergente Total</Text>
+                <Text style={[mt.valorGde, { color: '#EF4444', fontSize: 30, lineHeight: 38 }]}>
+                  {fmtMoeda(kpis.valor_total_divergente)}
+                </Text>
+                <Text style={mt.sub}>Impacto financeiro total das divergências</Text>
+              </View>
+              <View style={mt.icoCircle}>
+                <IcoTrendingDown size={28} cor="#EF4444" />
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* KPIs linha 1 */}
-        <View style={estilos.kpiRow}>
-          <KpiCard rotulo="Lojas"         valor={kpis.total_lojas ?? '—'}             cor={colors.primary} />
-          <KpiCard rotulo="Em andamento"  valor={sess.ativas ?? 0}                    cor={colors.info} />
-          <KpiCard rotulo="Aguardando"    valor={sess.aguardando_aprovacao ?? 0}       cor={colors.warning} />
-          <KpiCard rotulo="Concluídas"    valor={sess.concluidas_total ?? 0}           cor={colors.success} />
-        </View>
+        {/* Grafico por loja */}
+        {acLoja.length > 0 && (
+          <View style={gr.card}>
+            <View style={gr.hRow}>
+              <Text style={gr.titulo}>Acuracidade por Loja</Text>
+              <TouchableOpacity><IcoDownload size={18} cor="#9CA3AF" /></TouchableOpacity>
+            </View>
+            <BarChartV2
+              labels={acLoja.map(l => l.loja_codigo)}
+              data={acLoja.map(l => parseFloat(l.acuracidade || 0))}
+            />
+          </View>
+        )}
 
-        {/* KPIs linha 2 */}
-        <View style={estilos.kpiRow}>
-          <KpiCard
-            largo
-            rotulo="Acuracidade Média"
-            valor={`${kpis.acuracidade_media ?? 0}%`}
-            cor={corAcur(kpis.acuracidade_media ?? 0)}
-          />
-          <KpiCard
-            largo
-            rotulo="Valor Divergente Total"
-            valor={fmtMoeda(kpis.valor_total_divergente)}
-            cor={colors.danger}
-          />
-        </View>
+        {/* Tabela divergencias */}
+        {top.length > 0 && (
+          isDesktop
+            ? <TabelaDivergencias rows={top} />
+            : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ minWidth: 620 }}>
+                  <TabelaDivergencias rows={top} />
+                </View>
+              </ScrollView>
+            )
+        )}
 
         {/* Sessoes ativas */}
         {ativas.length > 0 && (
-          <Secao titulo={`Sessoes ativas (${ativas.length})`}>
+          <View style={es.card}>
+            <Text style={es.titulo}>Sessões Ativas ({ativas.length})</Text>
             {ativas.map(s => (
-              <View key={s.sessao_id} style={estilos.sessaoCard}>
-                <View style={estilos.sessaoTopo}>
-                  <View style={[estilos.sessaoBadge, {
-                    backgroundColor: s.status === 'aguardando_aprovacao' ? colors.warningSoft : colors.infoSoft,
-                  }]}>
-                    <Text style={[estilos.sessaoBadgeTexto, {
-                      color: s.status === 'aguardando_aprovacao' ? colors.warning : colors.info,
-                    }]}>{s.loja_codigo}</Text>
+              <View key={s.sessao_id} style={es.sessao}>
+                <View style={es.sTop}>
+                  <View style={[es.badge, { backgroundColor: s.status === 'aguardando_aprovacao' ? '#FFFBEB' : '#EFF6FF' }]}>
+                    <Text style={[es.badgeTxt, { color: s.status === 'aguardando_aprovacao' ? '#D97706' : '#3B82F6' }]}>{s.loja_codigo}</Text>
                   </View>
-                  <Text style={estilos.sessaoNome} numberOfLines={1}>{s.nome}</Text>
-                  <Text style={estilos.sessaoPct}>{s.percentual_progresso}%</Text>
+                  <Text style={es.nome} numberOfLines={1}>{s.nome}</Text>
+                  <Text style={es.pct}>{s.percentual_progresso}%</Text>
                 </View>
-                <View style={estilos.progFundo}>
-                  <View style={[estilos.progFill, { width: `${Math.max(s.percentual_progresso, 1)}%` }]} />
+                <View style={es.progFundo}>
+                  <View style={[es.progFill, { width: `${Math.max(s.percentual_progresso, 1)}%` }]} />
                 </View>
-                <Text style={estilos.sessaoSub}>
+                <Text style={es.sSub}>
                   {s.contados}/{s.total_produtos} produtos
                   {s.status === 'aguardando_aprovacao' ? ' · Aguardando aprovação' : ''}
                 </Text>
               </View>
             ))}
-          </Secao>
+          </View>
         )}
 
-        {/* Grafico acuracidade por loja */}
-        {acLoja.length > 0 && (
-          <Secao titulo="Acuracidade por loja (última sessão)">
-            <BarChart
-              labels={acLoja.map(l => l.loja_codigo)}
-              data={acLoja.map(l => parseFloat(l.acuracidade || 0))}
-              suffixo="%"
-            />
-            <View style={estilos.legenda}>
-              <LegendaItem cor={colors.success}  texto="≥ 95% OK" />
-              <LegendaItem cor={colors.warning}  texto="85–94% Atenção" />
-              <LegendaItem cor={colors.danger}   texto="< 85% Crítico" />
-            </View>
-          </Secao>
-        )}
-
-        {/* Top divergencias */}
-        {top.length > 0 && (
-          <Secao titulo="Top divergências por valor">
-            {top.map((d, i) => {
-              const v = d.valor_diferenca || 0;
-              const corV = v < 0 ? colors.danger : colors.warning;
-              return (
-                <View key={i} style={estilos.divRow}>
-                  <View style={estilos.divRank}>
-                    <Text style={estilos.divRankT}>{i + 1}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={estilos.divNome} numberOfLines={1}>{d.produto_descricao}</Text>
-                    <Text style={estilos.divSku}>{d.produto_sku} · {d.loja_codigo}</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={[estilos.divValor, { color: corV }]}>
-                      {v > 0 ? '+' : ''}{fmtMoeda(v)}
-                    </Text>
-                    <View style={[estilos.divStatus, {
-                      backgroundColor: d.status === 'aprovada' ? colors.successSoft
-                        : d.status === 'rejeitada' ? colors.dangerSoft : colors.warningSoft,
-                    }]}>
-                      <Text style={[estilos.divStatusT, {
-                        color: d.status === 'aprovada' ? colors.success
-                          : d.status === 'rejeitada' ? colors.danger : colors.warning,
-                      }]}>{(d.status || '').toUpperCase()}</Text>
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
-          </Secao>
-        )}
-
-        {/* Link para detalhe por loja */}
-        <Secao titulo="Detalhe por loja">
-          <TouchableOpacity style={estilos.botaoLojas} onPress={() => navigation.navigate('DashboardLojas')}>
-            <Text style={estilos.botaoLojasT}>Ver histórico de todas as lojas →</Text>
-          </TouchableOpacity>
-        </Secao>
-
-        {/* ── Atenção Recorrente ─────────────────────────────────── */}
+        {/* Atencao Recorrente */}
         {skusProblematicos.length > 0 && (
-          <Secao titulo="⚠️ Atenção Recorrente">
-            <Text style={estilos.secaoSub}>
-              SKUs com divergência em múltiplas sessões (últimas 6 por loja)
-            </Text>
+          <View style={sk.card}>
+            <Text style={sk.titulo}>⚠️ Atenção Recorrente</Text>
+            <Text style={sk.sub}>SKUs com divergência em múltiplas sessões (últimas 6 por loja)</Text>
             {skusProblematicos.map((sku, i) => (
-              <View key={sku.sku} style={[estilos.skuCard, i % 2 === 0 && { backgroundColor: '#F8FAFC' }]}>
+              <View key={sku.sku} style={[sk.linha, i % 2 === 0 && { backgroundColor: '#F8FAFC' }]}>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={estilos.skuCod}>{sku.sku}</Text>
-                  <Text style={estilos.skuDesc} numberOfLines={1}>{sku.descricao}</Text>
+                  <Text style={sk.cod}>{sku.sku}</Text>
+                  <Text style={sk.desc} numberOfLines={1}>{sku.descricao}</Text>
                   {sku.lojas_afetadas?.length > 0 && (
-                    <Text style={estilos.skuLojas}>{sku.lojas_afetadas.join(' · ')}</Text>
+                    <Text style={sk.lojas}>{sku.lojas_afetadas.join(' · ')}</Text>
                   )}
                 </View>
-                <View style={estilos.skuMeta}>
-                  <View style={[estilos.skuBadge, {
-                    backgroundColor: sku.direcao_predominante === 'sobra' ? '#FEF3C7' : '#FEE2E2',
-                  }]}>
-                    <Text style={[estilos.skuBadgeTxt, {
-                      color: sku.direcao_predominante === 'sobra' ? '#92400E' : '#DC2626',
-                    }]}>
+                <View style={{ alignItems: 'center', gap: 4 }}>
+                  <View style={[sk.badge, { backgroundColor: sku.direcao_predominante === 'sobra' ? '#FEF3C7' : '#FEE2E2' }]}>
+                    <Text style={[sk.badgeTxt, { color: sku.direcao_predominante === 'sobra' ? '#92400E' : '#DC2626' }]}>
                       {sku.direcao_predominante === 'sobra' ? '↑ Sobra' : '↓ Falta'}
                     </Text>
                   </View>
-                  <Text style={estilos.skuSessoes}>
-                    {sku.num_sessoes_com_divergencia}x
-                  </Text>
+                  <Text style={sk.sess}>{sku.num_sessoes_com_divergencia}x</Text>
                 </View>
               </View>
             ))}
-          </Secao>
+          </View>
         )}
 
-        <View style={{ height: spacing.xl }} />
+        {/* Link detalhe por loja */}
+        <TouchableOpacity
+          style={{ backgroundColor: '#EEF2FF', borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 32 }}
+          onPress={() => navigation.navigate('DashboardLojas')}
+        >
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#4F46E5' }}>
+            Ver histórico de todas as lojas →
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function KpiCard({ rotulo, valor, cor, largo }) {
-  return (
-    <View style={[estilos.kpiCard, largo && { flex: 2 }]}>
-      <Text style={[estilos.kpiValor, { color: cor }]}>{valor}</Text>
-      <Text style={estilos.kpiRotulo}>{rotulo}</Text>
-    </View>
-  );
-}
+// ── Estilos das secoes ────────────────────────────────────────────────────────
+const mt = StyleSheet.create({
+  card:     { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', padding: 24 },
+  titulo:   { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
+  valorGde: { fontSize: 36, fontWeight: '700', lineHeight: 44, marginBottom: 4 },
+  sub:      { fontSize: 12, color: '#9CA3AF' },
+  icoCircle:{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginLeft: 16 },
+});
 
-function Secao({ titulo, children }) {
-  return (
-    <View style={estilos.secao}>
-      <Text style={estilos.secaoTitulo}>{titulo}</Text>
-      {children}
-    </View>
-  );
-}
+const gr = StyleSheet.create({
+  card:  { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', padding: 24, marginBottom: 24 },
+  hRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  titulo:{ fontSize: 16, fontWeight: '700', color: '#111827' },
+});
 
-function LegendaItem({ cor, texto }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-      <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: cor }} />
-      <Text style={{ fontSize: fontSize.xs, color: colors.textSecondary }}>{texto}</Text>
-    </View>
-  );
-}
+const es = StyleSheet.create({
+  card:     { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', padding: 24, marginBottom: 24 },
+  titulo:   { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 12 },
+  sessao:   { backgroundColor: '#F9FAFB', borderRadius: 8, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#E5E7EB' },
+  sTop:     { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 },
+  badge:    { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  badgeTxt: { fontSize: 12, fontWeight: '700' },
+  nome:     { flex: 1, fontSize: 13, fontWeight: '600', color: '#111827', minWidth: 0 },
+  pct:      { fontSize: 13, fontWeight: '700', color: '#4F46E5' },
+  progFundo:{ height: 6, backgroundColor: '#E5E7EB', borderRadius: 999, overflow: 'hidden', marginBottom: 6 },
+  progFill: { height: '100%', backgroundColor: '#4F46E5', borderRadius: 999 },
+  sSub:     { fontSize: 12, color: '#6B7280' },
+});
 
-const estilos = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: colors.backgroundSoft },
-  centro:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  textoLoad:  { marginTop: spacing.md, fontSize: fontSize.md, color: colors.textSecondary },
-  scroll:     { padding: spacing.lg },
-
-  header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
-  headerTitulo: { fontSize: fontSize.xl, fontWeight: '800', color: colors.text },
-  headerSub:    { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  liveBadge:  { flexDirection: 'row', alignItems: 'center', gap: 6,
-                backgroundColor: colors.successSoft, paddingHorizontal: spacing.sm,
-                paddingVertical: 4, borderRadius: radius.full },
-  livePonto:  { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
-  liveTexto:  { fontSize: fontSize.xs, color: colors.success, fontWeight: '600' },
-
-  kpiRow:    { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
-  kpiCard:   { flex: 1, backgroundColor: colors.background, borderRadius: radius.md,
-               padding: spacing.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-  kpiValor:  { fontSize: fontSize.xl, fontWeight: '800', marginBottom: 4 },
-  kpiRotulo: { fontSize: fontSize.xs, color: colors.textSecondary, textAlign: 'center' },
-
-  secao:       { marginBottom: spacing.lg },
-  secaoTitulo: { fontSize: fontSize.sm, fontWeight: '700', color: colors.textSecondary,
-                 textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
-
-  sessaoCard:  { backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.md,
-                 marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border },
-  sessaoTopo:  { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
-  sessaoBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.sm, marginRight: spacing.sm },
-  sessaoBadgeTexto: { fontSize: fontSize.xs, fontWeight: '700' },
-  sessaoNome:  { flex: 1, fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
-  sessaoPct:   { fontSize: fontSize.sm, fontWeight: '700', color: colors.primary, marginLeft: spacing.sm },
-  progFundo:   { height: 6, backgroundColor: colors.border, borderRadius: radius.full, overflow: 'hidden', marginBottom: 4 },
-  progFill:    { height: '100%', backgroundColor: colors.primary, borderRadius: radius.full },
-  sessaoSub:   { fontSize: fontSize.xs, color: colors.textSecondary },
-
-  legenda: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm, flexWrap: 'wrap' },
-
-  divRow:   { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background,
-              borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.xs,
-              borderWidth: 1, borderColor: colors.border, gap: spacing.sm },
-  divRank:  { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.primarySoft,
-              alignItems: 'center', justifyContent: 'center' },
-  divRankT: { fontSize: fontSize.xs, fontWeight: '700', color: colors.primary },
-  divNome:  { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
-  divSku:   { fontSize: fontSize.xs, color: colors.textSecondary },
-  divValor: { fontSize: fontSize.sm, fontWeight: '700' },
-  divStatus:{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm, marginTop: 2 },
-  divStatusT:{ fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
-
-  botaoLojas:  { backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: spacing.md, alignItems: 'center' },
-  botaoLojasT: { fontSize: fontSize.sm, fontWeight: '600', color: colors.primary },
-  // Atenção recorrente
-  secaoSub:   { fontSize: fontSize.xs, color: colors.textMuted, marginBottom: spacing.sm },
-  skuCard:    { flexDirection: 'row', alignItems: 'center', padding: spacing.sm,
-                borderRadius: radius.sm, marginBottom: 2, gap: spacing.sm },
-  skuCod:     { fontSize: fontSize.xs, fontWeight: '700', color: colors.primary },
-  skuDesc:    { fontSize: fontSize.xs, color: colors.text, marginTop: 1 },
-  skuLojas:   { fontSize: 10, color: colors.textMuted, marginTop: 1 },
-  skuMeta:    { alignItems: 'center', gap: 4 },
-  skuBadge:   { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full },
-  skuBadgeTxt:{ fontSize: 10, fontWeight: '700' },
-  skuSessoes: { fontSize: fontSize.sm, fontWeight: '800', color: '#DC2626' },
+const sk = StyleSheet.create({
+  card:    { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', padding: 24, marginBottom: 24 },
+  titulo:  { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  sub:     { fontSize: 12, color: '#9CA3AF', marginBottom: 12 },
+  linha:   { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 6, marginBottom: 2, gap: 12 },
+  cod:     { fontSize: 12, fontWeight: '700', color: '#1E40AF' },
+  desc:    { fontSize: 12, color: '#111827', marginTop: 1 },
+  lojas:   { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
+  badge:   { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
+  badgeTxt:{ fontSize: 10, fontWeight: '700' },
+  sess:    { fontSize: 14, fontWeight: '800', color: '#DC2626' },
 });

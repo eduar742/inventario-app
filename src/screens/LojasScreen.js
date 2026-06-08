@@ -148,16 +148,6 @@ export default function LojasScreen({ navigation }) {
             <Text style={estilos.saudacao}>Ola,</Text>
             <Text style={estilos.nomeUsuario} numberOfLines={1}>{usuario.nome}</Text>
           </View>
-            {usuario?.papel === 'admin' && (
-            <>
-              <TouchableOpacity onPress={() => navigation.navigate('Dashboard')} style={estilos.botaoDashboard}>
-                <Text style={estilos.textoDashboard}>Dashboard</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate('Gestores')} style={estilos.botaoGestores}>
-                <Text style={estilos.textoGestores}>Usuarios</Text>
-              </TouchableOpacity>
-            </>
-          )}
           <TouchableOpacity onPress={fazerLogout} style={estilos.botaoSair}>
             <Text style={estilos.textoSair}>Sair</Text>
           </TouchableOpacity>
