@@ -1,12 +1,14 @@
 // Tela inicial do app — blocos de navegacao dinamicos por papel do usuario.
 // ADM ve tudo; Gestor ve inventario + dashboards + relatorio + importar;
 // Operador ve apenas o bloco de inventario.
+// Visual redesenhado: header navy + grid 4 colunas (desktop) / lista (mobile).
 
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  SafeAreaView, StatusBar, Platform,
+  SafeAreaView, StatusBar, Platform, useWindowDimensions,
 } from 'react-native';
+import Svg, { Circle, Path, Line } from 'react-native-svg';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { pegarUsuario, logout } from '../services/api';
@@ -29,9 +31,9 @@ const BLOCOS = [
   {
     id: 'inventario',
     titulo: 'Inventário',
-    descricao: 'Iniciar ou continuar contagem de produtos',
+    descricao: 'Iniciar ou continuar contagem de produtos.',
     emoji: '📦',
-    cor: '#1E40AF',
+    cor: '#2563EB',
     corBg: '#EFF6FF',
     corBorda: '#BFDBFE',
     tela: 'Lojas',
@@ -41,9 +43,9 @@ const BLOCOS = [
   {
     id: 'dashboard',
     titulo: 'Dashboard',
-    descricao: 'KPIs, sessões ativas e divergências',
+    descricao: 'KPIs, sessões ativas e divergências.',
     emoji: '📊',
-    cor: '#6366F1',
+    cor: '#2563EB',
     corBg: '#EEF2FF',
     corBorda: '#C7D2FE',
     tela: 'Dashboard',
@@ -52,9 +54,9 @@ const BLOCOS = [
   {
     id: 'consolidado',
     titulo: 'Consolidado',
-    descricao: 'Visão gerencial multi-loja por período',
+    descricao: 'Visão gerencial multi-loja por período.',
     emoji: '🏢',
-    cor: '#0D9488',
+    cor: '#16A34A',
     corBg: '#F0FDFA',
     corBorda: '#99F6E4',
     tela: 'DashboardConsolidado',
@@ -63,7 +65,7 @@ const BLOCOS = [
   {
     id: 'relatorio',
     titulo: 'Rel. Geral',
-    descricao: 'Excel consolidado de todas as lojas',
+    descricao: 'Excel consolidado de todas as lojas.',
     emoji: '📈',
     cor: '#16A34A',
     corBg: '#F0FDF4',
@@ -74,7 +76,7 @@ const BLOCOS = [
   {
     id: 'importar',
     titulo: 'Importar',
-    descricao: 'Carregar planilhas de estoque',
+    descricao: 'Carregar planilhas de estoque.',
     emoji: '📥',
     cor: '#D97706',
     corBg: '#FFFBEB',
@@ -85,7 +87,7 @@ const BLOCOS = [
   {
     id: 'usuarios',
     titulo: 'Usuários',
-    descricao: 'Cadastrar e gerenciar operadores',
+    descricao: 'Cadastrar e gerenciar operadores.',
     emoji: '👥',
     cor: '#7C3AED',
     corBg: '#F5F3FF',
@@ -96,9 +98,9 @@ const BLOCOS = [
   {
     id: 'auditoria',
     titulo: 'Auditoria',
-    descricao: 'Audit log e participação de operadores',
+    descricao: 'Audit log e participação de operadores.',
     emoji: '🔍',
-    cor: '#0F766E',
+    cor: '#0891B2',
     corBg: '#F0FDFA',
     corBorda: '#99F6E4',
     tela: 'Auditoria',
@@ -107,9 +109,9 @@ const BLOCOS = [
   {
     id: 'ajuda',
     titulo: 'Ajuda',
-    descricao: 'Guia de uso do sistema',
+    descricao: 'Guia de uso do sistema.',
     emoji: '📖',
-    cor: '#0369A1',
+    cor: '#0891B2',
     corBg: '#F0F9FF',
     corBorda: '#BAE6FD',
     tela: 'Ajuda',
@@ -117,30 +119,90 @@ const BLOCOS = [
   },
 ];
 
-// ── Componente de bloco ────────────────────────────────────────────
-function Bloco({ bloco, onPress }) {
+// ── Icones SVG ─────────────────────────────────────────────────────
+
+function IcoAvatar({ size = 20, cor = '#FFF' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"
+        stroke={cor} strokeWidth="1.8" strokeLinecap="round" />
+      <Circle cx="12" cy="7" r="4" stroke={cor} strokeWidth="1.8" />
+    </Svg>
+  );
+}
+
+function IcoSair({ size = 17, cor = '#FFF' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"
+        stroke={cor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M16 17l5-5-5-5"
+        stroke={cor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1="21" y1="12" x2="9" y2="12"
+        stroke={cor} strokeWidth="1.8" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function IcoChevronDir({ size = 18, cor = '#9CA3AF' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M9 18l6-6-6-6"
+        stroke={cor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+// ── Logo BOLD (SVG inline) ─────────────────────────────────────────
+function LogoBold({ height = 36, corTexto = '#1E3A5F' }) {
+  const mW  = Math.round(height * 0.80);
+  const tSz = Math.round(height * 0.72);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <Svg width={mW} height={height} viewBox="0 0 26 34">
+        <Path d="M0 5 L20 0 L24 10 L4 15 Z" fill="#F5A623" />
+        <Path d="M2 19 L22 14 L26 24 L6 29 Z" fill="#22C55E" />
+      </Svg>
+      <Text style={{ color: corTexto, fontSize: tSz, fontWeight: '800', letterSpacing: 1.5, marginLeft: 8 }}>
+        BOLD
+      </Text>
+    </View>
+  );
+}
+
+// ── Card desktop (grid 4 colunas) ──────────────────────────────────
+function CardDesktop({ bloco, onPress }) {
   return (
     <TouchableOpacity
-      style={[
-        est.bloco,
-        { backgroundColor: bloco.corBg, borderColor: bloco.corBorda },
-        bloco.destaque && est.blocoDestaque,
-      ]}
+      style={[est.card, { borderTopColor: bloco.cor }]}
       onPress={onPress}
-      activeOpacity={0.75}
+      activeOpacity={0.80}
     >
-      {/* Barra colorida lateral */}
-      <View style={[est.blocoBarra, { backgroundColor: bloco.cor }]} />
-
-      <View style={est.blocoConteudo}>
-        <Text style={est.blocoEmoji}>{bloco.emoji}</Text>
-        <View style={est.blocoTextos}>
-          <Text style={[est.blocoTitulo, { color: bloco.cor }]}>{bloco.titulo}</Text>
-          <Text style={est.blocoDescricao} numberOfLines={2}>{bloco.descricao}</Text>
-        </View>
-        {/* Seta */}
-        <Text style={[est.blocoSeta, { color: bloco.cor }]}>›</Text>
+      <View style={est.cardIconeBox}>
+        <Text style={est.cardEmoji}>{bloco.emoji}</Text>
       </View>
+      <Text style={[est.cardTitulo, { color: bloco.cor }]}>{bloco.titulo}</Text>
+      <Text style={est.cardDescricao}>{bloco.descricao}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ── Item de lista mobile ───────────────────────────────────────────
+function ItemMobile({ bloco, onPress }) {
+  return (
+    <TouchableOpacity
+      style={[est.itemMobile, { borderLeftColor: bloco.cor }]}
+      onPress={onPress}
+      activeOpacity={0.80}
+    >
+      <View style={est.itemIconeBox}>
+        <Text style={est.itemEmoji}>{bloco.emoji}</Text>
+      </View>
+      <View style={est.itemTextos}>
+        <Text style={[est.itemTitulo, { color: bloco.cor }]}>{bloco.titulo}</Text>
+        <Text style={est.itemDescricao}>{bloco.descricao}</Text>
+      </View>
+      <IcoChevronDir size={18} cor="#9CA3AF" />
     </TouchableOpacity>
   );
 }
@@ -148,6 +210,8 @@ function Bloco({ bloco, onPress }) {
 // ── Tela principal ─────────────────────────────────────────────────
 export default function HomeScreen({ navigation }) {
   const [usuario, setUsuario] = useState(null);
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
 
   useEffect(() => {
     pegarUsuario().then(setUsuario).catch(() => {});
@@ -156,7 +220,13 @@ export default function HomeScreen({ navigation }) {
   const papel = usuario?.papel || 'operador';
   const blocosFiltrados = BLOCOS.filter(b => b.papeis.includes(papel));
 
-  // Divide em pares para grid 2 colunas
+  // Grid 4 colunas: divide em linhas de 4
+  const linhasDesktop = [];
+  for (let i = 0; i < blocosFiltrados.length; i += 4) {
+    linhasDesktop.push(blocosFiltrados.slice(i, i + 4));
+  }
+
+  // Mantido para compatibilidade (grid 2 colunas legacy)
   const linhas = [];
   for (let i = 0; i < blocosFiltrados.length; i += 2) {
     linhas.push(blocosFiltrados.slice(i, i + 2));
@@ -179,164 +249,282 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <SafeAreaView style={est.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      <StatusBar barStyle="light-content" backgroundColor="#1E3A5F" />
 
-      {/* ── Cabeçalho ───────────────────────────────────── */}
+      {/* ── Header ───────────────────────────────────────── */}
       <View style={est.header}>
-        <View style={est.headerEsq}>
-          {/* Avatar com iniciais */}
-          <View style={[est.avatar, { backgroundColor: corBadge }]}>
-            <Text style={est.avatarTxt}>
-              {primeiroNome.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View style={est.headerTextos}>
-            <Text style={est.saudacao}>{_saudacao()}, {primeiroNome}</Text>
-            <View style={est.badgeRow}>
-              <View style={[est.badge, { backgroundColor: corBadge + '30', borderColor: corBadge + '60' }]}>
-                <Text style={[est.badgeTxt, { color: corBadge === '#1E40AF' ? '#93C5FD' : corBadge === '#059669' ? '#6EE7B7' : '#FDE68A' }]}>
-                  {badgePapel}
-                </Text>
-              </View>
-              <Text style={est.dataHoje}>{_dataFormatada()}</Text>
-            </View>
-          </View>
-        </View>
 
-        {/* Botao sair */}
-        <TouchableOpacity style={est.botaoSair} onPress={handleLogout}>
-          <Text style={est.botaoSairTxt}>Sair</Text>
-        </TouchableOpacity>
+        {/* Esquerda: logo */}
+        <LogoBold height={36} corTexto="#FFFFFF" />
+
+        {/* Direita: saudacao + avatar + sair */}
+        <View style={est.headerDir}>
+
+          {/* Saudacao com nome — somente desktop */}
+          {isDesktop && (
+            <Text style={est.saudacaoHeader} numberOfLines={1}>
+              {_saudacao()},{' '}
+              <Text style={est.nomeHeader}>{primeiroNome}</Text>
+            </Text>
+          )}
+
+          {/* Avatar */}
+          <View style={est.avatarCircle}>
+            <IcoAvatar size={20} cor="#FFFFFF" />
+          </View>
+
+          {/* Botao sair */}
+          {isDesktop ? (
+            <TouchableOpacity style={est.botaoSair} onPress={handleLogout} activeOpacity={0.8}>
+              <Text style={est.botaoSairTxt}>Sair</Text>
+              <IcoSair size={16} cor="#FFFFFF" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={est.botaoSairMobile} onPress={handleLogout} activeOpacity={0.8}>
+              <IcoSair size={20} cor="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+
+        </View>
       </View>
 
       {/* ── Conteudo ─────────────────────────────────────── */}
-      <ScrollView contentContainerStyle={est.scroll}>
-        {/* Sub-titulo */}
-        <Text style={est.subTitulo}>O que deseja fazer?</Text>
+      <ScrollView
+        contentContainerStyle={[est.scroll, isDesktop && est.scrollDesktop]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Titulo + linha decorativa dourada */}
+        <Text style={est.titulo}>O que deseja fazer?</Text>
+        <View style={est.linhaDeco} />
 
-        {/* Blocos em grid 2 colunas */}
-        {linhas.map((linha, li) => (
-          <View key={li} style={est.linhaBlocos}>
-            {linha.map(bloco => (
-              <View key={bloco.id} style={est.blocoWrapper}>
-                <Bloco
-                  bloco={bloco}
-                  onPress={() => navigation.navigate(bloco.tela)}
-                />
+        {/* Desktop: grid 4 colunas */}
+        {isDesktop ? (
+          <View style={est.gridContainer}>
+            {linhasDesktop.map((linha, li) => (
+              <View key={li} style={est.gridLinha}>
+                {linha.map(bloco => (
+                  <View key={bloco.id} style={est.gridCelula}>
+                    <CardDesktop
+                      bloco={bloco}
+                      onPress={() => navigation.navigate(bloco.tela)}
+                    />
+                  </View>
+                ))}
+                {/* Celulas vazias para completar a linha de 4 */}
+                {Array(4 - linha.length).fill(null).map((_, i) => (
+                  <View key={`vazio-${i}`} style={est.gridCelula} />
+                ))}
               </View>
             ))}
-            {/* Preenche coluna vazia se linha impar */}
-            {linha.length === 1 && <View style={est.blocoWrapper} />}
           </View>
-        ))}
+        ) : (
+          /* Mobile: lista vertical */
+          <View style={est.lista}>
+            {blocosFiltrados.map(bloco => (
+              <ItemMobile
+                key={bloco.id}
+                bloco={bloco}
+                onPress={() => navigation.navigate(bloco.tela)}
+              />
+            ))}
+          </View>
+        )}
 
         {/* Versao */}
-        <Text style={est.versao}>Sistema de Inventário — v0.1.0</Text>
+        <Text style={est.versao}>Sistema de Inventário — v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// =============================================================================
+// Estilos
+// =============================================================================
 const est = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
 
   // ── Header ──
   header: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    backgroundColor: '#1E3A5F',
+    height: 64,
+    paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    ...Platform.select({
-      android: { paddingTop: spacing.md + 4 },
-    }),
   },
-  headerEsq: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22,
+  headerDir: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  saudacaoHeader: {
+    color: 'rgba(255,255,255,0.80)',
+    fontSize: 15,
+  },
+  nomeHeader: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  avatarCircle: {
+    width: 36, height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.40)',
     alignItems: 'center', justifyContent: 'center',
-    marginRight: spacing.sm,
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)',
   },
-  avatarTxt:    { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
-  headerTextos: { flex: 1 },
-  saudacao:     { color: '#FFFFFF', fontSize: fontSize.md, fontWeight: '700', marginBottom: 2 },
-  badgeRow:     { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  badge: {
-    paddingHorizontal: 8, paddingVertical: 2,
-    borderRadius: radius.full,
-    borderWidth: 1,
-  },
-  badgeTxt:     { fontSize: 10, fontWeight: '700' },
-  dataHoje:     { fontSize: 10, color: 'rgba(255,255,255,0.65)' },
   botaoSair: {
-    paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.40)',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
-  botaoSairTxt: { color: '#FFFFFF', fontSize: fontSize.sm, fontWeight: '600' },
+  botaoSairTxt: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  botaoSairMobile: {
+    width: 36, height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center', justifyContent: 'center',
+  },
 
   // ── Scroll ──
-  scroll: { padding: spacing.lg, paddingTop: spacing.md },
-  subTitulo: {
-    fontSize: fontSize.lg, fontWeight: '700', color: '#0F172A',
-    marginBottom: spacing.md,
+  scroll: {
+    padding: 20,
+    paddingTop: 24,
+  },
+  scrollDesktop: {
+    paddingHorizontal: 40,
+    paddingVertical: 32,
   },
 
-  // ── Grid de blocos ──
-  linhaBlocos: {
+  // Titulo + decoracao
+  titulo: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#1E3A5F',
+  },
+  linhaDeco: {
+    width: 48,
+    height: 4,
+    backgroundColor: '#F5A623',
+    borderRadius: 2,
+    marginTop: 8,
+    marginBottom: 28,
+  },
+
+  // ── Desktop: grid ──
+  gridContainer: {
+    gap: 20,
+  },
+  gridLinha: {
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
+    gap: 20,
   },
-  // minWidth: 0 impede que itens flex estourem a coluna (comportamento padrão auto)
-  blocoWrapper: { flex: 1, minWidth: 0 },
+  gridCelula: {
+    flex: 1,
+    minWidth: 0,
+  },
 
-  bloco: {
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    overflow: 'hidden',
+  // Card desktop
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderTopWidth: 3,
+    paddingTop: 28,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
   },
-  blocoDestaque: {
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 4,
+  cardIconeBox: {
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  blocoBarra: { height: 4, width: '100%' },
-  blocoConteudo: {
+  cardEmoji: {
+    fontSize: 52,
+    textAlign: 'center',
+  },
+  cardTitulo: {
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  cardDescricao: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+
+  // ── Mobile: lista ──
+  lista: {
+    gap: 10,
+  },
+  itemMobile: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.sm,   // padding menor para dar espaço ao texto no mobile
-    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    paddingVertical: 14,
+    paddingLeft: 16,
+    paddingRight: 14,
+    gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  // flexShrink: 0 impede o emoji de ser comprimido
-  blocoEmoji: { fontSize: 24, flexShrink: 0 },
-  // minWidth: 0 + flexShrink: 1 permite que o texto encolha e quebre linha corretamente
-  blocoTextos: { flex: 1, minWidth: 0, flexShrink: 1 },
-  blocoTitulo: {
-    fontSize: fontSize.sm,   // menor para caber no mobile sem quebrar no meio
-    fontWeight: '800',
+  itemIconeBox: {
+    width: 44, height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemEmoji: {
+    fontSize: 30,
+    textAlign: 'center',
+  },
+  itemTextos: {
+    flex: 1,
+    minWidth: 0,
+  },
+  itemTitulo: {
+    fontSize: 15,
+    fontWeight: '700',
     marginBottom: 2,
-    flexWrap: 'wrap',        // garante quebra de linha natural entre palavras
   },
-  blocoDescricao: {
-    fontSize: 10,
-    color: '#64748B',
-    lineHeight: 14,
-    flexWrap: 'wrap',        // garante quebra de linha natural
+  itemDescricao: {
+    fontSize: 12,
+    color: '#6B7280',
+    lineHeight: 17,
   },
-  // flexShrink: 0 impede a seta de sumir; display none em cards pequenos seria ideal
-  blocoSeta: { fontSize: 18, fontWeight: '300', opacity: 0.7, flexShrink: 0 },
 
+  // Versao
   versao: {
-    fontSize: fontSize.xs, color: '#94A3B8',
-    textAlign: 'center', marginTop: spacing.xl,
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 40,
+    marginBottom: 24,
   },
 });
