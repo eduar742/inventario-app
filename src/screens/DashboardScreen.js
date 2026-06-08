@@ -237,58 +237,61 @@ function LogoBoldSidebar() {
   );
 }
 
-// ── Gauge Semicircular — arcos de stroke, muito mais limpo ───────────────────
+// ── Gauge Semicircular — stroke-based, geometria corrigida ───────────────────
+// O gauge vai de 0% (esquerda) a 100% (direita) passando pelo TOPO.
+// Angulo: 0% = π rad, 100% = 0 rad. Arc counterclockwise com sweep=0.
+// large-arc-flag DEVE ser 0 para qualquer zona (nenhuma zona supera 180°).
+// la=1 apenas para o track completo (exatamente 180°, evita ambiguidade).
 function GaugeSemiCircle({ valor = 0, tamanho = 220 }) {
+  // Proporcoes calculadas para que tudo caiba dentro de tamanho px de largura
+  // deixando espaco para labels (aprox 30px em cada lado alem do arco).
+  const r  = Math.floor((tamanho / 2 - 36) / 1.14); // raio: garante margem para labels
+  const sw = Math.round(r * 0.27);                    // espessura do arco
   const cx = tamanho / 2;
-  const cy = tamanho * 0.52;
-  const r  = tamanho * 0.40;
-  const sw = tamanho * 0.11;  // espessura do arco
+  const cy = r + sw + 8;                              // centro Y: topo visivel sem corte
   const f  = v => Number(v).toFixed(2);
 
-  // Ponto no arco para um dado percentual (0%=esquerda, 100%=direita, top=50%)
   function pt(pct, raio) {
     const ang = Math.PI * (1 - pct / 100);
     return { x: cx + raio * Math.cos(ang), y: cy - raio * Math.sin(ang) };
   }
 
-  // Path de arco entre dois percentuais (stroke-based, counterclockwise atraves do topo)
+  // sweep=0 (counterclockwise no SVG = visual "pelo topo").
+  // la: 1 somente quando o arco eh exatamente 180 graus (track completo).
   function arc(pct1, pct2) {
     const a = pt(pct1, r), b = pt(pct2, r);
-    const la = (pct2 - pct1) > 50 ? 1 : 0; // large-arc quando span > 90 graus
+    const spanDeg = (pct2 - pct1) / 100 * 180;
+    const la = spanDeg >= 180 ? 1 : 0;
     return `M ${f(a.x)} ${f(a.y)} A ${r} ${r} 0 ${la} 0 ${f(b.x)} ${f(b.y)}`;
   }
 
-  // Ponteiro
-  const v = Math.min(Math.max(valor, 0), 100);
-  const needle = pt(v, r * 0.80);
-  const svgH = cy + sw / 2 + 20;
-
-  // Labels nas marcacoes-chave
-  const lblR = r + sw * 0.55 + 6;
-  const LABELS = [
-    { pct: 0,   anchor: 'end',    dy: 4  },
-    { pct: 85,  anchor: 'middle', dy: -4 },
-    { pct: 95,  anchor: 'middle', dy: -4 },
-    { pct: 100, anchor: 'start',  label: '100%', dy: 4  },
-  ];
+  const v      = Math.min(Math.max(valor, 0), 100);
+  const needle = pt(v, r * 0.78);
+  const svgH   = cy + Math.round(sw / 2) + 22;
+  const lblR   = r + Math.round(sw / 2) + 10;
 
   return (
     <Svg width={tamanho} height={svgH}>
-      {/* Track cinza de fundo */}
+      {/* Track cinza de fundo (la=1 pois span=180°) */}
       <Path d={arc(0, 100)} fill="none" stroke="#E5E7EB" strokeWidth={sw} strokeLinecap="butt" />
-      {/* Zona vermelha 0–85% */}
-      <Path d={arc(0, 85)} fill="none" stroke="#EF4444" strokeWidth={sw} strokeLinecap="butt" />
-      {/* Zona laranja 85–95% */}
-      <Path d={arc(85, 95)} fill="none" stroke="#F97316" strokeWidth={sw} strokeLinecap="butt" />
-      {/* Zona verde 95–100% */}
+      {/* Zona vermelha 0–85% (la=0, span=153°) */}
+      <Path d={arc(0, 85)}   fill="none" stroke="#EF4444" strokeWidth={sw} strokeLinecap="butt" />
+      {/* Zona laranja 85–95% (la=0, span=18°) */}
+      <Path d={arc(85, 95)}  fill="none" stroke="#F97316" strokeWidth={sw} strokeLinecap="butt" />
+      {/* Zona verde 95–100% (la=0, span=9°) */}
       <Path d={arc(95, 100)} fill="none" stroke="#16A34A" strokeWidth={sw} strokeLinecap="butt" />
       {/* Ponteiro */}
       <Line x1={f(cx)} y1={f(cy)} x2={f(needle.x)} y2={f(needle.y)}
-        stroke="#111827" strokeWidth={3.5} strokeLinecap="round" />
+        stroke="#111827" strokeWidth={4} strokeLinecap="round" />
       <Circle cx={f(cx)} cy={f(cy)} r={7} fill="#111827" />
       <Circle cx={f(cx)} cy={f(cy)} r={3} fill="#FFFFFF" />
-      {/* Labels */}
-      {LABELS.map(({ pct, anchor, dy }) => {
+      {/* Labels nos limiares */}
+      {[
+        { pct: 0,   anchor: 'end',    dy: 5  },
+        { pct: 85,  anchor: 'middle', dy: -5 },
+        { pct: 95,  anchor: 'middle', dy: -5 },
+        { pct: 100, anchor: 'start',  dy: 5  },
+      ].map(({ pct, anchor, dy }) => {
         const p = pt(pct, lblR);
         return (
           <SvgText key={pct} x={f(p.x)} y={f(p.y + dy)}
