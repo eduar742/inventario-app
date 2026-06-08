@@ -197,6 +197,30 @@ function IcoDownload({ size = 18, cor = '#9CA3AF' }) {
     </Svg>
   );
 }
+function IcoUpload({ size = 20, cor = '#4B5563' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 9l5-5 5 5M12 4v12" />
+    </Svg>
+  );
+}
+function IcoUsers({ size = 20, cor = '#4B5563' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Circle cx="9" cy="7" r="4" />
+      <Path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+      <Path d="M16 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0-3-3.85" />
+    </Svg>
+  );
+}
+function IcoShieldCheck({ size = 20, cor = '#4B5563' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...P_ICO} stroke={cor} strokeWidth={2}>
+      <Path d="M12 3a12 12 0 0 0 8.5 3 12 12 0 0 1-3.5 11.5L12 21l-5-3.5A12 12 0 0 1 3.5 6 12 12 0 0 0 12 3z" />
+      <Path d="M9 12l2 2 4-4" />
+    </Svg>
+  );
+}
 
 // ── Logo BOLD SVG ─────────────────────────────────────────────────────────────
 function LogoBoldSidebar() {
@@ -316,39 +340,41 @@ function BarChartV2({ labels, data }) {
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
-const MENU = [
-  { id: 'Dashboard',    label: 'Dashboard',      Ico: IcoLayoutDashboard, sub: false },
-  { id: 'Inventario',  label: 'Inventário',      Ico: IcoPackage,         sub: true  },
-  { id: 'Lojas',       label: 'Lojas',           Ico: IcoBuildingStore,   sub: true  },
-  { id: 'Produtos',    label: 'Produtos',         Ico: IcoBox,             sub: false },
-  { id: 'Movimentos',  label: 'Movimentações',   Ico: IcoArrowsExchange,  sub: true  },
-  { id: 'Conciliacoes',label: 'Conciliações',    Ico: IcoGitMerge,        sub: true  },
-  { id: 'Relatorios',  label: 'Relatórios',      Ico: IcoFileAnalytics,   sub: true  },
-  { id: 'Configuracoes',label: 'Configurações',  Ico: IcoSettings,        sub: false },
+// Itens espelham BLOCOS da HomeScreen: mesmas rotas, mesmos papeis, mesma ordem.
+const MENU_ITENS = [
+  { id: 'inventario',  label: 'Inventário',  tela: 'Lojas',               Ico: IcoPackage,         papeis: ['admin', 'gestor', 'operador'] },
+  { id: 'dashboard',   label: 'Dashboard',   tela: 'Dashboard',           Ico: IcoLayoutDashboard, papeis: ['admin', 'gestor', 'gerente', 'auditor'] },
+  { id: 'consolidado', label: 'Consolidado', tela: 'DashboardConsolidado',Ico: IcoBuildingStore,   papeis: ['admin', 'gestor', 'gerente', 'auditor'] },
+  { id: 'relatorio',   label: 'Rel. Geral',  tela: 'RelatorioConsolidado',Ico: IcoFileAnalytics,   papeis: ['admin', 'gestor', 'gerente', 'auditor'] },
+  { id: 'importar',    label: 'Importar',    tela: 'Importacao',          Ico: IcoUpload,          papeis: ['admin', 'gestor'] },
+  { id: 'usuarios',    label: 'Usuários',    tela: 'Gestores',            Ico: IcoUsers,           papeis: ['admin'] },
+  { id: 'auditoria',   label: 'Auditoria',   tela: 'Auditoria',          Ico: IcoShieldCheck,     papeis: ['admin'] },
+  { id: 'ajuda',       label: 'Ajuda',       tela: 'Ajuda',              Ico: IcoHelpCircle,      papeis: ['admin', 'gestor', 'gerente', 'auditor', 'operador'] },
 ];
 
-function Sidebar({ navigation, ultimaAtu }) {
+function Sidebar({ navigation, ultimaAtu, usuario, telaAtual = 'Dashboard' }) {
+  const papel = usuario?.papel || 'operador';
+  // Filtra por papel (mesmo criterio da HomeScreen) e oculta o item da tela atual
+  const itensFiltrados = MENU_ITENS.filter(
+    item => item.papeis.includes(papel) && item.tela !== telaAtual,
+  );
+
   return (
     <View style={sid.wrap}>
       <View style={sid.logo}><LogoBoldSidebar /></View>
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         <View style={sid.menu}>
-          {MENU.map(({ id, label, Ico, sub }) => {
-            const ativo = id === 'Dashboard';
-            const cor = ativo ? '#4F46E5' : '#4B5563';
-            return (
-              <TouchableOpacity
-                key={id}
-                style={[sid.item, ativo && sid.itemAtivo]}
-                onPress={() => id !== 'Dashboard' && navigation.navigate(id)}
-                activeOpacity={0.7}
-              >
-                <Ico size={20} cor={cor} />
-                <Text style={[sid.lbl, ativo && sid.lblAtivo]}>{label}</Text>
-                {sub && <IcoChevronRight size={14} cor={ativo ? '#4F46E5' : '#9CA3AF'} />}
-              </TouchableOpacity>
-            );
-          })}
+          {itensFiltrados.map(({ id, label, tela, Ico }) => (
+            <TouchableOpacity
+              key={id}
+              style={sid.item}
+              onPress={() => navigation.navigate(tela)}
+              activeOpacity={0.7}
+            >
+              <Ico size={20} cor="#4B5563" />
+              <Text style={sid.lbl}>{label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </ScrollView>
       <View style={sid.rodape}>
@@ -373,9 +399,7 @@ const sid = StyleSheet.create({
   logo:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28 },
   menu:    { paddingHorizontal: 12, gap: 2, paddingBottom: 16 },
   item:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8 },
-  itemAtivo: { backgroundColor: '#EEF2FF' },
   lbl:     { flex: 1, fontSize: 14, fontWeight: '500', color: '#4B5563' },
-  lblAtivo: { color: '#4F46E5' },
   rodape:  { padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', gap: 8 },
   rdRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   rdLabel: { fontSize: 12, color: '#9CA3AF' },
@@ -647,7 +671,7 @@ export default function DashboardScreen({ navigation }) {
   if (carregando && !dados) {
     return (
       <SafeAreaView style={{ flex: 1, flexDirection: 'row', backgroundColor: '#F8F9FA' }}>
-        {isDesktop && <Sidebar navigation={navigation} ultimaAtu={null} />}
+        {isDesktop && <Sidebar navigation={navigation} ultimaAtu={null} usuario={usuario} telaAtual="Dashboard" />}
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color="#4F46E5" />
           <Text style={{ marginTop: 12, fontSize: 14, color: '#6B7280' }}>Carregando dashboard...</Text>
@@ -665,7 +689,14 @@ export default function DashboardScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, flexDirection: 'row', backgroundColor: '#F8F9FA' }}>
-      {isDesktop && <Sidebar navigation={navigation} ultimaAtu={ultimaAtu} />}
+      {isDesktop && (
+        <Sidebar
+          navigation={navigation}
+          ultimaAtu={ultimaAtu}
+          usuario={usuario}
+          telaAtual="Dashboard"
+        />
+      )}
 
       <ScrollView
         style={{ flex: 1 }}
