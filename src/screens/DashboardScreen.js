@@ -424,31 +424,44 @@ const sid = StyleSheet.create({
 });
 
 // ── Header area principal ─────────────────────────────────────────────────────
-function HeaderPrincipal({ isDesktop }) {
+function HeaderPrincipal({ filtrosAbertos, onToggleFiltros, temFiltroAtivo }) {
   return (
     <View style={hp.wrap}>
       <View style={hp.esq}>
         <Text style={hp.titulo}>Dashboard de Inventário</Text>
         <Text style={hp.sub}>Visão geral da acuracidade e divergências</Text>
       </View>
-      {isDesktop && (
-        <TouchableOpacity style={hp.btnFil}>
-          <IcoAdjustments size={15} cor="#FFFFFF" />
-          <Text style={hp.btnFilTxt}>Filtros</Text>
-          <IcoChevronDown size={13} cor="#FFFFFF" />
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={[hp.btnFil, temFiltroAtivo && hp.btnFilAtivo]}
+        onPress={onToggleFiltros}
+        activeOpacity={0.8}
+      >
+        <IcoAdjustments size={15} cor="#FFFFFF" />
+        <Text style={hp.btnFilTxt}>Filtros</Text>
+        {temFiltroAtivo && <View style={hp.dot} />}
+        <IcoChevronDown size={13} cor="#FFFFFF" />
+      </TouchableOpacity>
     </View>
   );
 }
 
 const hp = StyleSheet.create({
-  wrap:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, gap: 16, minWidth: 0 },
-  esq:       { flex: 1, minWidth: 0 },
-  titulo:    { fontSize: 22, fontWeight: '700', color: '#111827' },
-  sub:       { fontSize: 14, color: '#6B7280', marginTop: 2 },
-  btnFil:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#4F46E5', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, flexShrink: 0 },
-  btnFilTxt: { fontSize: 14, color: '#FFFFFF', fontWeight: '500' },
+  wrap:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 16, minWidth: 0 },
+  esq:        { flex: 1, minWidth: 0 },
+  titulo:     { fontSize: 22, fontWeight: '700', color: '#111827' },
+  sub:        { fontSize: 14, color: '#6B7280', marginTop: 2 },
+  btnFil:     { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#4F46E5', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, flexShrink: 0 },
+  btnFilAtivo:{ backgroundColor: '#3730A3' },
+  btnFilTxt:  { fontSize: 14, color: '#FFFFFF', fontWeight: '500' },
+  dot:        { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FCD34D', marginLeft: -2 },
+});
+
+// ── Painel de filtros (dropdown do botao Filtros) ──────────────────────────────
+const pf = StyleSheet.create({
+  wrap:  { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 20, overflow: 'hidden' },
+  sec:   { paddingTop: 14, paddingBottom: 8 },
+  label: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: 16, marginBottom: 4 },
+  sep:   { height: 1, backgroundColor: '#F3F4F6' },
 });
 
 // ── Cards KPI ─────────────────────────────────────────────────────────────────
@@ -613,6 +626,7 @@ export default function DashboardScreen({ navigation }) {
   const [ultimaAtu, setUltimaAtu] = useState(null);
   const [naturezaId, setNaturezaId] = useState(null);
   const [grupoMaterial, setGrupoMaterial] = useState(null);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [skusProblematicos, setSkusProblematicos] = useState([]);
   const [usuario, setUsuario] = useState(null);
   const timerRef = useRef(null);
@@ -681,19 +695,38 @@ export default function DashboardScreen({ navigation }) {
           />
         }
       >
-        {/* Filtros natureza + grupo */}
-        <NaturezaFiltro
-          value={naturezaId}
-          onChange={id => { setNaturezaId(id); setGrupoMaterial(null); setCarregando(true); }}
-        />
-        <GrupoMaterialFiltro
-          grupos={dados?.grupos_material || []}
-          value={grupoMaterial}
-          onChange={g => { setGrupoMaterial(g); setCarregando(true); }}
+        {/* Header com botao Filtros */}
+        <HeaderPrincipal
+          filtrosAbertos={filtrosAbertos}
+          onToggleFiltros={() => setFiltrosAbertos(v => !v)}
+          temFiltroAtivo={naturezaId !== null || grupoMaterial !== null}
         />
 
-        {/* Header */}
-        <HeaderPrincipal isDesktop={isDesktop} />
+        {/* Painel de filtros — visivel ao clicar em Filtros */}
+        {filtrosAbertos && (
+          <View style={pf.wrap}>
+            <View style={pf.sec}>
+              <Text style={pf.label}>Natureza</Text>
+              <NaturezaFiltro
+                value={naturezaId}
+                onChange={id => { setNaturezaId(id); setGrupoMaterial(null); setCarregando(true); }}
+              />
+            </View>
+            {(dados?.grupos_material?.length > 0) && (
+              <>
+                <View style={pf.sep} />
+                <View style={pf.sec}>
+                  <Text style={pf.label}>Grupo de Material</Text>
+                  <GrupoMaterialFiltro
+                    grupos={dados?.grupos_material || []}
+                    value={grupoMaterial}
+                    onChange={g => { setGrupoMaterial(g); setCarregando(true); }}
+                  />
+                </View>
+              </>
+            )}
+          </View>
+        )}
 
         {/* KPIs */}
         <View style={[{ flexDirection: 'row', gap: 16, marginBottom: 24 }, !isDesktop && { flexWrap: 'wrap' }]}>
