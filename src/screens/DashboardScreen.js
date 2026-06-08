@@ -5,10 +5,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
   TouchableOpacity, ActivityIndicator, RefreshControl,
-  useWindowDimensions, TextInput,
+  useWindowDimensions,
 } from 'react-native';
 import Svg, {
-  Path, Circle, Line, Rect, Polygon, Text as SvgText,
+  Path, Circle, Line, Rect, Text as SvgText,
 } from 'react-native-svg';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
@@ -222,78 +222,81 @@ function IcoShieldCheck({ size = 20, cor = '#4B5563' }) {
   );
 }
 
-// ── Logo BOLD SVG ─────────────────────────────────────────────────────────────
+// ── Logo BOLD (marca SVG + texto RN, mesmo padrao da HomeScreen) ─────────────
 function LogoBoldSidebar() {
   return (
-    <Svg width={80} height={30} viewBox="0 0 80 30">
-      <Polygon points="0,30 9,0 22,0 13,30" fill="#F5A623" />
-      <Polygon points="11,30 20,0 33,0 24,30" fill="#22C55E" />
-      <Path d="M38 24V6h6q4 0 4 4t-4 4h-4v4h5q5 0 5 5t-5 5z" fill="#1E3A5F" strokeWidth={0} />
-      <Path d="M56 6h5q9 0 9 9t-9 9h-5z" fill="#1E3A5F" strokeWidth={0} />
-    </Svg>
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <Svg width={22} height={28} viewBox="0 0 26 34">
+        <Path d="M0 5 L20 0 L24 10 L4 15 Z" fill="#F5A623" />
+        <Path d="M2 19 L22 14 L26 24 L6 29 Z" fill="#22C55E" />
+      </Svg>
+      <Text style={{ color: '#1E3A5F', fontSize: 17, fontWeight: '800', letterSpacing: 1.5, marginLeft: 8 }}>
+        BOLD
+      </Text>
+    </View>
   );
 }
 
-// ── Gauge Semicircular (SVG) ──────────────────────────────────────────────────
-function pctToXY(cx, cy, r, pct) {
-  const angle = Math.PI * (1 - pct / 100);
-  return {
-    x: cx + r * Math.cos(angle),
-    y: cy - r * Math.sin(angle),
-  };
-}
-
-function donutSlice(cx, cy, rO, rI, pct1, pct2) {
-  const a = pctToXY(cx, cy, rO, pct1);
-  const b = pctToXY(cx, cy, rO, pct2);
-  const c = pctToXY(cx, cy, rI, pct2);
-  const d = pctToXY(cx, cy, rI, pct1);
-  const spanDeg = ((pct2 - pct1) / 100) * 180;
-  const la = spanDeg >= 180 ? 1 : 0;
-  const f = v => v.toFixed(2);
-  return [
-    `M ${f(a.x)} ${f(a.y)}`,
-    `A ${rO} ${rO} 0 ${la} 0 ${f(b.x)} ${f(b.y)}`,
-    `L ${f(c.x)} ${f(c.y)}`,
-    `A ${rI} ${rI} 0 ${la} 1 ${f(d.x)} ${f(d.y)}`,
-    'Z',
-  ].join(' ');
-}
-
-function GaugeSemiCircle({ valor = 0, tamanho = 200 }) {
+// ── Gauge Semicircular — arcos de stroke, muito mais limpo ───────────────────
+function GaugeSemiCircle({ valor = 0, tamanho = 220 }) {
   const cx = tamanho / 2;
-  const cy = tamanho * 0.48;
-  const rO = tamanho * 0.36;
-  const rI = tamanho * 0.24;
-  const lblR = rO + tamanho * 0.08;
+  const cy = tamanho * 0.52;
+  const r  = tamanho * 0.40;
+  const sw = tamanho * 0.11;  // espessura do arco
+  const f  = v => Number(v).toFixed(2);
 
-  const needleAngle = Math.PI * (1 - Math.min(Math.max(valor, 0), 100) / 100);
-  const needleLen = rI - 2;
-  const nx = cx + needleLen * Math.cos(needleAngle);
-  const ny = cy - needleLen * Math.sin(needleAngle);
+  // Ponto no arco para um dado percentual (0%=esquerda, 100%=direita, top=50%)
+  function pt(pct, raio) {
+    const ang = Math.PI * (1 - pct / 100);
+    return { x: cx + raio * Math.cos(ang), y: cy - raio * Math.sin(ang) };
+  }
 
-  const lbl0   = pctToXY(cx, cy, lblR, 0);
-  const lbl85  = pctToXY(cx, cy, lblR, 85);
-  const lbl95  = pctToXY(cx, cy, lblR, 95);
-  const lbl100 = pctToXY(cx, cy, lblR, 100);
+  // Path de arco entre dois percentuais (stroke-based, counterclockwise atraves do topo)
+  function arc(pct1, pct2) {
+    const a = pt(pct1, r), b = pt(pct2, r);
+    const la = (pct2 - pct1) > 50 ? 1 : 0; // large-arc quando span > 90 graus
+    return `M ${f(a.x)} ${f(a.y)} A ${r} ${r} 0 ${la} 0 ${f(b.x)} ${f(b.y)}`;
+  }
 
-  const svgH = cy + 18;
+  // Ponteiro
+  const v = Math.min(Math.max(valor, 0), 100);
+  const needle = pt(v, r * 0.80);
+  const svgH = cy + sw / 2 + 20;
+
+  // Labels nas marcacoes-chave
+  const lblR = r + sw * 0.55 + 6;
+  const LABELS = [
+    { pct: 0,   anchor: 'end',    dy: 4  },
+    { pct: 85,  anchor: 'middle', dy: -4 },
+    { pct: 95,  anchor: 'middle', dy: -4 },
+    { pct: 100, anchor: 'start',  label: '100%', dy: 4  },
+  ];
 
   return (
-    <Svg width={tamanho} height={svgH} viewBox={`0 0 ${tamanho} ${svgH}`}>
-      {/* Zonas coloridas */}
-      <Path d={donutSlice(cx, cy, rO, rI, 0, 85)}  fill="#EF4444" />
-      <Path d={donutSlice(cx, cy, rO, rI, 85, 95)} fill="#F97316" />
-      <Path d={donutSlice(cx, cy, rO, rI, 95, 100)} fill="#16A34A" />
+    <Svg width={tamanho} height={svgH}>
+      {/* Track cinza de fundo */}
+      <Path d={arc(0, 100)} fill="none" stroke="#E5E7EB" strokeWidth={sw} strokeLinecap="butt" />
+      {/* Zona vermelha 0–85% */}
+      <Path d={arc(0, 85)} fill="none" stroke="#EF4444" strokeWidth={sw} strokeLinecap="butt" />
+      {/* Zona laranja 85–95% */}
+      <Path d={arc(85, 95)} fill="none" stroke="#F97316" strokeWidth={sw} strokeLinecap="butt" />
+      {/* Zona verde 95–100% */}
+      <Path d={arc(95, 100)} fill="none" stroke="#16A34A" strokeWidth={sw} strokeLinecap="butt" />
       {/* Ponteiro */}
-      <Line x1={cx.toFixed(2)} y1={cy.toFixed(2)} x2={nx.toFixed(2)} y2={ny.toFixed(2)}
-        stroke="#1F2937" strokeWidth={2.5} strokeLinecap="round" />
-      <Circle cx={cx.toFixed(2)} cy={cy.toFixed(2)} r={4} fill="#1F2937" />
+      <Line x1={f(cx)} y1={f(cy)} x2={f(needle.x)} y2={f(needle.y)}
+        stroke="#111827" strokeWidth={3.5} strokeLinecap="round" />
+      <Circle cx={f(cx)} cy={f(cy)} r={7} fill="#111827" />
+      <Circle cx={f(cx)} cy={f(cy)} r={3} fill="#FFFFFF" />
       {/* Labels */}
-      <SvgText x={lbl0.x.toFixed(2)}   y={(lbl0.y + 4).toFixed(2)}   fontSize={9} fill="#6B7280" textAnchor="end">0%</SvgText>
-      <SvgText x={lbl85.x.toFixed(2)}  y={(lbl85.y - 2).toFixed(2)}  fontSize={9} fill="#6B7280" textAnchor="middle">85%</SvgText>
-      <SvgText x={lbl95.x.toFixed(2)}  y={(lbl95.y - 2).toFixed(2)}  fontSize={9} fill="#6B7280" textAnchor="middle">95%</SvgText>
-      <SvgText x={lbl100.x.toFixed(2)} y={(lbl100.y + 4).toFixed(2)} fontSize={9} fill="#6B7280" textAnchor="start">100%</SvgText>
+      {LABELS.map(({ pct, anchor, dy }) => {
+        const p = pt(pct, lblR);
+        return (
+          <SvgText key={pct} x={f(p.x)} y={f(p.y + dy)}
+            fontSize={11} fontWeight="600" fill="#374151" textAnchor={anchor}>
+            {pct === 100 ? '100%' : `${pct}%`}
+          </SvgText>
+        );
+      })}
     </Svg>
   );
 }
@@ -301,21 +304,29 @@ function GaugeSemiCircle({ valor = 0, tamanho = 200 }) {
 // ── Grafico de barras ─────────────────────────────────────────────────────────
 function BarChartV2({ labels, data }) {
   if (!data || data.length === 0) return null;
-  const altMax = 120;
+  const altMax = 160;
   return (
     <View>
+      {/* Linha de referencia 100% */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, paddingHorizontal: 4 }}>
+        <Text style={{ fontSize: 11, color: '#9CA3AF', width: 36 }}>100%</Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: altMax + 40, paddingHorizontal: 4, gap: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: altMax + 50, paddingHorizontal: 4, gap: 6 }}>
           {data.map((val, i) => {
-            const h = Math.max((val / 100) * altMax, 4);
+            const h = Math.max((val / 100) * altMax, 6);
             const cor = corAcur(val);
             return (
-              <View key={i} style={{ alignItems: 'center', width: 46, minWidth: 0 }}>
-                <Text style={{ fontSize: 10, color: cor, fontWeight: '700', marginBottom: 3, textAlign: 'center' }}>
+              <View key={i} style={{ alignItems: 'center', width: 54, minWidth: 0 }}>
+                <Text style={{ fontSize: 11, color: cor, fontWeight: '700', marginBottom: 5, textAlign: 'center' }}>
                   {val.toFixed(1)}%
                 </Text>
-                <View style={{ width: 32, height: h, backgroundColor: cor, borderRadius: 3 }} />
-                <Text style={{ fontSize: 9, color: '#6B7280', marginTop: 4, textAlign: 'center' }} numberOfLines={1}>
+                <View style={{
+                  width: 38, height: h, backgroundColor: cor,
+                  borderRadius: 4, borderTopLeftRadius: 4, borderTopRightRadius: 4,
+                }} />
+                <Text style={{ fontSize: 10, color: '#374151', fontWeight: '600', marginTop: 6, textAlign: 'center' }} numberOfLines={1}>
                   {labels[i]}
                 </Text>
               </View>
@@ -323,15 +334,15 @@ function BarChartV2({ labels, data }) {
           })}
         </View>
       </ScrollView>
-      <View style={{ flexDirection: 'row', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
+      <View style={{ flexDirection: 'row', gap: 20, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
         {[
-          { cor: '#16A34A', txt: '≥ 95% Excelente'   },
-          { cor: '#F97316', txt: '85% – 94% Atenção'  },
-          { cor: '#EF4444', txt: '< 85% Crítico'      },
+          { cor: '#16A34A', txt: '≥ 95% Excelente'  },
+          { cor: '#F97316', txt: '85%–94% Atenção'  },
+          { cor: '#EF4444', txt: '< 85% Crítico'    },
         ].map(({ cor, txt }) => (
           <View key={txt} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: cor }} />
-            <Text style={{ fontSize: 12, color: '#6B7280' }}>{txt}</Text>
+            <View style={{ width: 14, height: 14, borderRadius: 3, backgroundColor: cor }} />
+            <Text style={{ fontSize: 13, color: '#374151', fontWeight: '500' }}>{txt}</Text>
           </View>
         ))}
       </View>
@@ -410,10 +421,7 @@ const sid = StyleSheet.create({
 });
 
 // ── Header area principal ─────────────────────────────────────────────────────
-function HeaderPrincipal({ usuario, isDesktop }) {
-  const iniciais = usuario?.nome
-    ? usuario.nome.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase()
-    : 'AV';
+function HeaderPrincipal({ isDesktop }) {
   return (
     <View style={hp.wrap}>
       <View style={hp.esq}>
@@ -421,62 +429,23 @@ function HeaderPrincipal({ usuario, isDesktop }) {
         <Text style={hp.sub}>Visão geral da acuracidade e divergências</Text>
       </View>
       {isDesktop && (
-        <View style={hp.busca}>
-          <IcoSearch size={15} cor="#9CA3AF" />
-          <TextInput
-            style={hp.buscaInput}
-            placeholder="Buscar produtos, SKUs, lojas..."
-            placeholderTextColor="#9CA3AF"
-          />
-          <View style={hp.atalho}><Text style={hp.atalhoTxt}>⌘ K</Text></View>
-        </View>
+        <TouchableOpacity style={hp.btnFil}>
+          <IcoAdjustments size={15} cor="#FFFFFF" />
+          <Text style={hp.btnFilTxt}>Filtros</Text>
+          <IcoChevronDown size={13} cor="#FFFFFF" />
+        </TouchableOpacity>
       )}
-      <View style={hp.dir}>
-        {isDesktop && (
-          <>
-            <TouchableOpacity style={hp.btnPer}>
-              <IcoCalendar size={15} cor="#374151" />
-              <Text style={hp.btnPerTxt}>Última sessão</Text>
-              <IcoChevronDown size={13} cor="#374151" />
-            </TouchableOpacity>
-            <TouchableOpacity style={hp.btnFil}>
-              <IcoAdjustments size={15} cor="#FFFFFF" />
-              <Text style={hp.btnFilTxt}>Filtros</Text>
-              <IcoChevronDown size={13} cor="#FFFFFF" />
-            </TouchableOpacity>
-          </>
-        )}
-        <View style={hp.sinoWrap}>
-          <IcoBell size={20} cor="#374151" />
-          <View style={hp.sinoBadge}><Text style={hp.sinoBadgeTxt}>3</Text></View>
-        </View>
-        <IcoHelpCircle size={20} cor="#374151" />
-        <View style={hp.avatar}><Text style={hp.avatarTxt}>{iniciais}</Text></View>
-        <IcoChevronDown size={13} cor="#374151" />
-      </View>
     </View>
   );
 }
 
 const hp = StyleSheet.create({
   wrap:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, gap: 16, minWidth: 0 },
-  esq:       { minWidth: 0, flexShrink: 1 },
+  esq:       { flex: 1, minWidth: 0 },
   titulo:    { fontSize: 22, fontWeight: '700', color: '#111827' },
   sub:       { fontSize: 14, color: '#6B7280', marginTop: 2 },
-  busca:     { flex: 1, maxWidth: 340, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, gap: 8, backgroundColor: '#FFFFFF' },
-  buscaInput:{ flex: 1, fontSize: 14, color: '#374151', outlineStyle: 'none' },
-  atalho:    { backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  atalhoTxt: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
-  dir:       { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
-  btnPer:    { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-  btnPerTxt: { fontSize: 14, color: '#374151', fontWeight: '500' },
-  btnFil:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#4F46E5', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  btnFil:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#4F46E5', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, flexShrink: 0 },
   btnFilTxt: { fontSize: 14, color: '#FFFFFF', fontWeight: '500' },
-  sinoWrap:  { position: 'relative' },
-  sinoBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
-  sinoBadgeTxt:{ fontSize: 10, color: '#FFFFFF', fontWeight: '700' },
-  avatar:    { width: 32, height: 32, borderRadius: 16, backgroundColor: '#4F46E5', alignItems: 'center', justifyContent: 'center' },
-  avatarTxt: { fontSize: 12, color: '#FFFFFF', fontWeight: '700' },
 });
 
 // ── Cards KPI ─────────────────────────────────────────────────────────────────
@@ -721,7 +690,7 @@ export default function DashboardScreen({ navigation }) {
         />
 
         {/* Header */}
-        <HeaderPrincipal usuario={usuario} isDesktop={isDesktop} />
+        <HeaderPrincipal isDesktop={isDesktop} />
 
         {/* KPIs */}
         <View style={[{ flexDirection: 'row', gap: 16, marginBottom: 24 }, !isDesktop && { flexWrap: 'wrap' }]}>
@@ -743,7 +712,7 @@ export default function DashboardScreen({ navigation }) {
                 </Text>
                 <Text style={mt.sub}>Índice de acuracidade geral</Text>
               </View>
-              <GaugeSemiCircle valor={acMedia} tamanho={isDesktop ? 190 : 150} />
+              <GaugeSemiCircle valor={acMedia} tamanho={isDesktop ? 210 : 170} />
             </View>
           </View>
 
