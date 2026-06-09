@@ -372,10 +372,13 @@ export default function SessoesScreen({ navigation, route }) {
             </TouchableOpacity>
           )}
 
-          {/* Indicador de visao — sempre ativas */}
-          <View style={estilos.chip}>
-            <Text style={estilos.chipTexto}>Ativas</Text>
-          </View>
+          {/* Botao ativas — toque para recarregar sessoes */}
+          <TouchableOpacity
+            style={[estilos.chip, estilos.chipAtivo]}
+            onPress={() => { setCarregando(true); carregarDados(); }}
+          >
+            <Text style={[estilos.chipTexto, estilos.chipTextoAtivo]}>Ativas</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
