@@ -51,6 +51,9 @@ export default function CriarSessaoScreen({ navigation }) {
   // Controle do modal de selecao de loja
   const [modalLojas, setModalLojas] = useState(false);
 
+  // Expande/recolhe o painel de formato da planilha
+  const [formatoVisivel, setFormatoVisivel] = useState(false);
+
   // Exibe erro: banner na web, Alert no mobile
   function mostrarErro(msg) {
     setErroVisivel(msg);
@@ -348,6 +351,98 @@ export default function CriarSessaoScreen({ navigation }) {
                 </Text>
               </TouchableOpacity>
             ))}
+          </View>
+        )}
+
+        {/* ── FORMATO DA PLANILHA (expansivel) ── */}
+        <TouchableOpacity
+          style={estilos.formatoToggle}
+          onPress={() => setFormatoVisivel(v => !v)}
+          activeOpacity={0.7}
+        >
+          <Text style={estilos.formatoToggleTxt}>
+            {formatoVisivel ? '▲' : '▼'}  Ver formato esperado da planilha
+          </Text>
+        </TouchableOpacity>
+
+        {formatoVisivel && (
+          <View style={estilos.formatoBox}>
+            <Text style={estilos.formatoTitulo}>Colunas obrigatorias</Text>
+            <Text style={estilos.formatoObs}>
+              O sistema aceita variações no nome das colunas (maiúsculas, espaços, underlines).
+              Use qualquer um dos nomes listados abaixo.
+            </Text>
+
+            {/* Tabela de colunas */}
+            {[
+              {
+                campo: 'Natureza',
+                aliases: 'natureza',
+                exemplo: 'Natureza Venda',
+                obs: 'Cria a natureza automaticamente se nao existir',
+              },
+              {
+                campo: 'Codigo / SKU',
+                aliases: 'codigo · sku · cod',
+                exemplo: 'CHP001',
+                obs: 'Identificador unico do produto. Nao pode duplicar dentro da mesma natureza',
+              },
+              {
+                campo: 'Descricao',
+                aliases: 'descricao · descr · descricao_produto',
+                exemplo: 'Chapa MDF 15mm Branco',
+                obs: 'Maximo 200 caracteres',
+              },
+              {
+                campo: 'Unidade de Medida',
+                aliases: 'unidademedida · unidade_medida · um',
+                exemplo: 'UN · PC · M² · KG',
+                obs: 'Maximo 10 caracteres',
+              },
+              {
+                campo: 'Saldo Estoque',
+                aliases: 'saldoestoque · saldo · quantidade · qtd',
+                exemplo: '150 ou 12,5',
+                obs: 'Numero nao negativo. Virgula ou ponto como decimal',
+              },
+              {
+                campo: 'Custo Unitario',
+                aliases: 'custounitario · custo · preco_custo',
+                exemplo: '89,90',
+                obs: 'Pode ser deixado em branco. Nao negativo',
+              },
+            ].map(col => (
+              <View key={col.campo} style={estilos.formatoLinha}>
+                <View style={estilos.formatoLinhaHeader}>
+                  <Text style={estilos.formatoCampo}>{col.campo}</Text>
+                  <View style={estilos.formatoExemploChip}>
+                    <Text style={estilos.formatoExemploTxt}>{col.exemplo}</Text>
+                  </View>
+                </View>
+                <Text style={estilos.formatoAliases}>Aceita: {col.aliases}</Text>
+                <Text style={estilos.formatoLinhaObs}>{col.obs}</Text>
+              </View>
+            ))}
+
+            <Text style={[estilos.formatoTitulo, { marginTop: spacing.md }]}>Coluna opcional</Text>
+            <View style={estilos.formatoLinha}>
+              <View style={estilos.formatoLinhaHeader}>
+                <Text style={estilos.formatoCampo}>Grupo de Material</Text>
+                <View style={estilos.formatoExemploChip}>
+                  <Text style={estilos.formatoExemploTxt}>Chapas · Perfis</Text>
+                </View>
+              </View>
+              <Text style={estilos.formatoAliases}>Aceita: grupomaterial · grupo_material · grupo</Text>
+              <Text style={estilos.formatoLinhaObs}>Permite filtros no dashboard por grupo</Text>
+            </View>
+
+            <View style={estilos.formatoRodape}>
+              <Text style={estilos.formatoRodapeTxt}>
+                Formatos aceitos: .xlsx · .xls · .csv{'\n'}
+                Tamanho maximo: 10 MB{'\n'}
+                CSV: detecta automaticamente separador e encoding (UTF-8, Latin-1)
+              </Text>
+            </View>
           </View>
         )}
 
@@ -708,6 +803,63 @@ const estilos = StyleSheet.create({
     color: '#DC2626',
     fontWeight: '500',
   },
+  // Formato da planilha (expansivel)
+  formatoToggle: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: spacing.sm, marginTop: spacing.xs,
+  },
+  formatoToggleTxt: {
+    fontSize: fontSize.xs, color: colors.primary, fontWeight: '700',
+  },
+  formatoBox: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    padding: spacing.md,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  formatoTitulo: {
+    fontSize: fontSize.xs, fontWeight: '800', color: '#166534',
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm,
+  },
+  formatoObs: {
+    fontSize: 11, color: '#15803D', lineHeight: 16, marginBottom: spacing.sm,
+  },
+  formatoLinha: {
+    backgroundColor: '#DCFCE7', borderRadius: radius.sm,
+    padding: spacing.sm, marginBottom: spacing.xs,
+  },
+  formatoLinhaHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 3,
+  },
+  formatoCampo: {
+    fontSize: fontSize.sm, fontWeight: '700', color: '#166534', flex: 1,
+  },
+  formatoExemploChip: {
+    backgroundColor: '#16A34A', borderRadius: radius.sm,
+    paddingHorizontal: spacing.xs, paddingVertical: 2,
+  },
+  formatoExemploTxt: {
+    fontSize: 10, color: '#FFFFFF', fontWeight: '600',
+  },
+  formatoAliases: {
+    fontSize: 11, color: '#15803D', fontStyle: 'italic', marginBottom: 2,
+  },
+  formatoLinhaObs: {
+    fontSize: 11, color: '#166534',
+  },
+  formatoRodape: {
+    backgroundColor: '#DCFCE7', borderRadius: radius.sm,
+    padding: spacing.sm, marginTop: spacing.sm,
+    borderLeftWidth: 3, borderLeftColor: '#16A34A',
+  },
+  formatoRodapeTxt: {
+    fontSize: 11, color: '#166534', lineHeight: 18,
+  },
+
   avisoNatureza: {
     backgroundColor: '#FFFBEB', borderRadius: radius.sm, padding: spacing.md,
     borderLeftWidth: 4, borderLeftColor: '#D97706', marginTop: spacing.sm,
