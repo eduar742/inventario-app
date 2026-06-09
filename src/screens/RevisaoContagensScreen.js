@@ -63,19 +63,20 @@ export default function RevisaoContagensScreen({ navigation, route }) {
 
   async function carregarTudo() {
     try {
-      const [resp, aj] = await Promise.all([
-        listarContagensDaSessao(sessao.id, 1, 500),
-        listarAjustesSessao(sessao.id),
-      ]);
-      const items = resp.items || (Array.isArray(resp) ? resp : []);
+      // Carrega contagens (obrigatorio) e ajustes (opcional, nao bloqueia a tela)
+      const resp = await listarContagensDaSessao(sessao.id, 1, 500);
+      const items = resp?.items || (Array.isArray(resp) ? resp : []);
       setContagens(agruparPorProduto(items));
-      setAjustes(Array.isArray(aj) ? aj : []);
     } catch (err) {
-      avisar('Erro', err.message || 'Nao foi possivel carregar as contagens');
+      avisar('Erro ao carregar contagens', err.message || 'Nao foi possivel carregar as contagens');
     } finally {
       setCarregando(false);
       setRefreshing(false);
     }
+    // Ajustes: carrega em paralelo sem bloquear
+    listarAjustesSessao(sessao.id)
+      .then(aj => setAjustes(Array.isArray(aj) ? aj : []))
+      .catch(() => {}); // silencioso — historico de ajustes e opcional
   }
 
   async function carregarAjustes() {

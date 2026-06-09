@@ -337,20 +337,24 @@ export default function DivergenciasScreen({ navigation, route }) {
         </View>
       )}
 
-      {/* Banner: todas resolvidas, aguardando conclusao */}
-      {divergencias.length > 0 && pendentes === 0 && (
+      {/* Banner: prontos para concluir (com ou sem divergencias) */}
+      {pendentes === 0 && (
         <View style={estilos.bannerProntoParaConcluir}>
           <Text style={estilos.bannerProntoTitulo}>
-            Todas as divergencias foram resolvidas!
+            {divergencias.length === 0
+              ? 'Inventario sem divergencias!'
+              : 'Todas as divergencias foram resolvidas!'}
           </Text>
           <Text style={estilos.bannerProntoTexto}>
-            {aprovadas} aprovada(s) · {rejeitadas} rejeitada(s) · Clique abaixo para finalizar.
+            {divergencias.length === 0
+              ? 'Todos os produtos bateram com o sistema. Clique abaixo para finalizar.'
+              : `${aprovadas} aprovada(s) · ${rejeitadas} rejeitada(s) · Clique abaixo para finalizar.`}
           </Text>
         </View>
       )}
 
-      {/* Concluir sessao quando todas divergencias resolvidas */}
-      {divergencias.length > 0 && pendentes === 0 && (
+      {/* Concluir sessao — aparece quando nao ha pendentes (inclusive sem divergencias) */}
+      {pendentes === 0 && (
         <TouchableOpacity
           style={estilos.botaoConcluir}
           onPress={async () => {
