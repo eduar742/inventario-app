@@ -19,8 +19,6 @@ import {
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarSessoes, pegarUsuario, cancelarSessao, encerrarSessao, gerarDivergencias } from '../services/api';
 import Button from '../components/Button';
-import Paginacao from '../components/Paginacao';
-import { exportarEstoque } from '../services/exportacao';
 
 // ── Helpers compatíveis com web ──────────────────────────────────────────────
 // Alert.alert com multiplos botoes nao funciona no browser.
@@ -53,27 +51,18 @@ export default function SessoesScreen({ navigation, route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [papel, setPapel] = useState('operador');
-  const [pagina, setPagina] = useState(1);
-  const [totalPaginas, setTotalPaginas] = useState(1);
-  const [total, setTotal] = useState(0);
-  const PAGE_SIZE = 50;
   const [cancelando, setCancelando] = useState(null);
   const [encerrando, setEncerrando] = useState(null);
-  const [exportando, setExportando] = useState(false);
-  // Aceita filtroInicial via params (ex: apos concluir sessao via DivergenciasScreen)
-  const [filtroVisao, setFiltroVisao] = useState(route.params?.filtroInicial || 'ativas');
 
-  // Recarrega ao montar e toda vez que o filtro mudar
   useEffect(() => {
     carregarDados();
-  }, [filtroVisao]);
+  }, []);
 
   // Recarrega SEMPRE que a tela recebe foco (ex: ao voltar do Scanner/Resumo)
-  // Garante que status da sessao esteja atualizado apos encerramento
   useFocusEffect(
     useCallback(() => {
       carregarDados();
-    }, [filtroVisao])
+    }, [])
   );
 
   async function carregarDados() {
@@ -84,21 +73,12 @@ export default function SessoesScreen({ navigation, route }) {
     } catch (_) {}
 
     try {
-      if (filtroVisao === 'concluidas') {
-        const dados = await listarSessoes({ loja_id: loja.id, status: 'concluida' }, pagina, PAGE_SIZE);
-        setSessoes(dados.items || []);
-        setTotalPaginas(dados.total_paginas || 1);
-        setTotal(dados.total || 0);
-      } else {
-        // Busca em_andamento + aguardando_aprovacao (sem paginacao — costumam ser poucas)
-        const [andamento, aguardando] = await Promise.all([
-          listarSessoes({ loja_id: loja.id, status: 'em_andamento' }, 1, 200),
-          listarSessoes({ loja_id: loja.id, status: 'aguardando_aprovacao' }, 1, 200),
-        ]);
-        setSessoes([...(aguardando.items || []), ...(andamento.items || [])]);
-        setTotalPaginas(1);
-        setTotal((aguardando.total || 0) + (andamento.total || 0));
-      }
+      // Busca apenas sessoes ativas: em_andamento + aguardando_aprovacao
+      const [andamento, aguardando] = await Promise.all([
+        listarSessoes({ loja_id: loja.id, status: 'em_andamento' }, 1, 200),
+        listarSessoes({ loja_id: loja.id, status: 'aguardando_aprovacao' }, 1, 200),
+      ]);
+      setSessoes([...(aguardando.items || []), ...(andamento.items || [])]);
     } catch (err) {
       avisar('Erro', err.message || 'Nao foi possivel carregar as sessoes');
     } finally {
@@ -309,7 +289,7 @@ export default function SessoesScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Acoes pos-inventario — gerente/auditor pode ver historico/exportar */}
+        {/* Acoes pos-inventario — apenas divergencias e historico */}
         {(isAdmin || isReadOnly) && item.status === 'concluida' && (
           <View style={estilos.acoesCard}>
             <TouchableOpacity
@@ -323,12 +303,6 @@ export default function SessoesScreen({ navigation, route }) {
               onPress={() => navigation.navigate('HistoricoContagens', { sessao: item, loja })}
             >
               <Text style={[estilos.botaoCardAcaoTexto, { color: colors.info }]}>Historico</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[estilos.botaoCardAcao, { backgroundColor: colors.successSoft }]}
-              onPress={() => navigation.navigate('ExportarRelatorio', { sessao: item, loja })}
-            >
-              <Text style={[estilos.botaoCardAcaoTexto, { color: colors.success }]}>Exportar</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -388,7 +362,7 @@ export default function SessoesScreen({ navigation, route }) {
             <Text style={estilos.chipTexto}>{loja.codigo}</Text>
           </View>
 
-          {/* Nova Sessao (admin apenas — nao para leitura-somente) */}
+          {/* Nova Sessao (admin apenas) */}
           {isAdmin && podeEscrever && (
             <TouchableOpacity
               style={[estilos.chip, estilos.chipPrimary]}
@@ -398,77 +372,10 @@ export default function SessoesScreen({ navigation, route }) {
             </TouchableOpacity>
           )}
 
-          {/* Toggle ativas / concluidas */}
-          {isAdmin ? (
-            <TouchableOpacity
-              style={[estilos.chip, filtroVisao === 'concluidas' && estilos.chipAtivo]}
-              onPress={() => {
-                setFiltroVisao(v => v === 'ativas' ? 'concluidas' : 'ativas');
-                setCarregando(true);
-              }}
-            >
-              <Text style={[estilos.chipTexto, filtroVisao === 'concluidas' && estilos.chipTextoAtivo]}>
-                {filtroVisao === 'concluidas' ? 'Concluidas' : 'Ativas'}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={estilos.chip}>
-              <Text style={estilos.chipTexto}>Ativas</Text>
-            </View>
-          )}
-
-          {/* Excel (admin) */}
-          {isAdmin && (
-            <TouchableOpacity
-              style={[estilos.chip, estilos.chipVerde]}
-              onPress={async () => {
-                setExportando(true);
-                try {
-                  // Sem mes_referencia = exporta o snapshot mais recente
-                  await exportarEstoque(loja.id);
-                } catch (err) {
-                  avisar('Erro ao exportar', err.message || 'Tente novamente');
-                } finally {
-                  setExportando(false);
-                }
-              }}
-              disabled={exportando}
-            >
-              <Text style={[estilos.chipTexto, { color: colors.success }]}>
-                {exportando ? '...' : 'Excel'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Importar (admin) */}
-          {isAdmin && (
-            <TouchableOpacity
-              style={[estilos.chip, estilos.chipAzul]}
-              onPress={() => navigation.navigate('Importacao')}
-            >
-              <Text style={[estilos.chipTexto, { color: colors.primary }]}>Importar</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Relatorio consolidado (admin) */}
-          {isAdmin && (
-            <TouchableOpacity
-              style={[estilos.chip, { backgroundColor: '#F3E8FF', borderColor: '#7C3AED' }]}
-              onPress={() => navigation.navigate('RelatorioConsolidado')}
-            >
-              <Text style={[estilos.chipTexto, { color: '#7C3AED' }]}>Rel. Geral</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Dashboard consolidado gerencial (admin) */}
-          {isAdmin && (
-            <TouchableOpacity
-              style={[estilos.chip, { backgroundColor: '#ECFDF5', borderColor: '#059669' }]}
-              onPress={() => navigation.navigate('DashboardConsolidado')}
-            >
-              <Text style={[estilos.chipTexto, { color: '#059669' }]}>Consolidado</Text>
-            </TouchableOpacity>
-          )}
+          {/* Indicador de visao — sempre ativas */}
+          <View style={estilos.chip}>
+            <Text style={estilos.chipTexto}>Ativas</Text>
+          </View>
         </View>
       </View>
 
@@ -478,22 +385,10 @@ export default function SessoesScreen({ navigation, route }) {
         keyExtractor={(item) => item.id}
         contentContainerStyle={estilos.lista}
         ListEmptyComponent={ListaVazia}
-        ListFooterComponent={
-          filtroVisao === 'concluidas' ? (
-            <Paginacao
-              pagina={pagina}
-              totalPaginas={totalPaginas}
-              total={total}
-              porPagina={PAGE_SIZE}
-              onAnterior={() => { setPagina(p => p - 1); setCarregando(true); }}
-              onProxima={() => { setPagina(p => p + 1); setCarregando(true); }}
-            />
-          ) : null
-        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setPagina(1); setRefreshing(true); carregarDados(); }}
+            onRefresh={() => { setRefreshing(true); carregarDados(); }}
             colors={[colors.primary]}
             tintColor={colors.primary}
           />
