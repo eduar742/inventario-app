@@ -44,7 +44,7 @@ export default function AppNavigator() {
 
         <Stack.Screen name="Login"    component={LoginScreen}   options={{ headerShown: false }} />
         <Stack.Screen name="Home"     component={HomeScreen}    options={{ headerShown: false }} />
-        <Stack.Screen name="Lojas"    component={LojasScreen}   options={{ title: 'Selecione a loja' }} />
+        <Stack.Screen name="Lojas"    component={LojasScreen}   options={{ headerShown: false }} />
         <Stack.Screen name="Sessoes"  component={SessoesScreen} options={{ title: 'Sessoes' }} />
         <Stack.Screen name="Scanner"  component={ScannerScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Contagem" component={ContagemScreen} options={{ title: 'Contagem do produto' }} />
