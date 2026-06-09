@@ -68,13 +68,20 @@ export default function CriarSessaoScreen({ navigation }) {
     }
   }
 
+  // Apenas Venda e Quarentena podem ser selecionadas como natureza de sessao
+  const NATUREZAS_PERMITIDAS = ['venda', 'quarentena'];
+
   useEffect(() => {
     Promise.all([
       listarLojas(),
       listarNaturezas().catch(() => []),
     ]).then(([lojasData, naturezasData]) => {
       setLojas(lojasData.filter(l => l.ativa));
-      setNaturezas(naturezasData || []);
+      const filtradas = (naturezasData || []).filter(n => {
+        const nome = n.nome?.toLowerCase().trim() || '';
+        return NATUREZAS_PERMITIDAS.some(p => nome.includes(p));
+      });
+      setNaturezas(filtradas);
     }).catch(() => mostrarErro('Nao foi possivel carregar os dados'))
       .finally(() => setCarregando(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -251,10 +258,10 @@ export default function CriarSessaoScreen({ navigation }) {
           <View style={estilos.infoLinha}>
             <Text style={estilos.infoBullet}>1.</Text>
             <View style={{ flex: 1 }}>
-              <Text style={estilos.infoItemTitulo}>Estoque importado (obrigatório)</Text>
+              <Text style={estilos.infoItemTitulo}>Planilha de estoque</Text>
               <Text style={estilos.infoItemDesc}>
-                A planilha de saldos do ERP já deve estar carregada para a loja e mês escolhidos.
-                Vá em Importar → aba Estoque antes de criar a sessão.
+                Anexe o arquivo .xlsx/.csv aqui embaixo — ele sera importado automaticamente.
+                Se o estoque ja foi importado antes para esta loja e mes, o arquivo e opcional.
               </Text>
             </View>
           </View>
@@ -262,10 +269,10 @@ export default function CriarSessaoScreen({ navigation }) {
           <View style={estilos.infoLinha}>
             <Text style={estilos.infoBullet}>2.</Text>
             <View style={{ flex: 1 }}>
-              <Text style={estilos.infoItemTitulo}>Loja e Mês de referência</Text>
+              <Text style={estilos.infoItemTitulo}>Loja e Mes de referencia</Text>
               <Text style={estilos.infoItemDesc}>
-                Os meses disponíveis aparecem automaticamente após selecionar a loja.
-                Formato: YYYY-MM (ex: 2026-06)
+                Os meses ja importados aparecem automaticamente apos selecionar a loja.
+                Se for um mes novo, informe no formato MM/AAAA.
               </Text>
             </View>
           </View>
@@ -275,8 +282,7 @@ export default function CriarSessaoScreen({ navigation }) {
             <View style={{ flex: 1 }}>
               <Text style={estilos.infoItemTitulo}>Natureza (Venda ou Quarentena)</Text>
               <Text style={estilos.infoItemDesc}>
-                Filtra quais produtos serão contados. Cada natureza gera uma sessão separada.
-                Deixe "Todas" para contar sem filtro.
+                Selecione qual natureza contar. Cada natureza gera uma sessao separada.
               </Text>
             </View>
           </View>
@@ -371,7 +377,7 @@ export default function CriarSessaoScreen({ navigation }) {
         ) : lojaSelecionada && !arquivo ? (
           <View style={estilos.aviso}>
             <Text style={estilos.avisoTexto}>
-              Nenhum estoque importado para esta loja. Selecione uma planilha acima para importar, ou importe pela tela de Importacao.
+              Nenhum estoque importado para esta loja neste mes. Anexe a planilha no campo acima para importar e criar a sessao em um so passo.
             </Text>
           </View>
         ) : null}
@@ -425,28 +431,14 @@ export default function CriarSessaoScreen({ navigation }) {
           </TouchableOpacity>
         ))}
 
-        {/* ── NATUREZA (filtro de contagem) ── */}
+        {/* ── NATUREZA (filtro de contagem) — somente Venda e Quarentena ── */}
         {naturezas.length > 0 && (
           <>
             <View style={{ height: spacing.lg }} />
-            <Text style={estilos.rotulo}>Natureza do inventario</Text>
+            <Text style={estilos.rotulo}>Natureza do inventario *</Text>
             <Text style={estilos.descricaoBloco}>
-              Selecione qual natureza contar. Sessoes sempre separadas por natureza.
+              Selecione a natureza a contar. Cada natureza gera uma sessao separada.
             </Text>
-            {/* Opcao: todas as naturezas */}
-            <TouchableOpacity
-              style={[estilos.opcao, naturezaFiltroId === null && estilos.opcaoAtiva]}
-              onPress={() => setNaturezaFiltroId(null)}
-            >
-              <View style={[estilos.radio, naturezaFiltroId === null && estilos.radioAtivo]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[estilos.opcaoRotulo, naturezaFiltroId === null && estilos.opcaoRotuloAtivo]}>
-                  Todas as naturezas
-                </Text>
-                <Text style={estilos.opcaoDescricao}>Conta todos os produtos sem filtro</Text>
-              </View>
-            </TouchableOpacity>
-            {/* Uma opcao por natureza cadastrada */}
             {naturezas.map(n => (
               <TouchableOpacity
                 key={n.id}
@@ -456,25 +448,11 @@ export default function CriarSessaoScreen({ navigation }) {
                 <View style={[estilos.radio, naturezaFiltroId === n.id && estilos.radioAtivo]} />
                 <View style={{ flex: 1 }}>
                   <Text style={[estilos.opcaoRotulo, naturezaFiltroId === n.id && estilos.opcaoRotuloAtivo]}>
-                    {n.nome} <Text style={{ fontSize: fontSize.xs, color: colors.textMuted }}>({n.codigo})</Text>
+                    {n.nome}
                   </Text>
                 </View>
               </TouchableOpacity>
             ))}
-
-            {/* Aviso quando ha multiplas naturezas no estoque e nenhum filtro selecionado */}
-            {naturezasDoMes.length > 1 && naturezaFiltroId === null && (
-              <View style={estilos.avisoNatureza}>
-                <Text style={estilos.avisoNaturezaTitulo}>
-                  Atencao: {naturezasDoMes.length} naturezas detectadas neste mes
-                </Text>
-                <Text style={estilos.avisoNaturezaTxt}>
-                  {naturezasDoMes.map(n => `${n.natureza_nome}: ${n.total_skus} SKUs`).join('  •  ')}
-                  {'\n'}
-                  Criar sessoes separadas por natureza evita contar produtos de tipos distintos juntos.
-                </Text>
-              </View>
-            )}
           </>
         )}
 

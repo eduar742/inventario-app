@@ -329,7 +329,17 @@ export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada,
 export async function listarContagensDaSessao(sessaoId, page = 1, pageSize = 50) {
   const params = new URLSearchParams({ page, page_size: pageSize }).toString();
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/contagens?${params}`);
-  // Retorna {items, total, pagina, por_pagina, total_paginas}
+}
+
+export async function ajustarContagem(contagemId, { quantidade, justificativa }) {
+  return await chamarAPI(`/api/v1/contagens/${contagemId}/ajuste`, {
+    method: 'PATCH',
+    body: JSON.stringify({ quantidade, justificativa: justificativa || null }),
+  });
+}
+
+export async function listarAjustesSessao(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/ajustes`);
 }
 
 export async function cancelarSessao(sessaoId) {

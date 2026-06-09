@@ -24,6 +24,7 @@ import RelatorioConsolidadoScreen        from '../screens/RelatorioConsolidadoSc
 import DashboardConsolidadoScreen        from '../screens/DashboardConsolidadoScreen';
 import AjudaScreen                       from '../screens/AjudaScreen';
 import AuditoriaScreen                   from '../screens/AuditoriaScreen';
+import RevisaoContagensScreen            from '../screens/RevisaoContagensScreen';
 
 import { colors } from '../theme/colors';
 
@@ -72,6 +73,7 @@ export default function AppNavigator() {
         <Stack.Screen name="DashboardConsolidado"   component={DashboardConsolidadoScreen}    options={{ title: 'Dashboard Consolidado' }} />
         <Stack.Screen name="Ajuda"                  component={AjudaScreen}                   options={{ title: 'Guia de Uso' }} />
         <Stack.Screen name="Auditoria"              component={AuditoriaScreen}               options={{ title: 'Auditoria e Logs' }} />
+        <Stack.Screen name="RevisaoContagens"       component={RevisaoContagensScreen}        options={({ route }) => ({ title: `Revisar: ${route.params?.sessao?.nome || 'Contagens'}` })} />
 
       </Stack.Navigator>
     </NavigationContainer>

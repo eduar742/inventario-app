@@ -53,16 +53,17 @@ export default function SessoesScreen({ navigation, route }) {
   const [papel, setPapel] = useState('operador');
   const [cancelando, setCancelando] = useState(null);
   const [encerrando, setEncerrando] = useState(null);
+  const [filtroVisao, setFiltroVisao] = useState('ativas');
 
   useEffect(() => {
     carregarDados();
-  }, []);
+  }, [filtroVisao]);
 
   // Recarrega SEMPRE que a tela recebe foco (ex: ao voltar do Scanner/Resumo)
   useFocusEffect(
     useCallback(() => {
       carregarDados();
-    }, [])
+    }, [filtroVisao])
   );
 
   async function carregarDados() {
@@ -73,12 +74,17 @@ export default function SessoesScreen({ navigation, route }) {
     } catch (_) {}
 
     try {
-      // Busca apenas sessoes ativas: em_andamento + aguardando_aprovacao
-      const [andamento, aguardando] = await Promise.all([
-        listarSessoes({ loja_id: loja.id, status: 'em_andamento' }, 1, 200),
-        listarSessoes({ loja_id: loja.id, status: 'aguardando_aprovacao' }, 1, 200),
-      ]);
-      setSessoes([...(aguardando.items || []), ...(andamento.items || [])]);
+      if (filtroVisao === 'concluidas') {
+        const dados = await listarSessoes({ loja_id: loja.id, status: 'concluida' }, 1, 100);
+        setSessoes(dados.items || []);
+      } else {
+        // ativas: em_andamento + aguardando_aprovacao
+        const [andamento, aguardando] = await Promise.all([
+          listarSessoes({ loja_id: loja.id, status: 'em_andamento' }, 1, 200),
+          listarSessoes({ loja_id: loja.id, status: 'aguardando_aprovacao' }, 1, 200),
+        ]);
+        setSessoes([...(aguardando.items || []), ...(andamento.items || [])]);
+      }
     } catch (err) {
       avisar('Erro', err.message || 'Nao foi possivel carregar as sessoes');
     } finally {
@@ -273,23 +279,36 @@ export default function SessoesScreen({ navigation, route }) {
 
         {/* Aguardando aprovacao — gerente/auditor pode ver mas nao aprovar */}
         {(isAdmin || isReadOnly) && item.status === 'aguardando_aprovacao' && (
-          <View style={estilos.acoesCard}>
-            <TouchableOpacity
-              style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft, flex: 2 }]}
-              onPress={() => navigation.navigate('Divergencias', { sessao: item, loja })}
-            >
-              <Text style={[estilos.botaoCardAcaoTexto, { color: colors.warning }]}>Revisar divergencias</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[estilos.botaoCardAcao, { backgroundColor: colors.infoSoft }]}
-              onPress={() => navigation.navigate('HistoricoContagens', { sessao: item, loja })}
-            >
-              <Text style={[estilos.botaoCardAcaoTexto, { color: colors.info }]}>Historico</Text>
-            </TouchableOpacity>
+          <View style={{ gap: 4 }}>
+            {/* ADM: revisar contagens antes de enviar ao gestor */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={[estilos.botaoCardAcao, { backgroundColor: colors.primarySoft }]}
+                onPress={() => navigation.navigate('RevisaoContagens', { sessao: item, loja })}
+              >
+                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.primary, fontWeight: '700' }]}>
+                  Revisar contagens (ADM)
+                </Text>
+              </TouchableOpacity>
+            )}
+            <View style={estilos.acoesCard}>
+              <TouchableOpacity
+                style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft, flex: 2 }]}
+                onPress={() => navigation.navigate('Divergencias', { sessao: item, loja })}
+              >
+                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.warning }]}>Revisar divergencias</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[estilos.botaoCardAcao, { backgroundColor: colors.infoSoft }]}
+                onPress={() => navigation.navigate('HistoricoContagens', { sessao: item, loja })}
+              >
+                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.info }]}>Historico</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
-        {/* Acoes pos-inventario — apenas divergencias e historico */}
+        {/* Acoes pos-inventario: divergencias, historico e exportar */}
         {(isAdmin || isReadOnly) && item.status === 'concluida' && (
           <View style={estilos.acoesCard}>
             <TouchableOpacity
@@ -303,6 +322,12 @@ export default function SessoesScreen({ navigation, route }) {
               onPress={() => navigation.navigate('HistoricoContagens', { sessao: item, loja })}
             >
               <Text style={[estilos.botaoCardAcaoTexto, { color: colors.info }]}>Historico</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[estilos.botaoCardAcao, { backgroundColor: colors.successSoft }]}
+              onPress={() => navigation.navigate('ExportarRelatorio', { sessao: item, loja })}
+            >
+              <Text style={[estilos.botaoCardAcaoTexto, { color: colors.success }]}>Exportar</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -330,9 +355,13 @@ export default function SessoesScreen({ navigation, route }) {
   function ListaVazia() {
     return (
       <View style={estilos.vazioContainer}>
-        <Text style={estilos.vazioTitulo}>Nenhuma sessao em andamento</Text>
+        <Text style={estilos.vazioTitulo}>
+          {filtroVisao === 'concluidas' ? 'Nenhuma sessao concluida' : 'Nenhuma sessao em andamento'}
+        </Text>
         <Text style={estilos.vazioSubtitulo}>
-          O gestor precisa criar e iniciar uma sessao de inventario para esta loja.
+          {filtroVisao === 'concluidas'
+            ? 'Ainda nao ha sessoes concluidas para esta loja.'
+            : 'O gestor precisa criar e iniciar uma sessao de inventario para esta loja.'}
         </Text>
       </View>
     );
@@ -372,12 +401,28 @@ export default function SessoesScreen({ navigation, route }) {
             </TouchableOpacity>
           )}
 
-          {/* Botao ativas — toque para recarregar sessoes */}
+          {/* Filtro ativas / concluidas */}
           <TouchableOpacity
-            style={[estilos.chip, estilos.chipAtivo]}
-            onPress={() => { setRefreshing(true); carregarDados(); }}
+            style={[estilos.chip, filtroVisao === 'ativas' && estilos.chipAtivo]}
+            onPress={() => {
+              if (filtroVisao === 'ativas') { setRefreshing(true); carregarDados(); }
+              else setFiltroVisao('ativas');
+            }}
           >
-            <Text style={[estilos.chipTexto, estilos.chipTextoAtivo]}>Ativas</Text>
+            <Text style={[estilos.chipTexto, filtroVisao === 'ativas' && estilos.chipTextoAtivo]}>
+              Ativas
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[estilos.chip, filtroVisao === 'concluidas' && estilos.chipAtivo]}
+            onPress={() => {
+              if (filtroVisao === 'concluidas') { setRefreshing(true); carregarDados(); }
+              else setFiltroVisao('concluidas');
+            }}
+          >
+            <Text style={[estilos.chipTexto, filtroVisao === 'concluidas' && estilos.chipTextoAtivo]}>
+              Concluidas
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
