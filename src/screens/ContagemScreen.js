@@ -1,7 +1,7 @@
 // Tela de Contagem - o coracao do app!
 // Inventario AS CEGAS: operador NAO ve o saldo sistemico antes de contar.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,10 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
+  Modal,
 } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 
 import { avisar, confirmar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
@@ -38,6 +41,11 @@ export default function ContagemScreen({ navigation, route }) {
   // Controle de confirmação de localização diferente da esperada
   const [locDiferente, setLocDiferente] = useState(false);      // alerta visivel
   const [locConfirmada, setLocConfirmada] = useState(false);    // operador confirmou
+
+  // Scanner de localizacao
+  const [modalScanLoc, setModalScanLoc] = useState(false);
+  const [permissaoCamera, solicitarPermissaoCamera] = useCameraPermissions();
+  const locEscaneadaRef = useRef(false); // evita leituras multiplas no mesmo scan
 
   useEffect(() => {
     carregarProduto();
@@ -73,6 +81,30 @@ export default function ContagemScreen({ navigation, route }) {
   const locDifereDoEsperado = Boolean(
     locEsperada && locDigitada && locDigitada.toUpperCase() !== locEsperada.toUpperCase()
   );
+
+  async function abrirScannerLoc() {
+    if (!permissaoCamera?.granted) {
+      const res = await solicitarPermissaoCamera();
+      if (!res.granted) {
+        avisar('Camera necessaria', 'Permita o acesso a camera para escanear a localizacao.');
+        return;
+      }
+    }
+    locEscaneadaRef.current = false;
+    setModalScanLoc(true);
+  }
+
+  function handleLocEscaneada({ data }) {
+    if (locEscaneadaRef.current) return;
+    locEscaneadaRef.current = true;
+    const valor = (data || '').trim().replace(/[*\r\n\t]+/g, '').trim();
+    if (valor) {
+      setLocalizacao(valor);
+      setLocDiferente(false);
+      setLocConfirmada(false);
+    }
+    setModalScanLoc(false);
+  }
 
   function handleConfirmar() {
     const qtd = parseFloat(quantidade.replace(',', '.'));
@@ -202,16 +234,22 @@ export default function ContagemScreen({ navigation, route }) {
               </View>
             )}
           </View>
-          <TextInput
-            style={[estilos.inputLoc, localizacaoObrigatoria && !locDigitada && { borderColor: colors.danger }]}
-            value={localizacao}
-            onChangeText={v => { setLocalizacao(v); setLocDiferente(false); setLocConfirmada(false); }}
-            placeholder={localizacaoObrigatoria ? 'Obrigatório: ex. Prateleira A3' : 'Ex: Prateleira A3, Corredor 2...'}
-            placeholderTextColor={colors.textMuted}
-            autoCapitalize="characters"
-            maxLength={100}
-            returnKeyType="next"
-          />
+          <View style={estilos.locRow}>
+            <TextInput
+              style={[estilos.inputLoc, estilos.inputLocFlex, localizacaoObrigatoria && !locDigitada && { borderColor: colors.danger }]}
+              value={localizacao}
+              onChangeText={v => { setLocalizacao(v); setLocDiferente(false); setLocConfirmada(false); }}
+              placeholder={localizacaoObrigatoria ? 'Obrigatorio: ex. A3' : 'Ex: A3, Corredor 2...'}
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="characters"
+              maxLength={100}
+              returnKeyType="next"
+            />
+            <TouchableOpacity style={estilos.botaoScanLoc} onPress={abrirScannerLoc}>
+              <Text style={estilos.botaoScanLocIcone}>📷</Text>
+              <Text style={estilos.botaoScanLocTxt}>Scan</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Localização esperada do produto */}
           {locEsperada && !locDifereDoEsperado && (
@@ -291,6 +329,24 @@ export default function ContagemScreen({ navigation, route }) {
           />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal scanner de localizacao */}
+      <Modal visible={modalScanLoc} animationType="slide" onRequestClose={() => setModalScanLoc(false)}>
+        <View style={estilos.scanModal}>
+          <Text style={estilos.scanModalTitulo}>Aponte para o codigo de localizacao</Text>
+          {modalScanLoc && (
+            <CameraView
+              style={estilos.scanCamera}
+              facing="back"
+              onBarcodeScanned={handleLocEscaneada}
+              barcodeScannerSettings={{ barcodeTypes: ['qr', 'code128', 'code39', 'ean13', 'ean8', 'datamatrix'] }}
+            />
+          )}
+          <TouchableOpacity style={estilos.scanCancelar} onPress={() => setModalScanLoc(false)}>
+            <Text style={estilos.scanCancelarTxt}>Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -483,5 +539,60 @@ const estilos = StyleSheet.create({
     color: colors.text,
     minHeight: 70,
     textAlignVertical: 'top',
+  },
+  // Linha de localização: input + botão scan
+  locRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  inputLocFlex: {
+    flex: 1,
+  },
+  botaoScanLoc: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 58,
+  },
+  botaoScanLocIcone: { fontSize: 18 },
+  botaoScanLocTxt: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.white,
+    marginTop: 2,
+  },
+  // Modal scanner de localização
+  scanModal: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xxl,
+  },
+  scanModalTitulo: {
+    color: '#fff',
+    fontSize: fontSize.md,
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  scanCamera: {
+    flex: 1,
+    marginVertical: spacing.lg,
+  },
+  scanCancelar: {
+    backgroundColor: colors.danger,
+    marginHorizontal: spacing.xxl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: 'center',
+  },
+  scanCancelarTxt: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: fontSize.md,
   },
 });
