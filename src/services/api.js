@@ -1,38 +1,62 @@
 // Service centralizado para comunicacao com a API do Render.
 // Todas as chamadas HTTP do app passam por aqui.
 
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { navRef } from '../navigation/navRef';
 
 // URL da API em producao (Render)
 // Quando o TI definir hospedagem propria, basta trocar esta URL
 const API_BASE_URL = 'https://inventario-api-bc1p.onrender.com';
 
 const TOKEN_KEY = '@inventario:token';
+const REFRESH_TOKEN_KEY = '@inventario:refresh';
 const USUARIO_KEY = '@inventario:usuario';
 
 // ============================================================
 // HELPERS DE TOKEN (armazenamento local seguro)
 // ============================================================
 
+// SecureStore disponivel apenas em iOS/Android; usa AsyncStorage como fallback no web
+const _armazenar = Platform.OS === 'web'
+  ? (k, v) => AsyncStorage.setItem(k, v)
+  : (k, v) => SecureStore.setItemAsync(k, v);
+const _ler = Platform.OS === 'web'
+  ? (k) => AsyncStorage.getItem(k)
+  : (k) => SecureStore.getItemAsync(k);
+const _remover = Platform.OS === 'web'
+  ? (k) => AsyncStorage.removeItem(k)
+  : (k) => SecureStore.deleteItemAsync(k);
+
 export async function salvarToken(token) {
-  await AsyncStorage.setItem(TOKEN_KEY, token);
+  await _armazenar(TOKEN_KEY, token);
 }
 
 export async function pegarToken() {
-  return await AsyncStorage.getItem(TOKEN_KEY);
+  return await _ler(TOKEN_KEY);
+}
+
+export async function salvarRefreshToken(token) {
+  await _armazenar(REFRESH_TOKEN_KEY, token);
+}
+
+export async function pegarRefreshToken() {
+  return await _ler(REFRESH_TOKEN_KEY);
 }
 
 export async function removerToken() {
-  await AsyncStorage.removeItem(TOKEN_KEY);
-  await AsyncStorage.removeItem(USUARIO_KEY);
+  await _remover(TOKEN_KEY);
+  await _remover(REFRESH_TOKEN_KEY);
+  await _remover(USUARIO_KEY);
 }
 
 export async function salvarUsuario(usuario) {
-  await AsyncStorage.setItem(USUARIO_KEY, JSON.stringify(usuario));
+  await _armazenar(USUARIO_KEY, JSON.stringify(usuario));
 }
 
 export async function pegarUsuario() {
-  const dados = await AsyncStorage.getItem(USUARIO_KEY);
+  const dados = await _ler(USUARIO_KEY);
   return dados ? JSON.parse(dados) : null;
 }
 
@@ -58,7 +82,51 @@ const _fetch = typeof window !== 'undefined' && window.fetch
   ? window.fetch.bind(window)
   : fetch;
 
-export async function chamarAPI(caminho, opcoes = {}) {
+// Wrapper com timeout de 60s (Render.com free tier pode ter cold start de ~50s)
+async function _fetchComTimeout(url, opcoes = {}, ms = 60000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await _fetch(url, { ...opcoes, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError' || controller.signal.aborted) {
+      const erro = new Error('O servidor demorou para responder. Tente novamente em instantes.');
+      erro.status = 0;
+      throw erro;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Flag que evita loop: se o refresh em si retornar 401, nao tenta refresh de novo
+let _refreshEmAndamento = false;
+
+async function _tentarRefreshSilencioso() {
+  if (_refreshEmAndamento) return false;
+  _refreshEmAndamento = true;
+  try {
+    const refreshToken = await pegarRefreshToken();
+    if (!refreshToken) return false;
+    // Chama chamarAPI com _skipRefresh=true para evitar recursao
+    const dados = await chamarAPI('/api/v1/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    }, true);
+    await salvarToken(dados.access_token);
+    await salvarRefreshToken(dados.refresh_token);
+    await salvarUsuario(dados.usuario);
+    return true;
+  } catch (_) {
+    return false;
+  } finally {
+    _refreshEmAndamento = false;
+  }
+}
+
+// _skipRefresh=true: chamada interna que nao tenta refresh em caso de 401 (evita loop)
+export async function chamarAPI(caminho, opcoes = {}, _skipRefresh = false) {
   const url = `${API_BASE_URL}${caminho}`;
   const token = await pegarToken();
 
@@ -72,7 +140,7 @@ export async function chamarAPI(caminho, opcoes = {}) {
   }
 
   try {
-    const resposta = await _fetch(url, {
+    const resposta = await _fetchComTimeout(url, {
       ...opcoes,
       headers,
     });
@@ -93,14 +161,28 @@ export async function chamarAPI(caminho, opcoes = {}) {
       const erro = new Error(_extrairMensagem(dados?.detail, resposta.status));
       erro.status = resposta.status;
       erro.dados = dados;
+
+      if (resposta.status === 401 && !caminho.includes('/auth/login') && !_skipRefresh) {
+        // Tenta renovar o token silenciosamente antes de deslogar
+        const renovado = await _tentarRefreshSilencioso();
+        if (renovado) {
+          // Retry da requisicao original com o novo token
+          return await chamarAPI(caminho, opcoes, true);
+        }
+        // Refresh falhou: sessao encerrada
+        await removerToken();
+        if (navRef.isReady()) {
+          navRef.reset({ index: 0, routes: [{ name: 'Login' }] });
+        }
+      }
+
       throw erro;
     }
 
     return dados;
   } catch (err) {
-    // Log para facilitar debug no browser (F12 > Console)
     if (typeof window !== 'undefined') {
-      console.error('[API]', caminho, err.message, err);
+      console.error('[API]', caminho, err.message);
     }
     if (err.message === 'Network request failed' || err.message === 'Failed to fetch') {
       const erro = new Error('Sem conexao com o servidor. Verifique sua internet.');
@@ -121,15 +203,32 @@ export async function login(email, senha) {
     body: JSON.stringify({ email, senha }),
   });
 
-  // Salva token e dados do usuario localmente
   await salvarToken(dados.access_token);
+  await salvarRefreshToken(dados.refresh_token);
   await salvarUsuario(dados.usuario);
 
   return dados;
 }
 
 export async function logout() {
+  // Revoga o refresh token no servidor antes de apagar localmente
+  const refreshToken = await pegarRefreshToken();
+  if (refreshToken) {
+    try {
+      await chamarAPI('/api/v1/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+    } catch (_) {
+      // Falha no logout remoto nao impede limpeza local
+    }
+  }
   await removerToken();
+}
+
+// Busca perfil do usuario logado diretamente no servidor (fonte autoritativa de papel/permissoes)
+export async function buscarPerfilAtual() {
+  return await chamarAPI('/api/v1/auth/me');
 }
 
 // ============================================================
@@ -228,15 +327,14 @@ export async function buscarParticipacaoOperadores(sessaoId) {
 
 // FASE 5.3: Exportar audit log como xlsx
 export async function exportarAuditLog({ dataInicio, dataFim, usuarioId, tipoAcao } = {}) {
-  const url_base = 'https://inventario-api-bc1p.onrender.com';
   const token = await pegarToken();
   const p = new URLSearchParams();
   if (dataInicio) p.append('data_inicio', dataInicio);
   if (dataFim)    p.append('data_fim',    dataFim);
   if (usuarioId)  p.append('usuario_id',  usuarioId);
   if (tipoAcao)   p.append('tipo_acao',   tipoAcao);
-  const url = `${url_base}/api/v1/audit-log/export${p.toString() ? '?' + p : ''}`;
-  const resposta = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const url = `${API_BASE_URL}/api/v1/audit-log/export${p.toString() ? '?' + p : ''}`;
+  const resposta = await _fetchComTimeout(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!resposta.ok) {
     const texto = await resposta.text();
     let msg = `Erro ${resposta.status}`;
@@ -263,15 +361,16 @@ export async function aprovarInventario(sessaoId) {
 }
 
 // M6: relatório consolidado — retorna blob Excel de todas as lojas
-export async function baixarRelatorioConsolidado({ naturezaId, mesReferencia } = {}) {
-  const url_base = 'https://inventario-api-bc1p.onrender.com';
+export async function baixarRelatorioConsolidado({ naturezaId, mesReferencia, mesReferencias, lojaIds } = {}) {
   const token = await pegarToken();
   const params = new URLSearchParams();
   if (naturezaId) params.append('natureza_id', naturezaId);
   if (mesReferencia) params.append('mes_referencia', mesReferencia);
+  (mesReferencias || []).forEach(m => params.append('mes_referencias', m));
+  (lojaIds || []).forEach(id => params.append('loja_ids', id));
 
-  const url = `${url_base}/api/v1/relatorios/consolidado${params.toString() ? '?' + params : ''}`;
-  const resposta = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const url = `${API_BASE_URL}/api/v1/relatorios/consolidado${params.toString() ? '?' + params : ''}`;
+  const resposta = await _fetchComTimeout(url, { headers: { Authorization: `Bearer ${token}` } });
 
   if (!resposta.ok) {
     const texto = await resposta.text();
@@ -421,13 +520,8 @@ export async function importarPlanilha({ lojaId, mesReferencia, arquivo, modo = 
     });
   }
 
-  // Usa _fetch (fetch nativo do browser) para evitar problemas de CORS com polyfill RN
-  const fetchFn = typeof window !== 'undefined' && window.fetch
-    ? window.fetch.bind(window)
-    : fetch;
-
   try {
-    const resposta = await fetchFn(url, {
+    const resposta = await _fetchComTimeout(url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       // Content-Type omitido: fetch define o boundary multipart automaticamente
@@ -446,7 +540,7 @@ export async function importarPlanilha({ lojaId, mesReferencia, arquivo, modo = 
 
     return dados;
   } catch (err) {
-    if (typeof window !== 'undefined') console.error('[importarPlanilha]', err);
+    if (typeof window !== 'undefined') console.error('[importarPlanilha]', err.message);
     if (err.message === 'Network request failed' || err.message === 'Failed to fetch') {
       const erro = new Error('Sem conexao com o servidor.');
       erro.status = 0;
@@ -473,9 +567,8 @@ export async function importarInventarioHistorico({ lojaId, mesReferencia, nomeS
     formData.append('arquivo', { uri: arquivo.uri, name: arquivo.name, type: arquivo.mimeType || 'application/octet-stream' });
   }
 
-  const fetchFn = typeof window !== 'undefined' && window.fetch ? window.fetch.bind(window) : fetch;
   try {
-    const resposta = await fetchFn(url, {
+    const resposta = await _fetchComTimeout(url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
@@ -489,7 +582,7 @@ export async function importarInventarioHistorico({ lojaId, mesReferencia, nomeS
     }
     return dados;
   } catch (err) {
-    if (typeof window !== 'undefined') console.error('[importarHistorico]', err);
+    if (typeof window !== 'undefined') console.error('[importarHistorico]', err.message);
     if (err.message === 'Network request failed' || err.message === 'Failed to fetch') {
       const erro = new Error('Sem conexao com o servidor.'); erro.status = 0; throw erro;
     }
@@ -518,19 +611,21 @@ export async function listarMesesImportados(lojaId) {
 // ENDPOINTS DE DASHBOARD
 // ============================================================
 
-function _dashParams(naturezaFiltroId, grupoMaterial) {
+function _dashParams(naturezaFiltroId, grupoMaterial, lojaIds, mesReferencias) {
   const p = new URLSearchParams();
   if (naturezaFiltroId) p.append('natureza_filtro_id', naturezaFiltroId);
   if (grupoMaterial)    p.append('grupo_material', grupoMaterial);
+  (lojaIds      || []).forEach(id => p.append('loja_ids', id));
+  (mesReferencias || []).forEach(m  => p.append('mes_referencias', m));
   return p.toString() ? `?${p}` : '';
 }
 
-export async function buscarDashboardGeral(naturezaFiltroId, grupoMaterial) {
-  return await chamarAPI(`/api/v1/dashboard${_dashParams(naturezaFiltroId, grupoMaterial)}`);
+export async function buscarDashboardGeral(naturezaFiltroId, grupoMaterial, lojaIds, mesReferencias) {
+  return await chamarAPI(`/api/v1/dashboard${_dashParams(naturezaFiltroId, grupoMaterial, lojaIds, mesReferencias)}`);
 }
 
-export async function buscarDashboardLojas(naturezaFiltroId, grupoMaterial) {
-  return await chamarAPI(`/api/v1/dashboard/lojas${_dashParams(naturezaFiltroId, grupoMaterial)}`);
+export async function buscarDashboardLojas(naturezaFiltroId, grupoMaterial, lojaIds, mesReferencias) {
+  return await chamarAPI(`/api/v1/dashboard/lojas${_dashParams(naturezaFiltroId, grupoMaterial, lojaIds, mesReferencias)}`);
 }
 
 export async function buscarDashboardHistorico(lojaId, meses = 6, naturezaFiltroId, grupoMaterial) {
@@ -556,7 +651,6 @@ export async function listarPerfisRelatorio() {
 // Retorna o arquivo como base64 JSON { nome_arquivo, arquivo_base64 }
 // O endpoint retorna binario direto — usamos fetch manual aqui
 export async function baixarRelatorio({ sessaoId, formato, perfil, abas }) {
-  const API_BASE_URL = 'https://inventario-api-bc1p.onrender.com';
   const token = await pegarToken();
 
   const params = new URLSearchParams({ formato, perfil });
@@ -564,7 +658,7 @@ export async function baixarRelatorio({ sessaoId, formato, perfil, abas }) {
 
   const url = `${API_BASE_URL}/api/v1/relatorios/sessao/${sessaoId}/exportar?${params}`;
 
-  const resposta = await fetch(url, {
+  const resposta = await _fetchComTimeout(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
