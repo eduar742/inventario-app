@@ -323,6 +323,13 @@ export async function atualizarInfoProduto(produtoId, dados) {
   });
 }
 
+export async function adicionarNotaAdm(sessaoId, nota) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/nota-adm`, {
+    method: 'PATCH',
+    body: JSON.stringify({ nota }),
+  });
+}
+
 export async function listarRecontagemNecessaria(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/recontagem-necessaria`);
 }

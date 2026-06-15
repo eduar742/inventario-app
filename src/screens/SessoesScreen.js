@@ -10,41 +10,25 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   SafeAreaView,
   RefreshControl,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarSessoes, pegarUsuario, cancelarSessao, encerrarSessao, gerarDivergencias } from '../services/api';
+import { listarSessoes, pegarUsuario, buscarPerfilAtual, cancelarSessao, encerrarSessao, gerarDivergencias, adicionarNotaAdm } from '../services/api';
 import Button from '../components/Button';
-
-// ── Helpers compatíveis com web ──────────────────────────────────────────────
-// Alert.alert com multiplos botoes nao funciona no browser.
-// Na web: window.confirm() para decisao sim/nao, window.alert() para avisos.
-
-function confirmar(titulo, mensagem, aoConfirmar) {
-  if (Platform.OS === 'web') {
-    if (window.confirm(`${titulo}\n\n${mensagem}`)) aoConfirmar();
-  } else {
-    Alert.alert(titulo, mensagem, [
-      { text: 'Voltar', style: 'cancel' },
-      { text: titulo, style: 'destructive', onPress: aoConfirmar },
-    ]);
-  }
-}
-
-function avisar(titulo, mensagem) {
-  if (Platform.OS === 'web') {
-    window.alert(mensagem ? `${titulo}\n\n${mensagem}` : titulo);
-  } else {
-    Alert.alert(titulo, mensagem);
-  }
-}
+import { formatarDataHora } from '../utils/formatadores';
+import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
 export default function SessoesScreen({ navigation, route }) {
   const { loja } = route.params;
+  // filtroInicial permite que outra tela defina a aba inicial (ex: DivergenciasScreen apos aprovar)
+  const filtroInicial = route.params?.filtroInicial || 'ativas';
 
   const [sessoes, setSessoes] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -53,7 +37,10 @@ export default function SessoesScreen({ navigation, route }) {
   const [papel, setPapel] = useState('operador');
   const [cancelando, setCancelando] = useState(null);
   const [encerrando, setEncerrando] = useState(null);
-  const [filtroVisao, setFiltroVisao] = useState('ativas');
+  const [filtroVisao, setFiltroVisao] = useState(filtroInicial);
+  const [modalNota, setModalNota] = useState(null); // sessao selecionada para nota
+  const [novaNotaInput, setNovaNotaInput] = useState('');
+  const [salvandoNota, setSalvandoNota] = useState(false);
 
   useEffect(() => {
     carregarDados();
@@ -68,7 +55,9 @@ export default function SessoesScreen({ navigation, route }) {
 
   async function carregarDados() {
     try {
-      const usuario = await pegarUsuario();
+      let usuario = await pegarUsuario();
+      // Fallback ao servidor se o cache local nao tiver o papel definido
+      if (!usuario?.papel) usuario = await buscarPerfilAtual();
       setIsAdmin(usuario?.papel === 'admin');
       setPapel(usuario?.papel || 'operador');
     } catch (_) {}
@@ -94,23 +83,22 @@ export default function SessoesScreen({ navigation, route }) {
   }
 
   async function handleEncerrar(sessao) {
-    confirmar(
+    const ok = await confirmarAlerta(
       'Encerrar sessao',
       `Encerrar "${sessao.nome}"?\n\nIsso gera as divergencias para revisao. Operadores nao poderao mais bipar.`,
-      async () => {
-        setEncerrando(sessao.id);
-        try {
-          await encerrarSessao(sessao.id);
-          await gerarDivergencias(sessao.id);
-          await carregarDados();
-          avisar('Sessao encerrada', 'Divergencias geradas. Acesse "Divergencias" para aprovar ou rejeitar os ajustes.');
-        } catch (err) {
-          avisar('Erro', err.message || 'Nao foi possivel encerrar');
-        } finally {
-          setEncerrando(null);
-        }
-      }
     );
+    if (!ok) return;
+    setEncerrando(sessao.id);
+    try {
+      await encerrarSessao(sessao.id);
+      await gerarDivergencias(sessao.id);
+      await carregarDados();
+      avisar('Sessao encerrada', 'Divergencias geradas. Acesse "Divergencias" para aprovar ou rejeitar os ajustes.');
+    } catch (err) {
+      avisar('Erro', err.message || 'Nao foi possivel encerrar');
+    } finally {
+      setEncerrando(null);
+    }
   }
 
   async function onRefresh() {
@@ -119,11 +107,10 @@ export default function SessoesScreen({ navigation, route }) {
   }
 
   function handleCancelar(sessao) {
-    confirmar(
+    confirmarAlerta(
       'Cancelar sessao',
       `Deseja cancelar "${sessao.nome}"?\n\nEsta acao nao pode ser desfeita.`,
-      () => confirmarCancelamento(sessao),
-    );
+    ).then(ok => { if (ok) confirmarCancelamento(sessao); });
   }
 
   async function confirmarCancelamento(sessao) {
@@ -138,17 +125,27 @@ export default function SessoesScreen({ navigation, route }) {
     }
   }
 
+  async function salvarNota() {
+    if (!novaNotaInput.trim() || !modalNota) return;
+    setSalvandoNota(true);
+    try {
+      const sessaoAtualizada = await adicionarNotaAdm(modalNota.id, novaNotaInput.trim());
+      setSessoes(prev => prev.map(s => s.id === sessaoAtualizada.id ? { ...s, ...sessaoAtualizada } : s));
+      setModalNota(sessaoAtualizada);
+      setNovaNotaInput('');
+    } catch (err) {
+      avisar('Erro', err.message || 'Nao foi possivel salvar a nota');
+    } finally {
+      setSalvandoNota(false);
+    }
+  }
+
   function selecionarSessao(sessao) {
     // rodada:1 = primeira contagem; ScannerScreen controla o avanco
     navigation.navigate('Scanner', { sessao, loja, rodada: 1, itensPendentes: [] });
   }
 
-  function formatarData(iso) {
-    if (!iso) return '';
-    const data = new Date(iso);
-    return data.toLocaleDateString('pt-BR') + ' ' + data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  }
-
+  
   function corDoTipo(tipo) {
     return tipo === 'geral' ? colors.infoSoft : colors.warningSoft;
   }
@@ -189,6 +186,14 @@ export default function SessoesScreen({ navigation, route }) {
             {item.nome}
           </Text>
           <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            {item.status === 'concluida' && item.modificado_adm && (
+              <TouchableOpacity
+                style={estilos.badgeAlteracao}
+                onPress={() => { setModalNota(item); setNovaNotaInput(''); }}
+              >
+                <Text style={estilos.badgeAlteracaoTexto}>?</Text>
+              </TouchableOpacity>
+            )}
             <View style={[estilos.badge, { backgroundColor: corDoTipo(item.tipo) }]}>
               <Text style={[estilos.badgeTexto, { color: corTextoTipo(item.tipo) }]}>
                 {item.tipo.toUpperCase()}
@@ -214,7 +219,7 @@ export default function SessoesScreen({ navigation, route }) {
             </View>
           ) : null}
           <Text style={estilos.dataIniciada}>
-            Iniciada em {formatarData(item.iniciada_em)}
+            Iniciada em {formatarDataHora(item.iniciada_em)}
           </Text>
         </View>
 
@@ -263,8 +268,8 @@ export default function SessoesScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Encerrar sessao: apenas em_andamento + admin + sem leitura-somente */}
-        {isAdmin && item.status === 'em_andamento' && podeEscrever && (
+        {/* Encerrar sessao: admin e gestor podem encerrar sessoes da sua loja */}
+        {(isAdmin || papel === 'gestor') && item.status === 'em_andamento' && (
           <TouchableOpacity
             style={estilos.botaoCancelar}
             onPress={() => handleEncerrar(item)}
@@ -277,8 +282,8 @@ export default function SessoesScreen({ navigation, route }) {
           </TouchableOpacity>
         )}
 
-        {/* Aguardando aprovacao — gerente/auditor pode ver mas nao aprovar */}
-        {(isAdmin || isReadOnly) && item.status === 'aguardando_aprovacao' && (
+        {/* Aguardando aprovacao — admin, gestor, gerente, auditor podem ver */}
+        {papel !== 'operador' && item.status === 'aguardando_aprovacao' && (
           <View style={{ gap: 4 }}>
             {/* ADM: revisar contagens antes de enviar ao gestor */}
             {isAdmin && (
@@ -309,26 +314,42 @@ export default function SessoesScreen({ navigation, route }) {
         )}
 
         {/* Acoes pos-inventario: divergencias, historico e exportar */}
-        {(isAdmin || isReadOnly) && item.status === 'concluida' && (
-          <View style={estilos.acoesCard}>
-            <TouchableOpacity
-              style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft }]}
-              onPress={() => navigation.navigate('Divergencias', { sessao: item, loja })}
-            >
-              <Text style={[estilos.botaoCardAcaoTexto, { color: colors.warning }]}>Divergencias</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[estilos.botaoCardAcao, { backgroundColor: colors.infoSoft }]}
-              onPress={() => navigation.navigate('HistoricoContagens', { sessao: item, loja })}
-            >
-              <Text style={[estilos.botaoCardAcaoTexto, { color: colors.info }]}>Historico</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[estilos.botaoCardAcao, { backgroundColor: colors.successSoft }]}
-              onPress={() => navigation.navigate('ExportarRelatorio', { sessao: item, loja })}
-            >
-              <Text style={[estilos.botaoCardAcaoTexto, { color: colors.success }]}>Exportar</Text>
-            </TouchableOpacity>
+        {papel !== 'operador' && item.status === 'concluida' && (
+          <View style={{ gap: 4 }}>
+            <View style={estilos.acoesCard}>
+              <TouchableOpacity
+                style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft }]}
+                onPress={() => navigation.navigate('Divergencias', { sessao: item, loja })}
+              >
+                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.warning }]}>Divergencias</Text>
+              </TouchableOpacity>
+              {/* Historico exibe contagens — gestor nao tem acesso a quantidades */}
+              {papel !== 'gestor' && (
+                <TouchableOpacity
+                  style={[estilos.botaoCardAcao, { backgroundColor: colors.infoSoft }]}
+                  onPress={() => navigation.navigate('HistoricoContagens', { sessao: item, loja })}
+                >
+                  <Text style={[estilos.botaoCardAcaoTexto, { color: colors.info }]}>Historico</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[estilos.botaoCardAcao, { backgroundColor: colors.successSoft }]}
+                onPress={() => navigation.navigate('ExportarRelatorio', { sessao: item, loja })}
+              >
+                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.success }]}>Exportar</Text>
+              </TouchableOpacity>
+            </View>
+            {/* ADM pode registrar alteracoes pos-conclusao */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={[estilos.botaoCardAcao, { backgroundColor: colors.backgroundSoft, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => { setModalNota(item); setNovaNotaInput(''); }}
+              >
+                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.textSecondary }]}>
+                  {item.modificado_adm ? 'Ver / adicionar nota (ADM)' : 'Registrar alteracao (ADM)'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -442,6 +463,67 @@ export default function SessoesScreen({ navigation, route }) {
           />
         }
       />
+
+      {/* Modal de notas do ADM */}
+      <Modal
+        visible={!!modalNota}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalNota(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={estilos.modalOverlay}
+        >
+          <View style={estilos.modalBox}>
+            <Text style={estilos.modalTitulo}>Notas de alteracao</Text>
+            {modalNota && (
+              <Text style={estilos.modalSessaoNome} numberOfLines={2}>{modalNota.nome}</Text>
+            )}
+
+            {/* Historico de notas ja registradas */}
+            {modalNota?.notas_adm ? (
+              <ScrollView style={estilos.notasHistoricoScroll}>
+                <Text style={estilos.notasHistoricoTexto}>{modalNota.notas_adm}</Text>
+              </ScrollView>
+            ) : (
+              <Text style={estilos.semNotas}>Nenhuma nota registrada ainda.</Text>
+            )}
+
+            {/* Campo para nova nota */}
+            <Text style={estilos.modalLabel}>Nova nota:</Text>
+            <TextInput
+              style={estilos.modalInput}
+              value={novaNotaInput}
+              onChangeText={setNovaNotaInput}
+              placeholder="Descreva o que foi alterado..."
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              numberOfLines={3}
+              maxLength={1000}
+            />
+
+            <View style={estilos.modalAcoes}>
+              <TouchableOpacity
+                style={[estilos.modalBotao, { backgroundColor: colors.backgroundSoft, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => setModalNota(null)}
+              >
+                <Text style={[estilos.modalBotaoTexto, { color: colors.textSecondary }]}>Fechar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[estilos.modalBotao, { backgroundColor: colors.primary, opacity: (!novaNotaInput.trim() || salvandoNota) ? 0.5 : 1 }]}
+                onPress={salvarNota}
+                disabled={!novaNotaInput.trim() || salvandoNota}
+              >
+                {salvandoNota
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={[estilos.modalBotaoTexto, { color: '#fff' }]}>Salvar nota</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -677,6 +759,70 @@ const estilos = StyleSheet.create({
     borderRadius: radius.sm, alignItems: 'center',
   },
   botaoCardAcaoTexto: {
+    fontSize: fontSize.sm, fontWeight: '700',
+  },
+  // Badge "?" para sessoes com notas ADM
+  badgeAlteracao: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: colors.warningSoft,
+    borderWidth: 1, borderColor: colors.warning,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  badgeAlteracaoTexto: {
+    fontSize: 12, fontWeight: '700', color: colors.warning,
+  },
+  // Modal de notas
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalBox: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg,
+    padding: spacing.lg, paddingBottom: spacing.xl,
+    maxHeight: '80%',
+  },
+  modalTitulo: {
+    fontSize: fontSize.lg, fontWeight: '700',
+    color: colors.text, marginBottom: spacing.xs,
+  },
+  modalSessaoNome: {
+    fontSize: fontSize.sm, color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  notasHistoricoScroll: {
+    maxHeight: 140, backgroundColor: colors.backgroundSoft,
+    borderRadius: radius.sm, padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  notasHistoricoTexto: {
+    fontSize: fontSize.xs, color: colors.text, lineHeight: 18,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  semNotas: {
+    fontSize: fontSize.sm, color: colors.textSecondary,
+    fontStyle: 'italic', marginBottom: spacing.md,
+  },
+  modalLabel: {
+    fontSize: fontSize.sm, fontWeight: '600',
+    color: colors.text, marginBottom: spacing.xs,
+  },
+  modalInput: {
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.sm, padding: spacing.sm,
+    fontSize: fontSize.sm, color: colors.text,
+    backgroundColor: colors.backgroundSoft,
+    minHeight: 80, textAlignVertical: 'top',
+    marginBottom: spacing.md,
+  },
+  modalAcoes: {
+    flexDirection: 'row', gap: spacing.sm,
+  },
+  modalBotao: {
+    flex: 1, paddingVertical: spacing.sm,
+    borderRadius: radius.sm, alignItems: 'center',
+  },
+  modalBotaoTexto: {
     fontSize: fontSize.sm, fontWeight: '700',
   },
 });
