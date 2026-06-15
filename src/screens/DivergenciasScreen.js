@@ -4,13 +4,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, SafeAreaView,
-  ActivityIndicator, Alert, RefreshControl, TouchableOpacity, Platform,
+  ActivityIndicator, RefreshControl, TouchableOpacity,
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario } from '../services/api';
+import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual } from '../services/api';
 import Paginacao from '../components/Paginacao';
-
+import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
 const STATUS_COR = {
   pendente:  { bg: colors.warningSoft,  txt: colors.warning },
@@ -18,35 +18,14 @@ const STATUS_COR = {
   rejeitada: { bg: colors.dangerSoft,   txt: colors.danger  },
 };
 
-// Helpers compatíveis com web (Alert.alert com botoes nao funciona no browser)
-function confirmar(titulo, mensagem, aoConfirmar) {
-  if (Platform.OS === 'web') {
-    if (window.confirm(`${titulo}\n\n${mensagem}`)) aoConfirmar();
-  } else {
-    Alert.alert(titulo, mensagem, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: titulo, style: 'destructive', onPress: aoConfirmar },
-    ]);
-  }
-}
-
-function avisar(titulo, mensagem) {
-  // Garante que mensagem e sempre string (evita [object Object])
-  const msg = typeof mensagem === 'string' ? mensagem
-    : mensagem ? JSON.stringify(mensagem) : '';
-  if (Platform.OS === 'web') {
-    window.alert(msg ? `${titulo}\n\n${msg}` : titulo);
-  } else {
-    Alert.alert(titulo, msg || undefined);
-  }
-}
-
 export default function DivergenciasScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
 
   // Papeis leitura-somente nao podem aprovar/rejeitar divergencias
   const [papelUsuario, setPapelUsuario] = useState('gestor');
   const isReadOnly = ['gerente', 'auditor'].includes(papelUsuario);
+  // Admin e gestor veem quantidades brutas (saldo sistema, contado, diferenca em unidades)
+  const escondeQuantidades = papelUsuario !== 'admin' && papelUsuario !== 'gestor';
 
   const [divergencias, setDivergencias] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -59,9 +38,15 @@ export default function DivergenciasScreen({ navigation, route }) {
 
   useEffect(() => {
     carregar();
-    import('../services/api').then(api => {
-      api.pegarUsuario().then(u => { if (u?.papel) setPapelUsuario(u.papel); }).catch(() => {});
-    });
+    async function carregarPapel() {
+      try {
+        let u = await pegarUsuario();
+        // Fallback ao servidor se o cache nao tiver o papel
+        if (!u?.papel) u = await buscarPerfilAtual();
+        if (u?.papel) setPapelUsuario(u.papel);
+      } catch (_) {}
+    }
+    carregarPapel();
   }, []);
 
   async function carregar(p = pagina) {
@@ -106,20 +91,30 @@ export default function DivergenciasScreen({ navigation, route }) {
     }
   }
 
+  function _fmtAjuste(div) {
+    if (!escondeQuantidades) {
+      return `${_fmtNum(div.diferenca)} ${div.unidade_medida || ''}`;
+    }
+    if (div.valor_ajuste != null) {
+      const sinal = div.valor_ajuste >= 0 ? '+' : '-';
+      const abs = Math.abs(div.valor_ajuste).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${sinal}R$ ${abs}`;
+    }
+    return 'ajuste';
+  }
+
   function handleAprovar(div) {
-    confirmar(
+    confirmarAlerta(
       'Aprovar divergencia',
-      `Aprovar ajuste de ${_fmtNum(div.diferenca)} ${div.unidade_medida || ''} para "${div.descricao_produto}"?`,
-      () => executarAprovar(div),
-    );
+      `Aprovar ajuste de ${_fmtAjuste(div)} para "${div.descricao_produto}"?`,
+    ).then(ok => { if (ok) executarAprovar(div); });
   }
 
   function handleRejeitar(div) {
-    confirmar(
+    confirmarAlerta(
       'Rejeitar divergencia',
       `Rejeitar ajuste para "${div.descricao_produto}"? O saldo do sistema sera mantido.`,
-      () => executarRejeitar(div),
-    );
+    ).then(ok => { if (ok) executarRejeitar(div); });
   }
 
   function _fmtNum(v) {
@@ -147,8 +142,10 @@ export default function DivergenciasScreen({ navigation, route }) {
               <Text style={estilos.produto} numberOfLines={2}>{div.descricao_produto || div.sku}</Text>
             </View>
             <Text style={estilos.sku}>{div.sku}</Text>
-            {div.bloqueado_lote && div.motivo_bloqueio && (
-              <Text style={estilos.motivoBloqueio}>{div.motivo_bloqueio}</Text>
+            {div.bloqueado_lote && (
+              <Text style={estilos.motivoBloqueio}>
+                {escondeQuantidades ? 'Requer aprovacao individual' : div.motivo_bloqueio}
+              </Text>
             )}
           </View>
           <View style={[estilos.badge, { backgroundColor: cores.bg }]}>
@@ -158,30 +155,48 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* Numeros */}
-        <View style={estilos.numerosRow}>
-          <View style={estilos.numero}>
-            <Text style={estilos.numeroValor}>{_fmtNum(div.quantidade_sistema)}</Text>
-            <Text style={estilos.numeroLabel}>Sistema</Text>
-          </View>
-          <View style={estilos.numeroDivisor} />
-          <View style={estilos.numero}>
-            <Text style={estilos.numeroValor}>{_fmtNum(div.quantidade_final)}</Text>
-            <Text style={estilos.numeroLabel}>Contado</Text>
-          </View>
-          <View style={estilos.numeroDivisor} />
-          <View style={estilos.numero}>
-            <Text style={[estilos.numeroValor, {
-              color: diferenca === 0 ? colors.success : diferenca > 0 ? colors.warning : colors.danger
+        {/* Numeros — admin ve Sistema/Contado/Diferenca; gestor/gerente/auditor veem somente impacto financeiro */}
+        {escondeQuantidades ? (
+          // Gestor nao ve quantidades, saldos nem contagens — apenas o ajuste financeiro
+          <View style={estilos.ajusteFinRow}>
+            <Text style={estilos.ajusteFinLabel}>Impacto financeiro</Text>
+            <Text style={[estilos.ajusteFinValor, {
+              color: div.valor_ajuste == null ? colors.textSecondary
+                     : div.valor_ajuste > 0   ? colors.success
+                     : div.valor_ajuste < 0   ? colors.danger
+                     : colors.text,
             }]}>
-              {_fmtNum(div.diferenca)}
+              {div.valor_ajuste != null
+                ? (div.valor_ajuste >= 0 ? '+' : '-') + 'R$ ' +
+                  Math.abs(div.valor_ajuste).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : 'Sem custo cadastrado'}
             </Text>
-            <Text style={estilos.numeroLabel}>Diferenca</Text>
           </View>
-        </View>
+        ) : (
+          <View style={estilos.numerosRow}>
+            <View style={estilos.numero}>
+              <Text style={estilos.numeroValor}>{_fmtNum(div.quantidade_sistema)}</Text>
+              <Text style={estilos.numeroLabel}>Sistema</Text>
+            </View>
+            <View style={estilos.numeroDivisor} />
+            <View style={estilos.numero}>
+              <Text style={estilos.numeroValor}>{_fmtNum(div.quantidade_final)}</Text>
+              <Text style={estilos.numeroLabel}>Contado</Text>
+            </View>
+            <View style={estilos.numeroDivisor} />
+            <View style={estilos.numero}>
+              <Text style={[estilos.numeroValor, {
+                color: diferenca === 0 ? colors.success : diferenca > 0 ? colors.warning : colors.danger
+              }]}>
+                {_fmtNum(div.diferenca)}
+              </Text>
+              <Text style={estilos.numeroLabel}>Diferenca</Text>
+            </View>
+          </View>
+        )}
 
-        {/* Parcelas por localização — aparece quando há mais de 1 bipagem */}
-        {div.parcelas && div.parcelas.length > 1 && (
+        {/* Parcelas por localização — apenas ADM ve (evita expor quantidades contadas) */}
+        {!escondeQuantidades && div.parcelas && div.parcelas.length > 1 && (
           <View style={estilos.parcelasBox}>
             <Text style={estilos.parcelasTitulo}>Parcelas por localização:</Text>
             <View style={estilos.parcelasLinha}>
@@ -256,15 +271,7 @@ export default function DivergenciasScreen({ navigation, route }) {
     if (nBloq > 0) {
       msg += `\n\n⚠️ ${nBloq} divergencia(s) NÃO serão incluídas por excederem ${limite}.\nElas exigem aprovação individual.`;
     }
-    const confirmar = () => executarAprovarTudo();
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Aprovar inventario\n\n${msg}`)) confirmar();
-    } else {
-      Alert.alert('Aprovar inventario', msg, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Aprovar em lote', style: 'default', onPress: confirmar },
-      ]);
-    }
+    confirmarAlerta('Aprovar inventario', msg).then(ok => { if (ok) executarAprovarTudo(); });
   }
 
   async function executarAprovarTudo() {
@@ -308,6 +315,11 @@ export default function DivergenciasScreen({ navigation, route }) {
         <ResumoItem valor={aprovadas}           rotulo="Aprovadas" cor={colors.success} />
         <ResumoItem valor={rejeitadas}          rotulo="Rejeitadas" cor={colors.danger} />
       </View>
+
+      {/* Totalizador financeiro — visivel somente para gestor/gerente/auditor */}
+      {escondeQuantidades && divergencias.length > 0 && (
+        <TotalizadorFinanceiro divergencias={divergencias} totalPaginas={totalPaginas} />
+      )}
 
       {/* M5: Botao de aprovacao em lote — apenas para quem pode escrever */}
       {divergencias.length > 0 && pendentes > 0 && !isReadOnly && (
@@ -421,6 +433,133 @@ function ResumoItem({ valor, rotulo, cor }) {
   );
 }
 
+// Totalizador financeiro — somente para gestor/gerente/auditor (escondeQuantidades)
+function TotalizadorFinanceiro({ divergencias, totalPaginas }) {
+  function calcTotal(itens) {
+    return itens.reduce((sum, d) => sum + (parseFloat(d.valor_ajuste) || 0), 0);
+  }
+  function fmtMoeda(v) {
+    if (v === 0) return 'R$ 0,00';
+    const sinal = v > 0 ? '+' : '-';
+    const abs = Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${sinal}R$ ${abs}`;
+  }
+  function corMoeda(v) {
+    if (v > 0) return colors.success;
+    if (v < 0) return colors.danger;
+    return colors.textSecondary;
+  }
+
+  const pendentes  = divergencias.filter(d => d.status === 'pendente');
+  const aprovadas  = divergencias.filter(d => d.status === 'aprovada');
+  const rejeitadas = divergencias.filter(d => d.status === 'rejeitada');
+
+  const totalAprov  = calcTotal(aprovadas);
+  const totalPend   = calcTotal(pendentes);
+  const totalRejeit = calcTotal(rejeitadas);
+  const totalGeral  = calcTotal(divergencias);
+
+  return (
+    <View style={estTot.container}>
+      <View style={estTot.cabecalho}>
+        <Text style={estTot.titulo}>Resultado Financeiro</Text>
+        {totalPaginas > 1 && (
+          <Text style={estTot.aviso}>pagina atual</Text>
+        )}
+      </View>
+      <View style={estTot.linha}>
+        <View style={estTot.celula}>
+          <Text style={[estTot.valor, { color: corMoeda(totalAprov) }]}>{fmtMoeda(totalAprov)}</Text>
+          <Text style={estTot.rotulo}>Aprovado ({aprovadas.length})</Text>
+        </View>
+        <View style={estTot.divisor} />
+        <View style={estTot.celula}>
+          <Text style={[estTot.valor, { color: totalPend !== 0 ? colors.warning : colors.textSecondary }]}>{fmtMoeda(totalPend)}</Text>
+          <Text style={estTot.rotulo}>Pendente ({pendentes.length})</Text>
+        </View>
+        <View style={estTot.divisor} />
+        <View style={estTot.celula}>
+          <Text style={[estTot.valor, { color: colors.textSecondary }]}>{fmtMoeda(totalRejeit)}</Text>
+          <Text style={estTot.rotulo}>Rejeitado ({rejeitadas.length})</Text>
+        </View>
+      </View>
+      <View style={estTot.saldoRow}>
+        <Text style={estTot.saldoLabel}>Impacto total (todos):</Text>
+        <Text style={[estTot.saldoValor, { color: corMoeda(totalGeral) }]}>{fmtMoeda(totalGeral)}</Text>
+      </View>
+    </View>
+  );
+}
+
+const estTot = StyleSheet.create({
+  container: {
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
+  cabecalho: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  titulo: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  aviso: {
+    fontSize: 10,
+    color: colors.warning,
+    fontStyle: 'italic',
+  },
+  linha: {
+    flexDirection: 'row',
+    marginBottom: spacing.xs,
+  },
+  celula: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  divisor: {
+    width: 1,
+    backgroundColor: colors.border,
+  },
+  valor: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+  },
+  rotulo: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  saldoRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  saldoLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  saldoValor: {
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+  },
+});
+
+
 const estilos = StyleSheet.create({
   container:       { flex: 1, backgroundColor: colors.backgroundSoft },
   centro:          { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -452,6 +591,14 @@ const estilos = StyleSheet.create({
   numeroDivisor: { width: 1, backgroundColor: colors.border },
   numeroValor:  { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
   numeroLabel:  { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+  // Bloco de ajuste financeiro (visivel para gestor, gerente, auditor)
+  ajusteFinRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderTopWidth: 1, borderTopColor: colors.border,
+    paddingTop: spacing.sm, marginBottom: spacing.sm,
+  },
+  ajusteFinLabel: { fontSize: fontSize.sm, color: colors.textSecondary, fontWeight: '600' },
+  ajusteFinValor: { fontSize: fontSize.lg, fontWeight: '700' },
   // Parcelas por localização
   parcelasBox: {
     backgroundColor: '#F8FAFC',

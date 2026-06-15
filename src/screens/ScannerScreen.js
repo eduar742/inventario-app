@@ -20,7 +20,6 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
-import { listarContagensDaSessao, pegarUsuario } from '../services/api';
 
 // Sufixos de ordinal feminino (contagem)
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
@@ -39,8 +38,6 @@ export default function ScannerScreen({ navigation, route }) {
   const [modalVisivel, setModalVisivel] = useState(false);
   const [codigoManual, setCodigoManual] = useState('');
   const [contagens, setContagens] = useState([]);
-  // Cache de contagens de outros operadores: { [codigoQr]: qtd }
-  const [qtdOutrosRef, setQtdOutros] = useState({});
 
   // Reseta a lista de contagens quando uma nova rodada começa
   useEffect(() => {
@@ -49,27 +46,6 @@ export default function ScannerScreen({ navigation, route }) {
       navigation.setParams({ resetContagens: undefined });
     }
   }, [route.params?.resetContagens]);
-
-  // Carrega contagens existentes de outros operadores na sessao (multi-operador)
-  useEffect(() => {
-    async function carregarOutros() {
-      try {
-        const usuario = await pegarUsuario();
-        const resp = await listarContagensDaSessao(sessao.id, 1, 500); // carrega tudo para calculo multi-operador
-        const lista = resp.items || resp;
-        // Agrupa por codigoQr a soma de contagens de OUTROS usuarios
-        const mapa = {};
-        for (const c of lista) {
-          if (c.nome_usuario && usuario && c.usuario_id === usuario.id) continue;
-          const qr = c.sku || c.produto_id;
-          mapa[qr] = (mapa[qr] || 0) + parseFloat(c.quantidade_contada || 0);
-        }
-        setQtdOutros(mapa);
-      } catch (_) {}
-    }
-    carregarOutros();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessao.id]);
 
   function adicionarContagem(novaContagem) {
     setContagens(prev => [...prev, novaContagem]);
@@ -95,9 +71,9 @@ export default function ScannerScreen({ navigation, route }) {
       codigoQr: codigo,
       sessao,
       loja,
+      rodada,
       onAdicionar: adicionarContagem,
-      quantidadeAnterior: totalAcumulado(codigo),
-      qtdPorOutros: qtdOutrosRef[codigo] || 0,
+      jaContadoNestaRodada: contagens.some(c => c.codigoQr === codigo),
     });
   }
 
@@ -125,9 +101,9 @@ export default function ScannerScreen({ navigation, route }) {
       codigoQr: codigo,
       sessao,
       loja,
+      rodada,
       onAdicionar: adicionarContagem,
-      quantidadeAnterior: totalAcumulado(codigo),
-      qtdPorOutros: qtdOutrosRef[codigo] || 0, // quantidade ja contada por outros operadores
+      jaContadoNestaRodada: contagens.some(c => c.codigoQr === codigo),
     });
 
     // Reseta apos um pequeno delay para permitir nova leitura ao voltar
@@ -255,12 +231,8 @@ export default function ScannerScreen({ navigation, route }) {
                 {ORDINAL[rodada] || `${rodada}ª`} contagem — {itensPendentes.length} produto(s):
               </Text>
               {itensPendentes.slice(0, 5).map((item, i) => (
-                <Text key={i}
-                  style={[estilos.painelPendentesItem, item.naoBipado && { color: '#FCA5A5' }]}
-                  numberOfLines={1}>
-                  {item.naoBipado ? '○' : '↻'} {item.sku || item.codigoQr}
-                  {item.descricao ? ` — ${item.descricao}` : ''}
-                  {item.naoBipado ? ' (não bipado)' : ''}
+                <Text key={i} style={estilos.painelPendentesItem} numberOfLines={1}>
+                  {item.sku || item.codigoQr}{item.descricao ? ` — ${item.descricao}` : ''}
                 </Text>
               ))}
               {itensPendentes.length > 5 && (

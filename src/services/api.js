@@ -10,9 +10,9 @@ import { navRef } from '../navigation/navRef';
 // Quando o TI definir hospedagem propria, basta trocar esta URL
 const API_BASE_URL = 'https://inventario-api-bc1p.onrender.com';
 
-const TOKEN_KEY = '@inventario:token';
-const REFRESH_TOKEN_KEY = '@inventario:refresh';
-const USUARIO_KEY = '@inventario:usuario';
+const TOKEN_KEY         = 'inventario_token';
+const REFRESH_TOKEN_KEY = 'inventario_refresh';
+const USUARIO_KEY       = 'inventario_usuario';
 
 // ============================================================
 // HELPERS DE TOKEN (armazenamento local seguro)
@@ -181,7 +181,7 @@ export async function chamarAPI(caminho, opcoes = {}, _skipRefresh = false) {
 
     return dados;
   } catch (err) {
-    if (typeof window !== 'undefined') {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
       console.error('[API]', caminho, err.message);
     }
     if (err.message === 'Network request failed' || err.message === 'Failed to fetch') {
@@ -411,17 +411,27 @@ export async function buscarProdutoPorQR(codigoQr) {
 // ENDPOINT DE CONTAGEM (o mais usado!)
 // ============================================================
 
-export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada, localizacao, confirmarLocalizacao, observacoes }) {
+export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada, rodada = 1, localizacao, confirmarLocalizacao, observacoes }) {
   return await chamarAPI('/api/v1/contagens', {
     method: 'POST',
     body: JSON.stringify({
       sessao_id: sessaoId,
       codigo_qr: codigoQr,
       quantidade_contada: quantidadeContada,
+      rodada,
       localizacao: localizacao || null,
       confirmar_localizacao: confirmarLocalizacao || false,
       observacoes: observacoes || null,
     }),
+  });
+}
+
+// Processa uma rodada: determina pendentes para proxima rodada ou encerra sessao.
+// Retorna { pendentes, sessao_encerrada, total_registrados, rodada_processada }
+export async function processarRodada(sessaoId, rodada) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/processar-rodada`, {
+    method: 'POST',
+    body: JSON.stringify({ rodada }),
   });
 }
 

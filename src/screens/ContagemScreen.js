@@ -26,9 +26,10 @@ import { buscarProdutoPorQR } from '../services/api';
 export default function ContagemScreen({ navigation, route }) {
   // Limpa asteriscos e caracteres extras que alguns coletores adicionam ao codigo
   const codigoQr = (route.params.codigoQr || '').trim().replace(/[*\r\n\t]+/g, '').trim();
-  const { sessao, loja, quantidadeAnterior = 0 } = route.params;
-  // Quantidade ja contada por OUTROS operadores nesta sessao (multi-operador)
-  const qtdPorOutros = route.params?.qtdPorOutros ?? 0;
+  const { sessao, loja } = route.params;
+  const rodada = route.params?.rodada ?? 1;
+  // Indica se este produto ja foi bipado nesta rodada (multi-localizacao)
+  const jaContadoNestaRodada = route.params?.jaContadoNestaRodada ?? false;
 
   // Localização obrigatória somente para Loja 01 (L01 - Matriz)
   const localizacaoObrigatoria = loja?.codigo === 'L01';
@@ -129,6 +130,7 @@ export default function ContagemScreen({ navigation, route }) {
       descricao: produto.descricao,
       unidadeMedida: produto.unidade_medida,
       quantidade: qtd,
+      rodada,
       localizacao: locDigitada || null,
       confirmarLocalizacao: locConfirmada,
       observacoes: observacoes || null,
@@ -177,29 +179,13 @@ export default function ContagemScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Aviso: outro operador ja bipou este produto nesta sessao */}
-          {qtdPorOutros > 0 && (
-            <View style={[estilos.cardSoma, { borderLeftColor: '#7C3AED', backgroundColor: '#F5F3FF' }]}>
-              <Text style={[estilos.somaLabel, { color: '#7C3AED' }]}>
-                Outro operador ja contou este produto
-              </Text>
-              <Text style={estilos.somaTexto}>
-                Total ja registrado por outros:{' '}
-                <Text style={[estilos.somaValor, { color: '#7C3AED' }]}>
-                  {qtdPorOutros} {produto?.unidade_medida || ''}
-                </Text>
-                {'\n'}Digite apenas a quantidade do SEU local. Os totais serao somados.
-              </Text>
-            </View>
-          )}
-
-          {/* Aviso de soma quando o mesmo SKU ja foi bipado pelo MESMO operador */}
-          {quantidadeAnterior > 0 && qtdPorOutros === 0 && (
+          {/* Aviso: produto ja bipado nesta rodada (multi-localizacao) */}
+          {jaContadoNestaRodada && (
             <View style={estilos.cardSoma}>
-              <Text style={estilos.somaLabel}>Bipagem adicional — sera somada</Text>
+              <Text style={estilos.somaLabel}>Produto ja registrado nesta rodada</Text>
               <Text style={estilos.somaTexto}>
-                Ja bipado nesta sessao: <Text style={estilos.somaValor}>{quantidadeAnterior} {produto?.unidade_medida || ''}</Text>
-                {'\n'}Digite a quantidade deste local. O total sera somado automaticamente.
+                Voce ja bipou este produto nesta rodada.{'\n'}
+                Informe apenas a quantidade deste local. As quantidades serao somadas.
               </Text>
             </View>
           )}
