@@ -309,6 +309,13 @@ export async function rejeitarDivergencia(divergenciaId, motivo = 'Rejeitado pel
   });
 }
 
+export async function definirCustoDivergencia(divergenciaId, custoUnitario) {
+  return await chamarAPI(`/api/v1/divergencias/${divergenciaId}/definir-custo`, {
+    method: 'PATCH',
+    body: JSON.stringify({ custo_unitario: custoUnitario }),
+  });
+}
+
 export async function listarRecontagemNecessaria(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/recontagem-necessaria`);
 }

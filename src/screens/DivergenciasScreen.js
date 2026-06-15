@@ -5,10 +5,11 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, SafeAreaView,
   ActivityIndicator, RefreshControl, TouchableOpacity,
+  Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual } from '../services/api';
+import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia } from '../services/api';
 import Paginacao from '../components/Paginacao';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
@@ -35,6 +36,11 @@ export default function DivergenciasScreen({ navigation, route }) {
   const [totalPaginas, setTotalPaginas] = useState(1);
   const [total, setTotal] = useState(0);
   const PAGE_SIZE = 50;
+
+  // Modal de custo unitario (ADM define antes da aprovacao do gestor)
+  const [modalCusto, setModalCusto] = useState(null);
+  const [custoInput, setCustoInput] = useState('');
+  const [salvandoCusto, setSalvandoCusto] = useState(false);
 
   useEffect(() => {
     carregar();
@@ -88,6 +94,39 @@ export default function DivergenciasScreen({ navigation, route }) {
       avisar('Erro', err.message || 'Nao foi possivel rejeitar');
     } finally {
       setProcessando(null);
+    }
+  }
+
+  function abrirModalCusto(div) {
+    setModalCusto(div);
+    setCustoInput(div.custo_unitario != null
+      ? String(parseFloat(div.custo_unitario).toFixed(2)).replace('.', ',')
+      : '');
+  }
+
+  async function salvarCusto() {
+    const custo = parseFloat(custoInput.replace(',', '.'));
+    if (isNaN(custo) || custo <= 0) {
+      avisar('Custo invalido', 'Informe um valor numerico maior que zero.');
+      return;
+    }
+    setSalvandoCusto(true);
+    try {
+      const atualizado = await definirCustoDivergencia(modalCusto.id, custo);
+      setDivergencias(prev =>
+        prev.map(d => d.id === modalCusto.id
+          ? { ...d,
+              custo_unitario: atualizado.custo_unitario,
+              custo_unitario_definido: true,
+              valor_ajuste: atualizado.valor_ajuste }
+          : d
+        )
+      );
+      setModalCusto(null);
+    } catch (err) {
+      avisar('Erro', err.message || 'Nao foi possivel salvar o custo');
+    } finally {
+      setSalvandoCusto(false);
     }
   }
 
@@ -222,6 +261,34 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* Custo unitario — ADM informa, gestor ve antes de aprovar */}
+        {div.status === 'pendente' && (
+          <View style={estilos.custoRow}>
+            <View style={{ flex: 1 }}>
+              {div.custo_unitario_definido ? (
+                <Text style={estilos.custoValor}>
+                  {'Custo: '}
+                  {div.custo_unitario != null
+                    ? `R$ ${parseFloat(div.custo_unitario).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/${div.unidade_medida || 'UN'}`
+                    : 'Definido'}
+                </Text>
+              ) : (
+                <Text style={estilos.custoAusente}>⚠️ Custo nao informado</Text>
+              )}
+            </View>
+            {papelUsuario === 'admin' && (
+              <TouchableOpacity
+                style={estilos.botaoDefinirCusto}
+                onPress={() => abrirModalCusto(div)}
+              >
+                <Text style={estilos.botaoDefinirCustoTexto}>
+                  {div.custo_unitario_definido ? 'Atualizar custo' : 'Informar custo'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Botoes de acao apenas para quem pode escrever */}
         {div.status === 'pendente' && !isReadOnly && (
           <View style={estilos.acoes}>
@@ -230,10 +297,25 @@ export default function DivergenciasScreen({ navigation, route }) {
             ) : (
               <>
                 <TouchableOpacity
-                  style={[estilos.botaoAcao, estilos.botaoAprovar]}
-                  onPress={() => handleAprovar(div)}
+                  style={[estilos.botaoAcao, estilos.botaoAprovar,
+                    !div.custo_unitario_definido && estilos.botaoDesabilitado]}
+                  onPress={() => {
+                    if (!div.custo_unitario_definido) {
+                      avisar(
+                        'Custo nao informado',
+                        papelUsuario === 'admin'
+                          ? 'Informe o custo unitario acima antes de aprovar.'
+                          : 'O ADM precisa informar o custo unitario antes da aprovacao.',
+                      );
+                      return;
+                    }
+                    handleAprovar(div);
+                  }}
                 >
-                  <Text style={estilos.botaoAprovarTexto}>Aprovar ajuste</Text>
+                  <Text style={[estilos.botaoAprovarTexto,
+                    !div.custo_unitario_definido && estilos.textoDesabilitado]}>
+                    Aprovar ajuste
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[estilos.botaoAcao, estilos.botaoRejeitar]}
@@ -390,6 +472,54 @@ export default function DivergenciasScreen({ navigation, route }) {
           }
         </TouchableOpacity>
       )}
+
+      {/* Modal de custo unitario — apenas ADM */}
+      <Modal
+        visible={!!modalCusto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalCusto(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={estilos.modalOverlay}
+        >
+          <View style={estilos.modalBox}>
+            <Text style={estilos.modalTitulo}>Custo unitario</Text>
+            <Text style={estilos.modalProduto} numberOfLines={2}>
+              {modalCusto?.descricao_produto || modalCusto?.sku}
+            </Text>
+            <TextInput
+              style={estilos.modalInput}
+              value={custoInput}
+              onChangeText={setCustoInput}
+              placeholder="Ex: 25,90"
+              keyboardType="decimal-pad"
+              autoFocus
+              selectTextOnFocus
+            />
+            <Text style={estilos.modalDica}>Custo por {modalCusto?.unidade_medida || 'UN'} em R$ (sem o simbolo)</Text>
+            <View style={estilos.modalAcoes}>
+              <TouchableOpacity
+                style={[estilos.botaoAcao, estilos.botaoRejeitar, { flex: 1 }]}
+                onPress={() => setModalCusto(null)}
+              >
+                <Text style={estilos.botaoRejeitarTexto}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[estilos.botaoAcao, estilos.botaoAprovar, { flex: 1 }]}
+                onPress={salvarCusto}
+                disabled={salvandoCusto}
+              >
+                {salvandoCusto
+                  ? <ActivityIndicator size="small" color={colors.success} />
+                  : <Text style={estilos.botaoAprovarTexto}>Salvar</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <FlatList
         data={divergencias}
@@ -623,6 +753,43 @@ const estilos = StyleSheet.create({
     paddingHorizontal: spacing.sm, paddingVertical: 3,
   },
   parcelaSomaTxt: { fontSize: 11, fontWeight: '800', color: '#FFFFFF' },
+
+  // Custo unitario no card
+  custoRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: 1, borderTopColor: colors.border,
+    paddingTop: spacing.xs, marginBottom: spacing.xs,
+  },
+  custoValor: { fontSize: fontSize.sm, color: colors.textSecondary, flex: 1 },
+  custoAusente: { fontSize: fontSize.sm, color: colors.warning, fontWeight: '600', flex: 1 },
+  botaoDefinirCusto: {
+    backgroundColor: '#EFF6FF', borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: 4,
+    borderWidth: 1, borderColor: colors.primary,
+  },
+  botaoDefinirCustoTexto: { fontSize: fontSize.xs, fontWeight: '700', color: colors.primary },
+  botaoDesabilitado: { opacity: 0.45 },
+  textoDesabilitado: { color: colors.textMuted },
+  // Modal de custo
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center', alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalBox: {
+    backgroundColor: colors.background, borderRadius: radius.lg,
+    padding: spacing.lg, width: '100%', maxWidth: 400,
+  },
+  modalTitulo: { fontSize: fontSize.lg, fontWeight: '700', color: colors.text, marginBottom: 4 },
+  modalProduto: { fontSize: fontSize.sm, color: colors.textSecondary, marginBottom: spacing.md },
+  modalInput: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm,
+    padding: spacing.sm, fontSize: fontSize.xl, color: colors.text,
+    textAlign: 'center', marginBottom: spacing.xs,
+    fontWeight: '700',
+  },
+  modalDica: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.md },
+  modalAcoes: { flexDirection: 'row', gap: spacing.sm },
 
   acoes:        { flexDirection: 'row', gap: spacing.sm, borderTopWidth: 1,
                   borderTopColor: colors.border, paddingTop: spacing.sm },
