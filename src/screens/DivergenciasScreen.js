@@ -25,8 +25,9 @@ export default function DivergenciasScreen({ navigation, route }) {
   // Papeis leitura-somente nao podem aprovar/rejeitar divergencias
   const [papelUsuario, setPapelUsuario] = useState('gestor');
   const isReadOnly = ['gerente', 'auditor'].includes(papelUsuario);
-  // Admin e gestor veem quantidades brutas (saldo sistema, contado, diferenca em unidades)
-  const escondeQuantidades = papelUsuario !== 'admin' && papelUsuario !== 'gestor';
+  // Somente ADM ve quantidades brutas (saldo sistema, contado, diferenca em unidades)
+  // Gestor ve apenas impacto financeiro durante aprovacao — diferencas ficam nos relatorios
+  const escondeQuantidades = papelUsuario !== 'admin';
 
   const [divergencias, setDivergencias] = useState([]);
   const [carregando, setCarregando] = useState(true);
