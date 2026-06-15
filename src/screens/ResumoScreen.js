@@ -6,9 +6,7 @@ import {
   ScrollView,
   SafeAreaView,
   ActivityIndicator,
-  Alert,
   TouchableOpacity,
-  Platform,
 } from 'react-native';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
@@ -20,6 +18,7 @@ import {
   listarDivergencias,
 } from '../services/api';
 import { exportarSessao } from '../services/exportacao';
+import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
 
@@ -43,6 +42,8 @@ export default function ResumoScreen({ navigation, route }) {
   // M2: divergencias carregadas apos encerramento
   const [divergencias, setDivergencias] = useState([]);
   const [carregandoDivs, setCarregandoDivs] = useState(false);
+  // Rastreia itens salvos com sucesso — evita dupla contagem em retentativas manuais
+  const itensSalvosRef = React.useRef({});
 
   useEffect(() => {
     finalizarInventario();
@@ -52,7 +53,7 @@ export default function ResumoScreen({ navigation, route }) {
     setCarregandoDivs(true);
     try {
       const divs = await listarDivergencias(sessaoId);
-      setDivergencias(divs || []);
+      setDivergencias(divs?.items || []);
     } catch (_) {}
     finally { setCarregandoDivs(false); }
   }
@@ -71,8 +72,7 @@ export default function ResumoScreen({ navigation, route }) {
         setSessaoEncerrada(true);
         carregarDivergencias(sessao.id);
       } else {
-        if (Platform.OS === 'web') window.alert(`Erro ao encerrar\n\n${msg}`);
-        else Alert.alert('Erro ao encerrar', msg);
+        avisar('Erro ao encerrar', msg);
       }
     } finally {
       setEncerrando(false);
@@ -102,12 +102,24 @@ export default function ResumoScreen({ navigation, route }) {
       if (c.observacoes) mapa[c.codigoQr].obsLista.push(c.observacoes);
     }
 
+    // Pre-popula com itens ja salvos em tentativas anteriores
     const novosPendentes = [];
     const novosConfirmados = [];
+    for (const [, salvo] of Object.entries(itensSalvosRef.current)) {
+      if (salvo.resp?.status_produto === 'aguardando_recontagem') {
+        novosPendentes.push(salvo);
+      } else {
+        novosConfirmados.push({ ...salvo, erro: null });
+      }
+    }
+
     let totalErros = 0;
     let primeiroErro = '';
 
     for (const item of Object.values(mapa)) {
+      // Pula itens ja salvos com sucesso — evita dupla contagem no Tentar novamente
+      if (itensSalvosRef.current[item.codigoQr]) continue;
+
       try {
         const obs = item.obsLista.length > 0 ? item.obsLista.join('; ') : null;
         const resp = await registrarContagem({
@@ -117,6 +129,8 @@ export default function ResumoScreen({ navigation, route }) {
           confirmarLocalizacao: item.confirmarLocalizacao || false,
           observacoes: obs,
         });
+        // Marca como salvo para nao re-enviar em proximas tentativas
+        itensSalvosRef.current[item.codigoQr] = { item, resp };
         if (resp.status_produto === 'aguardando_recontagem') {
           novosPendentes.push({ item, resp });
         } else {
@@ -130,10 +144,25 @@ export default function ResumoScreen({ navigation, route }) {
       }
     }
 
-    if (totalErros === Object.keys(mapa).length && Object.keys(mapa).length > 0) {
+    const totalSalvos = Object.keys(itensSalvosRef.current).length;
+
+    if (totalErros > 0 && totalSalvos === 0) {
+      // Nenhum item salvo em nenhuma tentativa — cold start ou erro de negocio
+      // "inesperada" = HTML de cold start; "demorou" = timeout 60s — ambos indicam servidor indisponivel
+      const ehColdStart = primeiroErro.includes('inesperada') || primeiroErro.includes('demorou');
+      const ehJaContado = primeiroErro.includes('3 vezes');
       setErroGeral(
-        `Nenhum item foi salvo. Erro: ${primeiroErro}\n\n` +
-        `Verifique se a sessao ainda esta em andamento e se os produtos estao cadastrados.`
+        ehColdStart
+          ? `O servidor demorou para responder (pode estar iniciando).
+
+Aguarde alguns segundos e tente novamente.`
+          : ehJaContado
+          ? `Os produtos ja atingiram o limite de contagens nesta sessao.
+
+Encerre a sessao para gerar as divergencias.`
+          : `Nenhum item foi salvo. Erro: ${primeiroErro}
+
+Verifique se a sessao ainda esta em andamento e se os produtos estao cadastrados.`
       );
       setPendentes(novosPendentes);
       setConfirmados(novosConfirmados);
@@ -236,9 +265,15 @@ export default function ResumoScreen({ navigation, route }) {
           <View style={estilos.bannerErroCritico}>
             <Text style={estilos.bannerErroCriticoTitulo}>Erro ao salvar contagens</Text>
             <Text style={estilos.bannerErroCriticoTexto}>{erroGeral}</Text>
-            <TouchableOpacity style={estilos.botaoTentarNovamente} onPress={finalizarInventario}>
-              <Text style={estilos.botaoTentarNovamenteTexto}>Tentar novamente</Text>
-            </TouchableOpacity>
+            {erroGeral.includes('limite de contagens') ? (
+              <TouchableOpacity style={estilos.botaoTentarNovamente} onPress={encerrarSessaoAgora}>
+                <Text style={estilos.botaoTentarNovamenteTexto}>Encerrar sessao</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={estilos.botaoTentarNovamente} onPress={finalizarInventario}>
+                <Text style={estilos.botaoTentarNovamenteTexto}>Tentar novamente</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : totalComErro > 0 ? (
           <View style={estilos.bannerErrosParciais}>
@@ -314,7 +349,7 @@ export default function ResumoScreen({ navigation, route }) {
             <Text style={estilos.secaoTitulo}>
               Para {ORDINAL[rodada + 1] || `${rodada + 1}ª`} contagem ({pendentes.length})
             </Text>
-            {pendentes.map(({ item, naoBipado }) => (
+            {pendentes.map(({ item, naoBipado, resp }) => (
               <View key={item.codigoQr}
                 style={[estilos.cardPendente, naoBipado && estilos.cardPendenteNaoBipado]}>
                 <View style={estilos.cardPendenteHeader}>
@@ -332,6 +367,9 @@ export default function ResumoScreen({ navigation, route }) {
                   <Text style={estilos.cardNaoContadoInfo}>
                     Saldo sistema: {parseFloat(item.quantidadeSistema).toFixed(0)} {item.unidadeMedida}
                   </Text>
+                )}
+                {!naoBipado && resp?.mensagem && (
+                  <Text style={estilos.cardContadoInfo}>{resp.mensagem}</Text>
                 )}
               </View>
             ))}
@@ -354,14 +392,8 @@ export default function ResumoScreen({ navigation, route }) {
               carregando={encerrando}
               onPress={() => {
                 const msg = `Ainda ha ${pendentes.length} produto(s) pendente(s).\n\nAo finalizar agora, eles serao registrados como nao bipados. Deseja continuar?`;
-                if (Platform.OS === 'web') {
-                  if (window.confirm(`Finalizar inventario?\n\n${msg}`)) encerrarSessaoAgora();
-                } else {
-                  Alert.alert('Finalizar inventario?', msg, [
-                    { text: 'Cancelar', style: 'cancel' },
-                    { text: 'Finalizar agora', style: 'destructive', onPress: encerrarSessaoAgora },
-                  ]);
-                }
+                confirmarAlerta('Finalizar inventario?', msg)
+                  .then(ok => { if (ok) encerrarSessaoAgora(); });
               }}
             />
             <Text style={estilos.dica}>
@@ -394,8 +426,7 @@ export default function ResumoScreen({ navigation, route }) {
                   await exportarSessao(sessao.id);
                 } catch (err) {
                   const msg = err?.message || 'Tente novamente';
-                  if (Platform.OS === 'web') window.alert(`Erro ao exportar\n\n${msg}`);
-                  else Alert.alert('Erro ao exportar', msg);
+                  avisar('Erro ao exportar', msg);
                 } finally {
                   setExportando(false);
                 }
@@ -546,6 +577,7 @@ const estilos = StyleSheet.create({
   },
   cardPendenteNaoBipado: { borderLeftColor: colors.danger },
   cardNaoContadoInfo: { fontSize: fontSize.xs, color: colors.danger, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+  cardContadoInfo: { fontSize: fontSize.xs, color: colors.warning, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
   cardPendenteHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.md },
   badgeContagem: {
     backgroundColor: colors.warningSoft, paddingHorizontal: spacing.sm, paddingVertical: 4,
