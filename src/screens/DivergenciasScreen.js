@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia } from '../services/api';
+import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia, atualizarInfoProduto } from '../services/api';
 import Paginacao from '../components/Paginacao';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
@@ -38,9 +38,12 @@ export default function DivergenciasScreen({ navigation, route }) {
   const [total, setTotal] = useState(0);
   const PAGE_SIZE = 50;
 
-  // Modal de custo unitario (ADM define antes da aprovacao do gestor)
+  // Modal de custo + info do produto (ADM define antes da aprovacao do gestor)
   const [modalCusto, setModalCusto] = useState(null);
   const [custoInput, setCustoInput] = useState('');
+  const [descricaoInput, setDescricaoInput] = useState('');
+  const [grupoInput, setGrupoInput] = useState('');
+  const [unidadeInput, setUnidadeInput] = useState('');
   const [salvandoCusto, setSalvandoCusto] = useState(false);
 
   useEffect(() => {
@@ -103,6 +106,9 @@ export default function DivergenciasScreen({ navigation, route }) {
     setCustoInput(div.custo_unitario != null
       ? String(parseFloat(div.custo_unitario).toFixed(2)).replace('.', ',')
       : '');
+    setDescricaoInput(div.descricao_produto || '');
+    setGrupoInput(div.grupo_material || '');
+    setUnidadeInput(div.unidade_medida || 'UN');
   }
 
   async function salvarCusto() {
@@ -113,19 +119,36 @@ export default function DivergenciasScreen({ navigation, route }) {
     }
     setSalvandoCusto(true);
     try {
+      // Atualiza dados do produto se algum campo foi alterado
+      const dadosProduto = {};
+      if (descricaoInput.trim() && descricaoInput.trim() !== modalCusto.descricao_produto)
+        dadosProduto.descricao = descricaoInput.trim();
+      if (grupoInput.trim() && grupoInput.trim() !== modalCusto.grupo_material)
+        dadosProduto.grupo_material = grupoInput.trim();
+      if (unidadeInput.trim() && unidadeInput.trim() !== modalCusto.unidade_medida)
+        dadosProduto.unidade_medida = unidadeInput.trim().toUpperCase();
+
+      if (Object.keys(dadosProduto).length > 0) {
+        await atualizarInfoProduto(modalCusto.produto_id, dadosProduto);
+      }
+
+      // Define custo unitario na divergencia
       const atualizado = await definirCustoDivergencia(modalCusto.id, custo);
       setDivergencias(prev =>
         prev.map(d => d.id === modalCusto.id
           ? { ...d,
               custo_unitario: atualizado.custo_unitario,
               custo_unitario_definido: true,
-              valor_ajuste: atualizado.valor_ajuste }
+              valor_ajuste: atualizado.valor_ajuste,
+              descricao_produto: descricaoInput.trim() || d.descricao_produto,
+              grupo_material: grupoInput.trim() || d.grupo_material,
+              unidade_medida: unidadeInput.trim().toUpperCase() || d.unidade_medida }
           : d
         )
       );
       setModalCusto(null);
     } catch (err) {
-      avisar('Erro', err.message || 'Nao foi possivel salvar o custo');
+      avisar('Erro', err.message || 'Nao foi possivel salvar');
     } finally {
       setSalvandoCusto(false);
     }
@@ -486,20 +509,54 @@ export default function DivergenciasScreen({ navigation, route }) {
           style={estilos.modalOverlay}
         >
           <View style={estilos.modalBox}>
-            <Text style={estilos.modalTitulo}>Custo unitario</Text>
-            <Text style={estilos.modalProduto} numberOfLines={2}>
-              {modalCusto?.descricao_produto || modalCusto?.sku}
-            </Text>
+            <Text style={estilos.modalTitulo}>Informacoes do produto</Text>
+            <Text style={estilos.modalSku}>{modalCusto?.sku}</Text>
+
+            {/* Dados do produto — editaveis pelo ADM */}
+            <Text style={estilos.modalSecaoLabel}>DESCRICAO</Text>
+            <TextInput
+              style={estilos.modalInputTexto}
+              value={descricaoInput}
+              onChangeText={setDescricaoInput}
+              placeholder="Descricao do produto"
+              autoCapitalize="words"
+            />
+
+            <View style={estilos.modalLinhaDupla}>
+              <View style={{ flex: 1 }}>
+                <Text style={estilos.modalSecaoLabel}>GRUPO DE MATERIAL</Text>
+                <TextInput
+                  style={estilos.modalInputTexto}
+                  value={grupoInput}
+                  onChangeText={setGrupoInput}
+                  placeholder="Ex: Chapas MDF"
+                  autoCapitalize="words"
+                />
+              </View>
+              <View style={{ width: 80, marginLeft: spacing.sm }}>
+                <Text style={estilos.modalSecaoLabel}>UNIDADE</Text>
+                <TextInput
+                  style={estilos.modalInputTexto}
+                  value={unidadeInput}
+                  onChangeText={setUnidadeInput}
+                  placeholder="UN"
+                  autoCapitalize="characters"
+                  maxLength={5}
+                />
+              </View>
+            </View>
+
+            {/* Custo para calculo de impacto */}
+            <Text style={[estilos.modalSecaoLabel, { marginTop: spacing.sm }]}>CUSTO UNITARIO (R$)</Text>
             <TextInput
               style={estilos.modalInput}
               value={custoInput}
               onChangeText={setCustoInput}
               placeholder="Ex: 25,90"
               keyboardType="decimal-pad"
-              autoFocus
               selectTextOnFocus
             />
-            <Text style={estilos.modalDica}>Custo por {modalCusto?.unidade_medida || 'UN'} em R$ (sem o simbolo)</Text>
+            <Text style={estilos.modalDica}>Valor por {unidadeInput || modalCusto?.unidade_medida || 'UN'} sem o simbolo R$</Text>
             <View style={estilos.modalAcoes}>
               <TouchableOpacity
                 style={[estilos.botaoAcao, estilos.botaoRejeitar, { flex: 1 }]}
@@ -781,10 +838,20 @@ const estilos = StyleSheet.create({
     backgroundColor: colors.background, borderRadius: radius.lg,
     padding: spacing.lg, width: '100%', maxWidth: 400,
   },
-  modalTitulo: { fontSize: fontSize.lg, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  modalProduto: { fontSize: fontSize.sm, color: colors.textSecondary, marginBottom: spacing.md },
-  modalInput: {
+  modalTitulo: { fontSize: fontSize.lg, fontWeight: '700', color: colors.text, marginBottom: 2 },
+  modalSku: { fontSize: fontSize.xs, color: colors.textSecondary, marginBottom: spacing.sm },
+  modalSecaoLabel: {
+    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
+  },
+  modalInputTexto: {
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm,
+    padding: spacing.sm, fontSize: fontSize.sm, color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  modalLinhaDupla: { flexDirection: 'row', alignItems: 'flex-start' },
+  modalInput: {
+    borderWidth: 1, borderColor: colors.primary, borderRadius: radius.sm,
     padding: spacing.sm, fontSize: fontSize.xl, color: colors.text,
     textAlign: 'center', marginBottom: spacing.xs,
     fontWeight: '700',

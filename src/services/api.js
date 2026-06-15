@@ -316,6 +316,13 @@ export async function definirCustoDivergencia(divergenciaId, custoUnitario) {
   });
 }
 
+export async function atualizarInfoProduto(produtoId, dados) {
+  return await chamarAPI(`/api/v1/produtos/${produtoId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(dados),
+  });
+}
+
 export async function listarRecontagemNecessaria(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/recontagem-necessaria`);
 }
