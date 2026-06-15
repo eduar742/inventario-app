@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Platform, Modal, useWindowDimensions, Image,
+  ActivityIndicator, Platform, Modal, useWindowDimensions, ImageBackground,
 } from 'react-native';
 import Svg, {
   Path, Line, Circle, Rect, Text as SvgText, Polyline, G, Polygon,
@@ -17,6 +17,7 @@ import AppLayout from '../components/AppLayout';
 import NaturezaFiltro from '../components/NaturezaFiltro';
 import GrupoMaterialFiltro from '../components/GrupoMaterialFiltro';
 import { spacing, fontSize } from '../theme/colors';
+import { formatarHora, formatarAgora } from '../utils/formatadores';
 import {
   buscarDashboardGeral,
   exportarAuditLog,
@@ -111,10 +112,7 @@ function useAuditoriaData(naturezaId, grupoMaterial, lojaIds, mesReferencias) {
         totalUsuarios: Array.isArray(usuarios) ? usuarios.length : 0,
         carregando: false,
         erro: null,
-        ultimaAtualizacao: new Date().toLocaleString('pt-BR', {
-          day: '2-digit', month: '2-digit', year: 'numeric',
-          hour: '2-digit', minute: '2-digit',
-        }),
+        ultimaAtualizacao: formatarAgora(),
       });
     } catch (err) {
       setEstado(p => ({ ...p, carregando: false, erro: err.message || 'Erro ao carregar' }));
@@ -145,10 +143,6 @@ function fmtMoedaCurto(v) {
 }
 function fmtPct(v)  { return v == null ? '—' : `${Number(v).toFixed(1)}%`; }
 function fmtNum(v)  { return v == null ? '—' : Number(v).toLocaleString('pt-BR'); }
-function fmtHora(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
 function fmtMin(m) {
   if (!m) return '<1min';
   return m < 60 ? `${m}min` : `${Math.floor(m / 60)}h${Math.round(m % 60)}m`;
@@ -188,16 +182,14 @@ function calcTendencia(sessoes, mediaAtual) {
   };
 }
 
-// Agrupa top_divergencias por categoria de produto; fallback por nivel de acuracidade
+// Agrupa top_divergencias por grupo_material do produto; fallback por nivel de acuracidade
 function calcCategorias(topDiv, acPorLoja) {
   const CORES = [DK.nBlue, DK.nGreen, DK.nYellow, DK.nOrange, DK.nPurp, '#EC4899', DK.txt3];
   if (topDiv && topDiv.length > 0) {
-    const map  = {};
-    const PREF = { ACM: 'ACM', CHP: 'Chapas MDF', PRF: 'Perfis', COL: 'Colas', FIT: 'Fitas', PVC: 'PVC' };
+    const map = {};
     topDiv.forEach(d => {
-      const cod = (d.produto_sku || d.codigo_qr || d.codigo || '').toUpperCase();
-      const cat = PREF[cod.substring(0, 3)] || 'Outros';
-      map[cat]  = (map[cat] || 0) + 1;
+      const grupo = d.grupo_material || 'Sem grupo';
+      map[grupo] = (map[grupo] || 0) + 1;
     });
     return Object.entries(map)
       .sort(([, a], [, b]) => b - a)
@@ -552,9 +544,7 @@ export default function AuditoriaScreen({ navigation }) {
       .slice(0, 8);
   })();
 
-  const totalSessoes = (statusSessoes.concluidas_total || 0)
-    + (statusSessoes.ativas || 0)
-    + (statusSessoes.aguardando || 0);
+  const totalSessoes = statusSessoes.concluidas_total || 0;
 
   // Metricas do card Status da Auditoria
   const todasSessoes  = [...sessoes, ...(dash?.sessoes_ativas || [])];
@@ -996,11 +986,6 @@ export default function AuditoriaScreen({ navigation }) {
                   </View>
                 ))}
               </View>
-              <Image
-                source={IMG_RESUMO}
-                style={{ width: 130, height: 160, marginLeft: spacing.sm }}
-                resizeMode="contain"
-              />
             </View>
           </>
         );
@@ -1172,9 +1157,9 @@ export default function AuditoriaScreen({ navigation }) {
             {
               titulo: 'ACURACIDADE FINANCEIRA',
               valor:  fmtPct(acFinanceira),
-              sub:    acFinanceira != null && acFinanceira >= 95 ? '↑ Acima da meta 95%' : '↓ Abaixo da meta 95%',
+              sub:    acFinanceira != null && acFinanceira >= 99 ? '↑ Acima da meta 99%' : '↓ Abaixo da meta 98%',
               cor:    DK.nGreen,
-              ok:     acFinanceira != null && acFinanceira >= 95,
+              ok:     acFinanceira != null && acFinanceira >= 98,
               spark:  tendencia?.financeira,
               icone:  (c) => (
                 <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
@@ -1201,9 +1186,9 @@ export default function AuditoriaScreen({ navigation }) {
             {
               titulo: 'ACURACIDADE DE UNIDADES',
               valor:  fmtPct(acUnidades),
-              sub:    acUnidades != null && acUnidades >= 93 ? '↑ Dentro do padrao 93%' : '↓ Requer atencao',
+              sub:    acUnidades != null && acUnidades >= 95 ? '↑ Dentro do padrao 95%' : '↓ Requer atencao 95%',
               cor:    DK.nBlue,
-              ok:     acUnidades != null && acUnidades >= 93,
+              ok:     acUnidades != null && acUnidades >= 95,
               spark:  tendencia?.unidades,
               icone:  (c) => (
                 <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
@@ -1590,12 +1575,6 @@ export default function AuditoriaScreen({ navigation }) {
                 ))}
               </View>
 
-              {/* Imagem do cubo holografico */}
-              <Image
-                source={IMG_RESUMO}
-                style={{ width: 130, height: 160, marginLeft: spacing.sm }}
-                resizeMode="contain"
-              />
             </View>
           </View>
         </View>}
@@ -1743,7 +1722,12 @@ export default function AuditoriaScreen({ navigation }) {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <AppLayout navigation={navigation} telaAtual="Auditoria" titulo="Auditoria" scrollavel={false} semPadding>
-      <View style={{ flex: 1, backgroundColor: DK.bg }}>
+      <ImageBackground
+        source={IMG_RESUMO}
+        style={{ flex: 1, width: '100%', height: '100%' }}
+        resizeMode="cover"
+      >
+        <View style={{ flex: 1, width: '100%', height: '100%', backgroundColor: 'rgba(7,15,28,0.82)' }}>
         {/* Barra de abas */}
         <View style={ek.abaBar}>
           {[
@@ -1768,7 +1752,8 @@ export default function AuditoriaScreen({ navigation }) {
           </View>
           <View style={{ height: spacing.xl }} />
         </ScrollView>
-      </View>
+        </View>
+      </ImageBackground>
       {renderDropdown()}
 
       {/* ── Modal de detalhe do Alerta Critico ────────────────────────── */}
