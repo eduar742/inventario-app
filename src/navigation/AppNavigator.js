@@ -27,6 +27,8 @@ import AuditoriaScreen                   from '../screens/AuditoriaScreen';
 import RevisaoContagensScreen            from '../screens/RevisaoContagensScreen';
 
 import { colors } from '../theme/colors';
+import { navRef } from './navRef';
+import { useSessaoTimeout } from '../hooks/useSessaoTimeout';
 
 const Stack = createNativeStackNavigator();
 
@@ -38,8 +40,10 @@ const opcoesHeader = {
 };
 
 export default function AppNavigator() {
+  useSessaoTimeout();
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navRef}>
       <Stack.Navigator initialRouteName="Login" screenOptions={opcoesHeader}>
 
         <Stack.Screen name="Login"    component={LoginScreen}   options={{ headerShown: false }} />
@@ -51,7 +55,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Resumo"   component={ResumoScreen}  options={{ title: 'Resumo do inventario' }} />
 
         {/* Importacao */}
-        <Stack.Screen name="Importacao"          component={ImportacaoScreen}           options={{ title: 'Importar planilha' }} />
+        <Stack.Screen name="Importacao"          component={ImportacaoScreen}           options={{ headerShown: false }} />
         <Stack.Screen name="HistoricoImportacoes" component={HistoricoImportacoesScreen} options={{ title: 'Historico de importacoes' }} />
 
         {/* Exportacao */}
@@ -59,20 +63,20 @@ export default function AppNavigator() {
 
         {/* Gestao (ADM) */}
         <Stack.Screen name="CriarSessao" component={CriarSessaoScreen} options={{ title: 'Nova sessao' }} />
-        <Stack.Screen name="Gestores"    component={GestoresScreen}    options={{ title: 'Usuarios' }} />
+        <Stack.Screen name="Gestores"    component={GestoresScreen}    options={{ headerShown: false }} />
 
         {/* Dashboard */}
-        <Stack.Screen name="Dashboard"          component={DashboardScreen}          options={{ title: 'Dashboard' }} />
+        <Stack.Screen name="Dashboard"          component={DashboardScreen}          options={{ headerShown: false }} />
         <Stack.Screen name="DashboardLojas"     component={DashboardLojasScreen}     options={{ title: 'Dashboard por loja' }} />
         <Stack.Screen name="DashboardHistorico" component={DashboardHistoricoScreen} options={({ route }) => ({ title: route.params?.loja?.codigo || 'Historico' })} />
 
         {/* Pos-inventario */}
         <Stack.Screen name="Divergencias"            component={DivergenciasScreen}           options={{ title: 'Divergencias' }} />
         <Stack.Screen name="HistoricoContagens"      component={HistoricoContagensScreen}      options={{ title: 'Historico de contagens' }} />
-        <Stack.Screen name="RelatorioConsolidado"    component={RelatorioConsolidadoScreen}    options={{ title: 'Relatorio Geral' }} />
-        <Stack.Screen name="DashboardConsolidado"   component={DashboardConsolidadoScreen}    options={{ title: 'Dashboard Consolidado' }} />
-        <Stack.Screen name="Ajuda"                  component={AjudaScreen}                   options={{ title: 'Guia de Uso' }} />
-        <Stack.Screen name="Auditoria"              component={AuditoriaScreen}               options={{ title: 'Auditoria e Logs' }} />
+        <Stack.Screen name="RelatorioConsolidado"    component={RelatorioConsolidadoScreen}    options={{ headerShown: false }} />
+        <Stack.Screen name="DashboardConsolidado"   component={DashboardConsolidadoScreen}    options={{ headerShown: false }} />
+        <Stack.Screen name="Ajuda"                  component={AjudaScreen}                   options={{ headerShown: false }} />
+        <Stack.Screen name="Auditoria"              component={AuditoriaScreen}               options={{ headerShown: false }} />
         <Stack.Screen name="RevisaoContagens"       component={RevisaoContagensScreen}        options={({ route }) => ({ title: `Revisar: ${route.params?.sessao?.nome || 'Contagens'}` })} />
 
       </Stack.Navigator>

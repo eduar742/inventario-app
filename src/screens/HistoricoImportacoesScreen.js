@@ -19,6 +19,7 @@ import {
 import { avisar, confirmar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarImportacoes, buscarImportacao, listarLojas } from '../services/api';
+import { formatarDataHora } from '../utils/formatadores';
 
 
 export default function HistoricoImportacoesScreen({ navigation }) {
@@ -82,12 +83,7 @@ export default function HistoricoImportacoesScreen({ navigation }) {
     }
   }
 
-  function formatarData(iso) {
-    if (!iso) return '';
-    const d = new Date(iso);
-    return `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-  }
-
+  
   function corStatus(status) {
     switch (status) {
       case 'sucesso':  return colors.success;
@@ -111,7 +107,7 @@ export default function HistoricoImportacoesScreen({ navigation }) {
             <Text style={estilos.cardMeta}>
               {item.loja?.codigo} · {item.mes_referencia} · {item.modo}
             </Text>
-            <Text style={estilos.cardData}>{formatarData(item.importado_em)}</Text>
+            <Text style={estilos.cardData}>{formatarDataHora(item.importado_em)}</Text>
           </View>
           <View style={[estilos.badge, { backgroundColor: cor + '22' }]}>
             <Text style={[estilos.badgeTexto, { color: cor }]}>
@@ -239,7 +235,7 @@ export default function HistoricoImportacoesScreen({ navigation }) {
                   <InfoLinha rotulo="Mes" valor={detalhe.mes_referencia} />
                   <InfoLinha rotulo="Modo" valor={detalhe.modo} />
                   <InfoLinha rotulo="Status" valor={detalhe.status} cor={corStatus(detalhe.status)} />
-                  <InfoLinha rotulo="Data" valor={formatarData(detalhe.importado_em)} />
+                  <InfoLinha rotulo="Data" valor={formatarDataHora(detalhe.importado_em)} />
                   <InfoLinha rotulo="Total" valor={String(detalhe.linhas_total)} />
                   <InfoLinha rotulo="Sucesso" valor={String(detalhe.linhas_sucesso)} cor={colors.success} />
                   <InfoLinha rotulo="Erros" valor={String(detalhe.linhas_erro)} cor={detalhe.linhas_erro > 0 ? colors.danger : undefined} />

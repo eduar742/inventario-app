@@ -5,13 +5,14 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, SafeAreaView,
+  View, Text, StyleSheet, ScrollView,
   TouchableOpacity, ActivityIndicator, RefreshControl,
 } from 'react-native';
 
+import AppLayout from '../components/AppLayout';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import NaturezaFiltro from '../components/NaturezaFiltro';
-import { chamarAPI } from '../services/api';
+import { chamarAPI, pegarUsuario } from '../services/api';
 
 // ── Constantes de layout ────────────────────────────────────────────
 const COL_LABEL     = 168;
@@ -137,6 +138,12 @@ export default function DashboardConsolidadoScreen({ navigation }) {
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  useEffect(() => {
+    pegarUsuario().then(u => {
+      if (u?.papel === 'gestor') navigation.replace('Home');
+    }).catch(() => {});
+  }, []);
+
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
     try {
@@ -167,22 +174,24 @@ export default function DashboardConsolidadoScreen({ navigation }) {
 
   if (carregando) {
     return (
-      <SafeAreaView style={est.centro}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={est.carregandoTxt}>Carregando dados...</Text>
-      </SafeAreaView>
+      <AppLayout navigation={navigation} telaAtual="DashboardConsolidado" titulo="Dashboard Consolidado" scrollavel={false}>
+        <View style={est.centro}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={est.carregandoTxt}>Carregando dados...</Text>
+        </View>
+      </AppLayout>
     );
   }
 
   const totalWidth = COL_CONSOL + lojasColunas.length * COL_LOJA;
 
   return (
-    <SafeAreaView style={est.container}>
+    <AppLayout navigation={navigation} telaAtual="DashboardConsolidado" titulo="Dashboard Consolidado" scrollavel={false} semPadding>
       {/* Filtros */}
       <View style={est.filtrosBox}>
         <NaturezaFiltro
-          value={naturezaId}
-          onChange={id => { setNaturezaId(id); }}
+          value={naturezaId != null ? [naturezaId] : []}
+          onChange={ids => setNaturezaId(ids.length === 1 ? ids[0] : null)}
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
           style={est.mesesScroll} contentContainerStyle={{ gap: spacing.xs }}>
@@ -354,7 +363,7 @@ export default function DashboardConsolidadoScreen({ navigation }) {
           </ScrollView>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </AppLayout>
   );
 }
 

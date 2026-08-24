@@ -5,18 +5,22 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 
-export default function GrupoMaterialFiltro({ grupos = [], value, onChange }) {
-  if (!grupos || grupos.length === 0) return null;
+const EXCLUIR_PADRAO = ['ACM', 'Poli Alveolar'];
+
+export default function GrupoMaterialFiltro({ grupos = [], value, onChange, excluir = EXCLUIR_PADRAO }) {
+  const gruposFiltrados = grupos.filter(g => !excluir.includes(g));
+
+  if (!gruposFiltrados || gruposFiltrados.length === 0) return null;
 
   const opcoes = [
     { id: null, nome: 'Todos os grupos' },
-    ...grupos.map(g => ({ id: g, nome: g })),
+    ...gruposFiltrados.map(g => ({ id: g, nome: g })),
   ];
 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={estilos.scroll}>
       <View style={estilos.row}>
-        {opcoes.map(op => {
+        {opcoes.map((op) => {
           const ativo = value === op.id;
           return (
             <TouchableOpacity

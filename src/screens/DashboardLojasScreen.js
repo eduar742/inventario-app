@@ -156,8 +156,8 @@ export default function DashboardLojasScreen({ navigation }) {
         ListHeaderComponent={
           <>
             <NaturezaFiltro
-              value={naturezaId}
-              onChange={id => { setNaturezaId(id); setGrupoMaterial(null); setCarregando(true); }}
+              value={naturezaId != null ? [naturezaId] : []}
+              onChange={ids => { setNaturezaId(ids.length === 1 ? ids[0] : null); setGrupoMaterial(null); setCarregando(true); }}
             />
             <GrupoMaterialFiltro
               grupos={[...new Set(lojas.flatMap(l => l.grupos_material || []))]}
@@ -277,8 +277,8 @@ export function DashboardHistoricoScreen({ navigation, route }) {
 
         {/* Filtros: natureza + grupo de material */}
         <NaturezaFiltro
-          value={naturezaId}
-          onChange={id => { setNaturezaId(id); setGrupoMaterial(null); setSessaoIdx(null); setCarregando(true); }}
+          value={naturezaId != null ? [naturezaId] : []}
+          onChange={ids => { setNaturezaId(ids.length === 1 ? ids[0] : null); setGrupoMaterial(null); setSessaoIdx(null); setCarregando(true); }}
         />
         <GrupoMaterialFiltro
           grupos={historico?.grupos_material || []}

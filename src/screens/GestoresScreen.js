@@ -3,10 +3,11 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, SafeAreaView, Modal, ScrollView,
+  View, Text, StyleSheet, FlatList, Modal, ScrollView,
   TouchableOpacity, ActivityIndicator, TextInput, RefreshControl,
 } from 'react-native';
 
+import AppLayout from '../components/AppLayout';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { avisar } from '../utils/alertas';
 import Button from '../components/Button';
@@ -161,14 +162,16 @@ export default function GestoresScreen({ navigation }) {
 
   if (carregando) {
     return (
-      <SafeAreaView style={estilos.centro}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </SafeAreaView>
+      <AppLayout navigation={navigation} telaAtual="Gestores" titulo="Usuários" scrollavel={false}>
+        <View style={estilos.centro}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </AppLayout>
     );
   }
 
   return (
-    <SafeAreaView style={estilos.container}>
+    <AppLayout navigation={navigation} telaAtual="Gestores" titulo="Usuários" scrollavel={false} semPadding>
       <FlatList
         data={usuarios}
         renderItem={renderUsuario}
@@ -364,7 +367,7 @@ export default function GestoresScreen({ navigation }) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </AppLayout>
   );
 }
 

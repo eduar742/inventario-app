@@ -15,6 +15,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
@@ -38,6 +39,8 @@ export default function ScannerScreen({ navigation, route }) {
   const [modalVisivel, setModalVisivel] = useState(false);
   const [codigoManual, setCodigoManual] = useState('');
   const [contagens, setContagens] = useState([]);
+  // Modal de lista completa de pendentes (Bug 5)
+  const [modalListaPendentes, setModalListaPendentes] = useState(false);
 
   // Reseta a lista de contagens quando uma nova rodada começa
   useEffect(() => {
@@ -227,18 +230,31 @@ export default function ScannerScreen({ navigation, route }) {
           {/* Painel de itens pendentes (rodadas 2 e 3) */}
           {itensPendentes.length > 0 && (
             <View style={estilos.painelPendentes}>
-              <Text style={estilos.painelPendentesTitle}>
-                {ORDINAL[rodada] || `${rodada}ª`} contagem — {itensPendentes.length} produto(s):
-              </Text>
-              {itensPendentes.slice(0, 5).map((item, i) => (
-                <Text key={i} style={estilos.painelPendentesItem} numberOfLines={1}>
-                  {item.sku || item.codigoQr}{item.descricao ? ` — ${item.descricao}` : ''}
+              <View style={estilos.painelPendentesHeader}>
+                <Text style={estilos.painelPendentesTitle}>
+                  {ORDINAL[rodada] || `${rodada}ª`} contagem — {itensPendentes.length} produto(s):
                 </Text>
-              ))}
-              {itensPendentes.length > 5 && (
-                <Text style={estilos.painelPendentesItem}>
-                  ...e mais {itensPendentes.length - 5}
-                </Text>
+                <TouchableOpacity onPress={() => setModalListaPendentes(true)} style={estilos.btnVerTodos}>
+                  <Text style={estilos.btnVerTodosTxt}>Ver todos</Text>
+                </TouchableOpacity>
+              </View>
+              {itensPendentes.slice(0, 4).map((item, i) => {
+                const jaBipado = contagens.some(c => c.codigoQr === (item.codigoQr || item.sku));
+                return (
+                  <View key={i} style={estilos.painelPendentesLinha}>
+                    <View style={[estilos.bolinha, jaBipado && estilos.bolinhaVerde]} />
+                    <Text style={estilos.painelPendentesItem} numberOfLines={1}>
+                      {item.sku || item.codigoQr}{item.descricao ? ` — ${item.descricao}` : ''}
+                    </Text>
+                  </View>
+                );
+              })}
+              {itensPendentes.length > 4 && (
+                <TouchableOpacity onPress={() => setModalListaPendentes(true)}>
+                  <Text style={[estilos.painelPendentesItem, { color: colors.warning, marginTop: 2 }]}>
+                    ...e mais {itensPendentes.length - 4} — toque para ver todos
+                  </Text>
+                </TouchableOpacity>
               )}
             </View>
           )}
@@ -308,6 +324,49 @@ export default function ScannerScreen({ navigation, route }) {
           </TouchableOpacity>
         </SafeAreaView>
       </CameraView>
+
+      {/* Modal de lista completa de pendentes (Bug 5 + Bug 6) */}
+      <Modal
+        visible={modalListaPendentes}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalListaPendentes(false)}
+      >
+        <View style={estilos.modalOverlay}>
+          <View style={[estilos.modalContainer, { maxHeight: '80%' }]}>
+            <Text style={estilos.modalTitulo}>
+              {ORDINAL[rodada] || `${rodada}ª`} contagem
+            </Text>
+            <Text style={estilos.modalSubtitulo}>
+              {itensPendentes.length} produto(s) para recontar
+            </Text>
+            <ScrollView style={{ marginTop: 12 }} showsVerticalScrollIndicator>
+              {itensPendentes.map((item, i) => {
+                const codigoRef = item.codigoQr || item.sku;
+                const jaBipado = contagens.some(c => c.codigoQr === codigoRef);
+                return (
+                  <View key={i} style={estilos.pendenteLinha}>
+                    <View style={[estilos.bolinhaGrande, jaBipado && estilos.bolinhaGrandeVerde]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={estilos.pendenteSku}>{item.sku || codigoRef}</Text>
+                      {item.descricao ? (
+                        <Text style={estilos.pendenteDesc} numberOfLines={2}>{item.descricao}</Text>
+                      ) : null}
+                    </View>
+                    {jaBipado && (
+                      <Text style={estilos.pendenteBipado}>Bipado</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+            <View style={{ height: spacing.md }} />
+            <TouchableOpacity style={estilos.btnFecharModal} onPress={() => setModalListaPendentes(false)}>
+              <Text style={estilos.btnFecharModalTxt}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={modalVisivel}
@@ -523,16 +582,100 @@ const estilos = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.15)',
   },
+  painelPendentesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   painelPendentesTitle: {
     color: colors.warning,
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 4,
+    flex: 1,
+  },
+  btnVerTodos: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  btnVerTodosTxt: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  painelPendentesLinha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+    gap: 6,
+  },
+  bolinha: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    flexShrink: 0,
+  },
+  bolinhaVerde: {
+    backgroundColor: '#4ADE80',
   },
   painelPendentesItem: {
     color: colors.white,
     fontSize: 11,
     opacity: 0.85,
+    flex: 1,
+  },
+  // Modal lista completa de pendentes
+  pendenteLinha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    gap: 10,
+  },
+  bolinhaGrande: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#CBD5E1',
+    flexShrink: 0,
+  },
+  bolinhaGrandeVerde: {
+    backgroundColor: '#22C55E',
+  },
+  pendenteSku: {
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  pendenteDesc: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  pendenteBipado: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#22C55E',
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  btnFecharModal: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  btnFecharModalTxt: {
+    color: colors.white,
+    fontWeight: '700',
+    fontSize: fontSize.md,
   },
   barraContagem: {
     flexDirection: 'row',

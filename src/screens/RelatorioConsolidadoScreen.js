@@ -4,22 +4,27 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
 
+import AppLayout from '../components/AppLayout';
+import NaturezaFiltro from '../components/NaturezaFiltro';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
+import { formatarDataHora } from '../utils/formatadores';
 import {
-  listarNaturezas, baixarRelatorioConsolidado,
-  listarLojas, listarSessoes,
+  baixarRelatorioConsolidado,
+  listarLojas, listarSessoes, pegarUsuario,
 } from '../services/api';
 
-function formatarData(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
+const SIGLAS_LOJA = {
+  L01: 'MTZ',  L02: 'SBC',  L03: 'BH',    L04: 'CTBA',
+  L05: 'SJRP', L06: 'MGA',  L07: 'GRU',   L08: 'CCO',
+  L09: 'POA',  L10: 'GO',   L11: 'SJ',    L12: 'RP',
+  L13: 'CUIABÁ', L14: 'RS', L15: 'SINOP', L16: 'FORTALEZA', L17: 'CG',
+};
+
 
 const MESES_OPCOES = (() => {
   const arr = [];
@@ -33,11 +38,11 @@ const MESES_OPCOES = (() => {
 
 export default function RelatorioConsolidadoScreen({ navigation }) {
   // ── Secao 1: consolidado ─────────────────────────────────────────────
-  const [naturezas, setNaturezas]     = useState([]);
-  const [naturezaSel, setNaturezaSel] = useState(null);
-  const [mesSel, setMesSel]           = useState('');
-  const [gerando, setGerando]         = useState(false);
-  const [erro, setErro]               = useState('');
+  const [naturezasIds, setNaturezasIds] = useState([]);
+  const [mesesSels, setMesesSels]       = useState([]);
+  const [lojasRelIds, setLojasRelIds]   = useState([]);
+  const [gerando, setGerando]           = useState(false);
+  const [erro, setErro]                 = useState('');
 
   // ── Secao 2: sessao individual ───────────────────────────────────────
   const [lojas, setLojas]                   = useState([]);
@@ -47,8 +52,13 @@ export default function RelatorioConsolidadoScreen({ navigation }) {
   const [carregandoSessoes, setCarregandoSessoes] = useState(false);
 
   useEffect(() => {
-    listarNaturezas().then(setNaturezas).catch(() => {});
-    listarLojas().then(dados => setLojas(dados || [])).catch(() => {});
+    Promise.all([listarLojas(), pegarUsuario()]).then(([todasLojas, usuario]) => {
+      if (usuario?.papel === 'gestor') {
+        navigation.replace('Home');
+        return;
+      }
+      setLojas(todasLojas || []);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -80,9 +90,13 @@ export default function RelatorioConsolidadoScreen({ navigation }) {
     setGerando(true);
     setErro('');
     try {
+      const naturezaId    = naturezasIds.length === 1 ? naturezasIds[0] : null;
+      const mesReferencias = mesesSels.length > 0 ? mesesSels : undefined;
+      const lojaIds        = lojasRelIds.length > 0 ? lojasRelIds : undefined;
       const { base64, nomeArquivo } = await baixarRelatorioConsolidado({
-        naturezaId: naturezaSel,
-        mesReferencia: mesSel || undefined,
+        naturezaId,
+        mesReferencias,
+        lojaIds,
       });
 
       if (Platform.OS === 'web') {
@@ -126,7 +140,7 @@ export default function RelatorioConsolidadoScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={estilos.container}>
+    <AppLayout navigation={navigation} telaAtual="RelatorioConsolidado" titulo="Relatório Geral" scrollavel={false} semPadding>
       <ScrollView contentContainerStyle={estilos.scroll}>
 
         {/* ── SECAO 1: Relatorio consolidado ───────────────────────── */}
@@ -137,45 +151,58 @@ export default function RelatorioConsolidadoScreen({ navigation }) {
           </Text>
 
           <Text style={[estilos.label, { marginTop: spacing.md }]}>Natureza</Text>
-          <View style={estilos.chips}>
-            <TouchableOpacity
-              style={[estilos.chip, naturezaSel === null && estilos.chipAtivo]}
-              onPress={() => setNaturezaSel(null)}
-            >
-              <Text style={[estilos.chipTexto, naturezaSel === null && estilos.chipTextoAtivo]}>
-                Todas
-              </Text>
-            </TouchableOpacity>
-            {naturezas.map(n => (
-              <TouchableOpacity
-                key={n.id}
-                style={[estilos.chip, naturezaSel === n.id && estilos.chipAtivo]}
-                onPress={() => setNaturezaSel(n.id)}
-              >
-                <Text style={[estilos.chipTexto, naturezaSel === n.id && estilos.chipTextoAtivo]}>
-                  {n.nome}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={{ marginHorizontal: -spacing.md }}>
+            <NaturezaFiltro value={naturezasIds} onChange={setNaturezasIds} />
           </View>
 
-          <Text style={[estilos.label, { marginTop: spacing.md }]}>Mes de referencia</Text>
+          <Text style={[estilos.label, { marginTop: spacing.md }]}>Lojas</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={[estilos.chips, { flexWrap: 'nowrap' }]}>
+              <TouchableOpacity
+                style={[estilos.chip, lojasRelIds.length === 0 && estilos.chipAtivo]}
+                onPress={() => setLojasRelIds([])}
+              >
+                <Text style={[estilos.chipTexto, lojasRelIds.length === 0 && estilos.chipTextoAtivo]}>Todas</Text>
+              </TouchableOpacity>
+              {lojas.map(l => {
+                const ativo = lojasRelIds.includes(l.id);
+                return (
+                  <TouchableOpacity
+                    key={l.id}
+                    style={[estilos.chip, ativo && estilos.chipAtivo]}
+                    onPress={() => setLojasRelIds(
+                      ativo ? lojasRelIds.filter(id => id !== l.id) : [...lojasRelIds, l.id]
+                    )}
+                  >
+                    <Text style={[estilos.chipTexto, ativo && estilos.chipTextoAtivo]}>{SIGLAS_LOJA[l.codigo] || l.codigo}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          <Text style={[estilos.label, { marginTop: spacing.md }]}>Meses de referencia</Text>
           <View style={estilos.chips}>
             <TouchableOpacity
-              style={[estilos.chip, mesSel === '' && estilos.chipAtivo]}
-              onPress={() => setMesSel('')}
+              style={[estilos.chip, mesesSels.length === 0 && estilos.chipAtivo]}
+              onPress={() => setMesesSels([])}
             >
-              <Text style={[estilos.chipTexto, mesSel === '' && estilos.chipTextoAtivo]}>Todos</Text>
+              <Text style={[estilos.chipTexto, mesesSels.length === 0 && estilos.chipTextoAtivo]}>Todos</Text>
             </TouchableOpacity>
-            {MESES_OPCOES.map(m => (
-              <TouchableOpacity
-                key={m}
-                style={[estilos.chip, mesSel === m && estilos.chipAtivo]}
-                onPress={() => setMesSel(m)}
-              >
-                <Text style={[estilos.chipTexto, mesSel === m && estilos.chipTextoAtivo]}>{m}</Text>
-              </TouchableOpacity>
-            ))}
+            {MESES_OPCOES.map(m => {
+              const ativo = mesesSels.includes(m);
+              return (
+                <TouchableOpacity
+                  key={m}
+                  style={[estilos.chip, ativo && estilos.chipAtivo]}
+                  onPress={() => setMesesSels(
+                    ativo ? mesesSels.filter(x => x !== m) : [...mesesSels, m]
+                  )}
+                >
+                  <Text style={[estilos.chipTexto, ativo && estilos.chipTextoAtivo]}>{m}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {erro ? (
@@ -229,7 +256,7 @@ export default function RelatorioConsolidadoScreen({ navigation }) {
                   onPress={() => setLojaSel(l.id)}
                 >
                   <Text style={[estilos.chipTexto, lojaSel === l.id && estilos.chipTextoAtivo]}>
-                    {l.codigo}
+                    {SIGLAS_LOJA[l.codigo] || l.codigo}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -271,7 +298,7 @@ export default function RelatorioConsolidadoScreen({ navigation }) {
                   ) : null}
                   {s.iniciada_em ? (
                     <Text style={estilos.sessaoMetaTxt}>
-                      Iniciada {formatarData(s.iniciada_em)}
+                      Iniciada {formatarDataHora(s.iniciada_em)}
                     </Text>
                   ) : null}
                 </View>
@@ -292,7 +319,7 @@ export default function RelatorioConsolidadoScreen({ navigation }) {
         <View style={{ height: spacing.lg }} />
 
       </ScrollView>
-    </SafeAreaView>
+    </AppLayout>
   );
 }
 

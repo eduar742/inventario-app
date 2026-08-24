@@ -1,13 +1,16 @@
 // Tela de Treinamento / Ajuda do sistema.
 // Atualizada com: multi-operador, localizacao, papeis novos,
-// importacao historica, parcelas, dash consolidado e credenciais.
+// importacao historica, parcelas, dash consolidado, credenciais,
+// inventario cego na aprovacao (gestor ve somente ajuste financeiro),
+// multi-select de natureza/lojas/meses no relatorio geral.
 
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, SafeAreaView,
+  View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput,
 } from 'react-native';
 
+import AppLayout from '../components/AppLayout';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 
 const SECOES = [
@@ -82,11 +85,16 @@ const SECOES = [
           ['Gerenciar usuários', '✓', '✗', '✗', '✗', '✗'],
           ['Excluir sessões concluídas', '✓', '✗', '✗', '✗', '✗'],
           ['Ver credenciais de acesso', '✓', '✗', '✗', '✗', '✗'],
+          ['Ver qtd. brutas nas divergências', '✓', '✗', '✗', '✗', '✗'],
         ],
       },
       {
         tipo: 'texto',
         texto: '⚠️ Gerente e Auditor têm acesso somente leitura — veem dashboards e relatórios, mas não executam ações. Operadores veem apenas as lojas vinculadas ao seu perfil.',
+      },
+      {
+        tipo: 'texto',
+        texto: '🔒 Inventário Cego estendido: somente o ADM vê as quantidades brutas (saldo do sistema, quantidade contada e diferença em unidades) nas divergências. Gestor, Gerente e Auditor enxergam apenas o Ajuste financeiro (R$) de cada item.',
       },
     ],
   },
@@ -203,30 +211,44 @@ const SECOES = [
     conteudo: [
       {
         tipo: 'texto',
-        texto: 'Após encerrar a sessão, o sistema compara o contado vs o sistema e gera divergências para revisão do gestor/ADM.',
+        texto: 'Após encerrar a sessão, o sistema compara o contado vs o sistema e gera divergências para revisão do Gestor/ADM.',
+      },
+      {
+        tipo: 'texto',
+        texto: '🔒 Inventário Cego também na aprovação: o Gestor (e demais perfis que não sejam ADM) veem apenas o Ajuste financeiro (R$) de cada item — sem ver o saldo do sistema, a quantidade contada nem a diferença em unidades. Isso garante que a decisão de aprovar seja baseada no impacto financeiro real, sem viés das quantidades.',
       },
       {
         tipo: 'passos',
-        titulo: 'Como revisar divergências:',
+        titulo: 'O que cada perfil vê em cada card de divergência:',
+        itens: [
+          'ADM: vê as três colunas — Sistema | Contado | Diferença (em unidades) — e as parcelas por localização.',
+          'Gestor / Gerente / Auditor: veem somente "Ajuste financeiro: +R$ 350,00" (verde = ganho para a empresa, vermelho = perda).',
+          'Produto sem custo unitário cadastrado no estoque: exibe "Sem custo cadastrado" no lugar do valor.',
+          'O motivo do bloqueio (item com ⚠️) aparece como "Requer aprovação individual" para não-ADM.',
+        ],
+      },
+      {
+        tipo: 'passos',
+        titulo: 'Como revisar divergências (Gestor/ADM):',
         itens: [
           'No card da sessão (status "Aguard. aprovação"), toque em "Revisar divergências".',
-          'Cada card mostra: Sistema | Contado | Diferença.',
-          'Se o produto foi bipado em múltiplos locais, aparecem as parcelas: "A: 30 + B: 80 = 110".',
+          'Cada card exibe: nome do produto, SKU, status e o ajuste financeiro (R$).',
+          'Itens com ⚠️ excederam o limite configurado e exigem aprovação individual.',
           'Para cada divergência: toque em "Aprovar ajuste" ou "Rejeitar".',
-          'Ou use o botão azul "Aprovar todo o inventário" para aprovar tudo de uma vez.',
-          'Após aprovar/rejeitar todas, toque em "Concluir sessão de inventário".',
+          'Ou use o botão azul "Aprovar todo o inventário" para aprovar em lote (exceto os marcados com ⚠️).',
+          'Após resolver todas, toque em "Concluir sessão de inventário".',
         ],
       },
       {
         tipo: 'texto',
-        texto: '📌 O sistema NÃO altera o saldo do estoque automaticamente após aprovação. As divergências ficam registradas como histórico para auditoria. O ajuste no ERP é feito manualmente.',
+        texto: '📌 O sistema NÃO altera o saldo do estoque automaticamente após aprovação. As divergências ficam registradas como histórico para auditoria. O ajuste no ERP é feito manualmente pela equipe responsável.',
       },
       {
         tipo: 'passos',
         titulo: 'Produtos não bipados:',
         itens: [
           'Produtos que existem no sistema mas não foram contados geram divergência negativa.',
-          'São exibidos no card como "NÃO BIPADO" com o saldo do sistema como diferença.',
+          'São exibidos no card como "NÃO BIPADO".',
           'Devem ser aprovados ou rejeitados da mesma forma.',
         ],
       },
@@ -316,9 +338,11 @@ const SECOES = [
         titulo: 'Relatório Geral (todas as lojas):',
         itens: [
           'Menu → "Rel. Geral".',
-          'Filtre por Natureza e Mês.',
+          'Natureza (multi-seleção): toque em uma ou mais naturezas. Sem seleção = todas as naturezas.',
+          'Lojas (multi-seleção): selecione quais lojas incluir. "Todas" (chip inicial) = sem filtro.',
+          'Meses (multi-seleção): selecione um ou mais meses. "Todos" = sem filtro de período.',
           'Toque em "Gerar e baixar Excel".',
-          'Uma aba por natureza, com todas as lojas e indicadores.',
+          'Uma aba por natureza, com as lojas filtradas e seus indicadores.',
           'Cores: verde ≥ 99%, amarelo ≥ 90%, vermelho < 90% de acuracidade.',
         ],
       },
@@ -512,7 +536,7 @@ export default function AjudaScreen({ navigation }) {
   }, [busca]);
 
   return (
-    <SafeAreaView style={est.container}>
+    <AppLayout navigation={navigation} telaAtual="Ajuda" titulo="Guia de Uso" scrollavel={false} semPadding>
       {/* Busca */}
       <View style={est.buscaBox}>
         <Text style={est.buscaIcone}>🔍</Text>
@@ -563,12 +587,12 @@ export default function AjudaScreen({ navigation }) {
 
         {/* Rodapé */}
         <View style={est.rodape}>
-          <Text style={est.rodapeVersao}>Sistema de Inventário BOLD — v0.1.0</Text>
+          <Text style={est.rodapeVersao}>Sistema de Inventário BOLD — v0.2.0</Text>
           <Text style={est.rodapeSuporte}>Dúvidas? Contate o administrador do sistema</Text>
           <Text style={est.rodapeEmail}>operacoes.claude@bold.net</Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </AppLayout>
   );
 }
 

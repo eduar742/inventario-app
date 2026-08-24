@@ -1157,7 +1157,7 @@ export default function AuditoriaScreen({ navigation }) {
             {
               titulo: 'ACURACIDADE FINANCEIRA',
               valor:  fmtPct(acFinanceira),
-              sub:    acFinanceira != null && acFinanceira >= 99 ? '↑ Acima da meta 99%' : '↓ Abaixo da meta 98%',
+              sub:    acFinanceira == null ? 'Sem dados de custo' : acFinanceira >= 99 ? '↑ Acima da meta 99%' : '↓ Abaixo da meta 98%',
               cor:    DK.nGreen,
               ok:     acFinanceira != null && acFinanceira >= 98,
               spark:  tendencia?.financeira,
@@ -1186,7 +1186,7 @@ export default function AuditoriaScreen({ navigation }) {
             {
               titulo: 'ACURACIDADE DE UNIDADES',
               valor:  fmtPct(acUnidades),
-              sub:    acUnidades != null && acUnidades >= 95 ? '↑ Dentro do padrao 95%' : '↓ Requer atencao 95%',
+              sub:    acUnidades == null ? 'Sem dados de unidades' : acUnidades >= 95 ? '↑ Dentro do padrao 95%' : '↓ Requer atencao 95%',
               cor:    DK.nBlue,
               ok:     acUnidades != null && acUnidades >= 95,
               spark:  tendencia?.unidades,

@@ -4,12 +4,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
-  TouchableOpacity, Alert, ActivityIndicator, Platform,
+  TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { listarPerfisRelatorio, baixarRelatorio } from '../services/api';
+import { avisar } from '../utils/alertas';
 
 
 const FORMATOS = [
@@ -47,7 +48,7 @@ export default function ExportarRelatorioScreen({ navigation, route }) {
       const dados = await listarPerfisRelatorio();
       setPerfis(dados);
     } catch (err) {
-      Alert.alert('Erro', 'Nao foi possivel carregar os perfis');
+      avisar('Erro', 'Nao foi possivel carregar os perfis');
     } finally {
       setCarregando(false);
     }
@@ -59,14 +60,10 @@ export default function ExportarRelatorioScreen({ navigation, route }) {
     );
   }
 
-  function _avisar(titulo, msg) {
-    if (Platform.OS === 'web') window.alert(msg ? `${titulo}\n\n${msg}` : titulo);
-    else Alert.alert(titulo, msg);
-  }
 
   async function handleGerar() {
     if (perfilId === 'customizado' && abasSelecionadas.length === 0) {
-      _avisar('Atencao', 'Selecione pelo menos uma aba para o perfil customizado');
+      avisar('Atencao', 'Selecione pelo menos uma aba para o perfil customizado');
       return;
     }
 
@@ -108,12 +105,12 @@ export default function ExportarRelatorioScreen({ navigation, route }) {
         if (podeCompartilhar) {
           await Sharing.shareAsync(destino, { dialogTitle: 'Exportar relatorio' });
         } else {
-          _avisar('Arquivo salvo', `Salvo: ${nomeArquivo}`);
+          avisar('Arquivo salvo', `Salvo: ${nomeArquivo}`);
         }
         try { await FileSystem.deleteAsync(destino, { idempotent: true }); } catch (_) {}
       }
     } catch (err) {
-      _avisar('Erro ao gerar relatorio', err?.message || 'Tente novamente');
+      avisar('Erro ao gerar relatorio', err?.message || 'Tente novamente');
       console.error('[ExportarRelatorio]', err);
     } finally {
       setGerando(false);

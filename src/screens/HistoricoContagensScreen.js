@@ -11,6 +11,7 @@ import { avisar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarContagensDaSessao } from '../services/api';
 import Paginacao from '../components/Paginacao';
+import { formatarDataHora } from '../utils/formatadores';
 
 
 export default function HistoricoContagensScreen({ navigation, route }) {
@@ -85,7 +86,7 @@ export default function HistoricoContagensScreen({ navigation, route }) {
     return parseFloat(v).toFixed(3).replace(/\.?0+$/, '');
   }
 
-  function _fmtDt(iso) {
+  function formatarDataHora(iso) {
     if (!iso) return '';
     const d = new Date(iso);
     return `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
@@ -125,7 +126,7 @@ export default function HistoricoContagensScreen({ navigation, route }) {
             <Text style={estilos.contagemOperador} numberOfLines={1}>
               {c.nome_usuario || ''}
             </Text>
-            <Text style={estilos.contagemData}>{_fmtDt(c.contado_em)}</Text>
+            <Text style={estilos.contagemData}>{formatarDataHora(c.contado_em)}</Text>
           </View>
         ))}
 

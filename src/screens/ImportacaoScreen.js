@@ -4,15 +4,17 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, SafeAreaView,
+  View, Text, StyleSheet, ScrollView,
   TouchableOpacity, ActivityIndicator, TextInput,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
+import AppLayout from '../components/AppLayout';
+
 import { avisar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
-import { listarLojas, listarNaturezas, importarPlanilha, importarInventarioHistorico } from '../services/api';
+import { listarLojas, listarNaturezas, importarPlanilha, importarInventarioHistorico, pegarUsuario } from '../services/api';
 
 
 const MODOS = [
@@ -37,7 +39,10 @@ export default function ImportacaoScreen({ navigation }) {
   const [naturezaSel, setNaturezaSel] = useState(null); // objeto natureza
 
   useEffect(() => {
-    carregarDados();
+    pegarUsuario().then(u => {
+      if (u?.papel === 'gestor') { navigation.replace('Home'); return; }
+      carregarDados();
+    }).catch(() => carregarDados());
   }, []);
 
   async function carregarDados() {
@@ -138,9 +143,11 @@ export default function ImportacaoScreen({ navigation }) {
 
   if (carregandoLojas) {
     return (
-      <SafeAreaView style={estilos.centro}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </SafeAreaView>
+      <AppLayout navigation={navigation} telaAtual="Importacao" titulo="Importar Planilha" scrollavel={false}>
+        <View style={estilos.centro}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </AppLayout>
     );
   }
 
@@ -152,7 +159,7 @@ export default function ImportacaoScreen({ navigation }) {
     const isHistorico = resultado.tipo === 'historico';
 
     return (
-      <SafeAreaView style={estilos.container}>
+      <AppLayout navigation={navigation} telaAtual="Importacao" titulo="Importar Planilha" scrollavel={false} semPadding>
         <ScrollView contentContainerStyle={estilos.scroll}>
           <View style={[estilos.resultadoIcone, { backgroundColor: corStatus + '22' }]}>
             <Text style={[estilos.resultadoIconeTexto, { color: corStatus }]}>{icone}</Text>
@@ -208,7 +215,7 @@ export default function ImportacaoScreen({ navigation }) {
           <View style={{ height: spacing.sm }} />
           <Button titulo="Ver historico" variante="secondary" onPress={() => navigation.navigate('HistoricoImportacoes')} />
         </ScrollView>
-      </SafeAreaView>
+      </AppLayout>
     );
   }
 
@@ -282,7 +289,7 @@ export default function ImportacaoScreen({ navigation }) {
 
   // Tela de formulario
   return (
-    <SafeAreaView style={estilos.container}>
+    <AppLayout navigation={navigation} telaAtual="Importacao" titulo="Importar Planilha" scrollavel={false} semPadding>
       <ScrollView contentContainerStyle={estilos.scroll} keyboardShouldPersistTaps="handled">
 
         {/* Abas: Estoque / Historico */}
@@ -395,7 +402,7 @@ export default function ImportacaoScreen({ navigation }) {
         <View style={{ height: spacing.sm }} />
         <Button titulo="Ver historico de importacoes" variante="secondary" onPress={() => navigation.navigate('HistoricoImportacoes')} />
       </ScrollView>
-    </SafeAreaView>
+    </AppLayout>
   );
 }
 

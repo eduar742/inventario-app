@@ -11,17 +11,13 @@ import {
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { avisar } from '../utils/alertas';
 import Button from '../components/Button';
+import { formatarDataHora } from '../utils/formatadores';
 import {
   listarContagensDaSessao,
   ajustarContagem,
   listarAjustesSessao,
 } from '../services/api';
 
-function formatarData(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
 
 export default function RevisaoContagensScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
@@ -166,7 +162,7 @@ export default function RevisaoContagensScreen({ navigation, route }) {
                 <Text style={estilos.linhaCont}>
                   {c.numero_contagem}ª contagem · {c.nome_usuario || 'operador'}
                 </Text>
-                <Text style={estilos.linhaData}>{formatarData(c.contado_em)}</Text>
+                <Text style={estilos.linhaData}>{formatarDataHora(c.contado_em)}</Text>
                 {c.localizacao ? (
                   <Text style={estilos.linhaLoc}>📍 {c.localizacao}</Text>
                 ) : null}
@@ -308,7 +304,7 @@ export default function RevisaoContagensScreen({ navigation, route }) {
                       <Text style={estilos.ajusteJustificativa}>"{a.justificativa}"</Text>
                     ) : null}
                     <Text style={estilos.ajusteMeta}>
-                      Por {a.ajustado_por || '—'} · {formatarData(a.ajustado_em)}
+                      Por {a.ajustado_por || '—'} · {formatarDataHora(a.ajustado_em)}
                     </Text>
                   </View>
                 ))
