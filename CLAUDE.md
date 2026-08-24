@@ -39,7 +39,7 @@ Sistema de inventario fisico multi-loja para uma rede de **11 lojas de varejo** 
 - API producao: `https://inventario-api-bc1p.onrender.com`
 - Repo backend: `https://github.com/eduar742/inventario-api`
 - Repo app: `https://github.com/eduar742/inventario-app`
-- Admin de teste: `admin@inventario.local` / `Bold@Admin2026!`
+- Admin de teste: `admin@inventario.local` (senha NAO documentada aqui - repo publico; ver gerenciador de senhas)
 
 ---
 

@@ -33,6 +33,12 @@ yarn-error.*
 # local env files
 .env*.local
 
+# config local do Claude Code
+.claude/
+
+# scripts de teste manual (contem credenciais de ambiente)
+teste_completo.py
+
 # typescript
 *.tsbuildinfo
 
