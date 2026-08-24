@@ -6,11 +6,13 @@ import { Alert, Platform } from 'react-native';
 
 /** Exibe mensagem simples (equivalente a window.alert). */
 export function avisar(titulo, mensagem) {
-  const texto = mensagem ? `${titulo}\n\n${mensagem}` : titulo;
+  const msg = !mensagem ? ''
+    : typeof mensagem === 'string' ? mensagem
+    : JSON.stringify(mensagem);
   if (Platform.OS === 'web') {
-    window.alert(texto);
+    window.alert(msg ? `${titulo}\n\n${msg}` : titulo);
   } else {
-    Alert.alert(titulo, mensagem);
+    Alert.alert(titulo, msg || undefined);
   }
 }
 
