@@ -323,6 +323,10 @@ export async function atualizarInfoProduto(produtoId, dados) {
   });
 }
 
+export async function listarEdicoesProduto(produtoId) {
+  return await chamarAPI(`/api/v1/produtos/${produtoId}/edicoes`);
+}
+
 export async function adicionarNotaAdm(sessaoId, nota) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/nota-adm`, {
     method: 'PATCH',
