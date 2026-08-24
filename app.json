@@ -30,6 +30,9 @@
       "lang": "pt-BR",
       "themeColor": "#1E40AF",
       "backgroundColor": "#FFFFFF"
-    }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }
