@@ -159,10 +159,15 @@ export default function CriarSessaoScreen({ navigation }) {
     return converterMes(mesManual);
   }
 
-  // Mesma condicao do aviso exibido abaixo do seletor de mes: nenhum mes com
-  // estoque importado para a loja e nenhuma planilha anexada nesta tela.
+  // True quando a sessao vai nascer sem saldo sistemico para o mes escolhido.
+  // Cobre dois casos: (a) a loja nao tem nenhum mes importado; (b) a loja tem
+  // outros meses, mas o mes digitado manualmente nao esta entre eles — nesse
+  // segundo caso o backend faz fallback silencioso para o saldo de OUTRO mes
+  // (ver _qtd_sistema em sessoes.py), o que e ainda mais enganoso que zero.
   function semEstoqueParaSessao() {
-    return !!(lojaSelecionada && !arquivo && !carregandoMeses && meses.length === 0 && mesEfetivo());
+    const mes = mesEfetivo();
+    if (!lojaSelecionada || !mes || arquivo || carregandoMeses) return false;
+    return !meses.includes(mes);
   }
 
   // Reseta a confirmacao ao trocar loja/mes/arquivo — nao deixa uma
@@ -517,8 +522,9 @@ export default function CriarSessaoScreen({ navigation }) {
           <Text style={estilos.dica}>Selecione a loja para ver os meses disponíveis</Text>
         )}
 
-        {/* Confirmacao obrigatoria: sem estoque importado, toda contagem sera
-            comparada contra saldo zero e marcada como divergencia. */}
+        {/* Confirmacao obrigatoria quando nao ha estoque importado para o mes
+            escolhido: o backend nao bloqueia e resolve o saldo por fallback
+            (zero, ou pior, o saldo de outro mes) sem avisar ninguem. */}
         {semEstoqueParaSessao() && (
           <TouchableOpacity
             style={estilos.toggleIniciar}
@@ -528,9 +534,13 @@ export default function CriarSessaoScreen({ navigation }) {
               {confirmarSemEstoque && <Text style={estilos.checkboxTick}>✓</Text>}
             </View>
             <View style={{ flex: 1, marginLeft: spacing.sm }}>
-              <Text style={estilos.toggleRotulo}>Criar mesmo sem estoque importado</Text>
+              <Text style={estilos.toggleRotulo}>
+                Criar sem estoque importado para {mesEfetivo()}
+              </Text>
               <Text style={estilos.toggleDescricao}>
-                Sem planilha, o sistema nao tem saldo para comparar: toda contagem sera tratada como divergencia.
+                {meses.length > 0
+                  ? `Nao ha planilha deste mes. O sistema vai comparar as contagens com o saldo de outro mes (${meses[0]}), gerando divergencias incorretas.`
+                  : 'Sem planilha, o sistema nao tem saldo para comparar: toda contagem sera tratada como divergencia.'}
               </Text>
             </View>
           </TouchableOpacity>
