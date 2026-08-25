@@ -37,6 +37,11 @@ export default function CriarSessaoScreen({ navigation }) {
   const [mesManual, setMesManual] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [iniciarImediatamente, setIniciarImediatamente] = useState(true);
+  // O backend nao bloqueia mais sessao sem estoque importado (decisao de
+  // 2026-06). Sem planilha, cada contagem e comparada contra saldo zero e
+  // marcada como divergencia silenciosamente. Exige confirmacao explicita
+  // no app antes de deixar passar esse cenario.
+  const [confirmarSemEstoque, setConfirmarSemEstoque] = useState(false);
 
   // Filtro de natureza (None = todas)
   const [naturezas, setNaturezas] = useState([]);
@@ -154,6 +159,19 @@ export default function CriarSessaoScreen({ navigation }) {
     return converterMes(mesManual);
   }
 
+  // Mesma condicao do aviso exibido abaixo do seletor de mes: nenhum mes com
+  // estoque importado para a loja e nenhuma planilha anexada nesta tela.
+  function semEstoqueParaSessao() {
+    return !!(lojaSelecionada && !arquivo && !carregandoMeses && meses.length === 0 && mesEfetivo());
+  }
+
+  // Reseta a confirmacao ao trocar loja/mes/arquivo — nao deixa uma
+  // confirmacao antiga valer para uma combinacao diferente.
+  useEffect(() => {
+    setConfirmarSemEstoque(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaSelecionada?.id, mesReferencia, mesManual, arquivo]);
+
   function nomeSugerido() {
     if (!lojaSelecionada || !mesEfetivo()) return '';
     const [ano, mes] = mesEfetivo().split('-');
@@ -174,6 +192,10 @@ export default function CriarSessaoScreen({ navigation }) {
     }
     const nomeFinal = nome.trim() || nomeSugerido();
     if (!nomeFinal) { mostrarErro('Informe o nome da sessao'); return; }
+    if (semEstoqueParaSessao() && !confirmarSemEstoque) {
+      mostrarErro('Marque a confirmacao abaixo para criar a sessao sem estoque importado');
+      return;
+    }
 
     setCriando(true);
     try {
@@ -240,7 +262,8 @@ export default function CriarSessaoScreen({ navigation }) {
     }
   }
 
-  const podeSubmeter = lojaSelecionada && (mesReferencia || converterMes(mesManual)) && !criando;
+  const podeSubmeter = lojaSelecionada && (mesReferencia || converterMes(mesManual)) && !criando
+    && (!semEstoqueParaSessao() || confirmarSemEstoque);
 
   if (carregando) {
     return (
@@ -492,6 +515,25 @@ export default function CriarSessaoScreen({ navigation }) {
 
         {!lojaSelecionada && (
           <Text style={estilos.dica}>Selecione a loja para ver os meses disponíveis</Text>
+        )}
+
+        {/* Confirmacao obrigatoria: sem estoque importado, toda contagem sera
+            comparada contra saldo zero e marcada como divergencia. */}
+        {semEstoqueParaSessao() && (
+          <TouchableOpacity
+            style={estilos.toggleIniciar}
+            onPress={() => setConfirmarSemEstoque(v => !v)}
+          >
+            <View style={[estilos.checkbox, confirmarSemEstoque && estilos.checkboxAtivo]}>
+              {confirmarSemEstoque && <Text style={estilos.checkboxTick}>✓</Text>}
+            </View>
+            <View style={{ flex: 1, marginLeft: spacing.sm }}>
+              <Text style={estilos.toggleRotulo}>Criar mesmo sem estoque importado</Text>
+              <Text style={estilos.toggleDescricao}>
+                Sem planilha, o sistema nao tem saldo para comparar: toda contagem sera tratada como divergencia.
+              </Text>
+            </View>
+          </TouchableOpacity>
         )}
 
         {/* ── NOME ── */}
