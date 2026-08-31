@@ -675,6 +675,11 @@ export async function buscarGruposMaterial(lojaId, naturezaFiltroId) {
   return await chamarAPI(`/api/v1/dashboard/grupos-material/${lojaId}${p}`);
 }
 
+// Contagem leve de sessoes aguardando aprovacao — usada pelo badge do menu
+export async function buscarPendentesAprovacao() {
+  return await chamarAPI('/api/v1/dashboard/pendentes-aprovacao');
+}
+
 // ============================================================
 // ENDPOINTS DE RELATORIOS
 // ============================================================

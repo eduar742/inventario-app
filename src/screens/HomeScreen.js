@@ -21,7 +21,7 @@ const BLOCOS = [
     emoji: '📦',
     cor: '#2563EB',
     tela: 'Lojas',
-    papeis: ['admin', 'gestor', 'operador'],
+    papeis: ['admin', 'gestor', 'operador', 'lider'],
   },
   {
     id: 'dashboard',
@@ -84,7 +84,7 @@ const BLOCOS = [
     emoji: '📖',
     cor: '#0891B2',
     tela: 'Ajuda',
-    papeis: ['admin', 'gestor', 'gerente', 'auditor', 'operador'],
+    papeis: ['admin', 'gestor', 'gerente', 'auditor', 'operador', 'lider'],
   },
 ];
 

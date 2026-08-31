@@ -15,13 +15,14 @@ import { listarUsuarios, criarUsuarioAPI, atualizarUsuario, listarLojas } from '
 
 
 // Papeis disponiveis para criacao/edicao
-const PAPEIS = ['gestor', 'gerente', 'auditor', 'operador'];
+const PAPEIS = ['gestor', 'gerente', 'auditor', 'operador', 'lider'];
 const COR_PAPEL = {
   admin:    { bg: colors.dangerSoft,   txt: colors.danger },
   gestor:   { bg: colors.primarySoft,  txt: colors.primary },
   gerente:  { bg: '#CFFAFE',           txt: '#0891B2' },
   auditor:  { bg: '#EDE9FE',           txt: '#7C3AED' },
   operador: { bg: colors.successSoft,  txt: colors.success },
+  lider:    { bg: '#FEF3C7',           txt: '#B45309' },
 };
 
 // Papeis que tem acesso irrestrito de loja (ou selecionam para visibilidade)

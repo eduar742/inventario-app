@@ -25,7 +25,10 @@ import Svg, { Path } from 'react-native-svg';
 
 import LogoBold from './LogoBold';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { pegarUsuario, logout } from '../services/api';
+import { pegarUsuario, logout, buscarPendentesAprovacao } from '../services/api';
+
+// Papeis que acompanham sessoes aguardando aprovacao (badge no menu)
+const PAPEIS_APROVACAO = ['admin', 'gestor', 'gerente'];
 
 // ── Constantes de layout ─────────────────────────────────────────────────────
 const SIDEBAR_W           = 210;
@@ -96,12 +99,21 @@ export default function AppLayout({
   const [sidebarRecolhida, setSidebarRecolhida] = useState(false);
   const [usuario,          setUsuario]          = useState(null);
   const [itemHover,        setItemHover]        = useState(null);
+  const [pendentesAprovacao, setPendentesAprovacao] = useState(0);
 
   const animSidebar = useRef(new Animated.Value(SIDEBAR_W)).current;
 
   useEffect(() => {
     pegarUsuario().then(setUsuario).catch(() => {});
   }, []);
+
+  // Badge de sessoes aguardando aprovacao — so para papeis que aprovam divergencias
+  useEffect(() => {
+    if (!usuario || !PAPEIS_APROVACAO.includes(usuario.papel)) return;
+    buscarPendentesAprovacao()
+      .then(res => setPendentesAprovacao(res?.total ?? 0))
+      .catch(() => {});
+  }, [usuario]);
 
   // Restaura preferencia de sidebar ao montar (apenas desktop)
   useEffect(() => {
@@ -215,11 +227,20 @@ export default function AppLayout({
                   onHoverIn={() => sidebarRecolhida && setItemHover(idx)}
                   onHoverOut={() => setItemHover(null)}
                 >
-                  <IconeNav
-                    nome={item.icone}
-                    cor={ativo ? '#FFFFFF' : item.corIcone}
-                    tamanho={18}
-                  />
+                  <View>
+                    <IconeNav
+                      nome={item.icone}
+                      cor={ativo ? '#FFFFFF' : item.corIcone}
+                      tamanho={18}
+                    />
+                    {item.tela === 'Dashboard' && pendentesAprovacao > 0 && (
+                      <View style={est.badgeAprovacao}>
+                        <Text style={est.badgeAprovacaoTxt}>
+                          {pendentesAprovacao > 9 ? '9+' : pendentesAprovacao}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   {!sidebarRecolhida && (
                     <Text
                       style={[est.navLabel, ativo && est.navLabelAtivo]}
@@ -520,6 +541,25 @@ const est = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '500',
+  },
+
+  badgeAprovacao: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  badgeAprovacaoTxt: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
 
   // ── Backdrop mobile ──────────────────────────────────────────────────────
