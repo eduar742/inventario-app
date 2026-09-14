@@ -2,7 +2,11 @@
 // Atualizada com: multi-operador, localizacao, papeis novos,
 // importacao historica, parcelas, dash consolidado, credenciais,
 // inventario cego na aprovacao (gestor ve somente ajuste financeiro),
-// multi-select de natureza/lojas/meses no relatorio geral.
+// multi-select de natureza/lojas/meses no relatorio geral,
+// acompanhamento ao vivo da sessao, lista separada de pendentes
+// (itens que faltou bipar / aguardando 2a contagem / desempate) e
+// papel Lider exclusivo para a 3a contagem, com visualizacao da
+// acuracidade final da sessao (unica diferenca frente ao Operador).
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -96,6 +100,10 @@ const SECOES = [
         tipo: 'texto',
         texto: '🔒 Inventário Cego estendido: somente o ADM vê as quantidades brutas (saldo do sistema, quantidade contada e diferença em unidades) nas divergências. Gestor, Gerente e Auditor enxergam apenas o Ajuste financeiro (R$) de cada item.',
       },
+      {
+        tipo: 'texto',
+        texto: '🏅 Papel Líder: acesso igual ao Operador (só o menu Inventário e Ajuda) — não vê Dashboard, não cria/encerra sessões nem aprova divergências. A única diferença é que, ao final da sessão (quando ele fecha a última rodada de desempate ou finaliza o inventário), o Líder recebe a informação de quanto ficou a acuracidade do estoque contado — algo que o Operador não vê.',
+      },
     ],
   },
   // ─────────────────────────────────────────────────────────────────
@@ -137,9 +145,19 @@ const SECOES = [
         itens: [
           'ADM/Gestor: toque em "Encerrar sessão" no card da sessão ativa.',
           'Operador: toque em "Finalizar inventário" no Resumo ao terminar de bipar.',
-          'Se ainda houver pendentes, o operador pode tocar em "Finalizar agora" — os itens restantes ficam como não bipados.',
+          'A sessão só encerra sozinha quando TODOS os produtos esperados foram bipados e as contagens convergiram — itens nunca bipados continuam pendentes, nenhum SKU fica de fora do processo.',
+          'Se ainda houver pendentes, é possível tocar em "Finalizar inventário agora" para encerrar mesmo assim — os itens sem contagem entram como divergência "Produto não bipado" para o Gestor/ADM revisar.',
           'Após encerramento, o sistema gera as divergências automaticamente.',
           'A sessão passa para "Aguardando aprovação".',
+        ],
+      },
+      {
+        tipo: 'passos',
+        titulo: 'Acompanhar o progresso em tempo real:',
+        itens: [
+          'No card de uma sessão "Em andamento", toque em "Acompanhar ao vivo" (visível para ADM, Gestor, Gerente, Auditor e Líder).',
+          'A tela mostra o % de progresso, quantos SKUs já foram contados e o feed das últimas bipagens (produto, quantidade, operador e horário).',
+          'Atualiza sozinha a cada 15 segundos enquanto a sessão estiver em andamento — não precisa ficar puxando para atualizar.',
         ],
       },
     ],
@@ -198,6 +216,21 @@ const SECOES = [
       {
         tipo: 'texto',
         texto: '📊 Barra de progresso no scanner: exibe Total (SKUs no sistema) · Bipados · Faltam · Leituras em tempo real durante a contagem.',
+      },
+      {
+        tipo: 'texto',
+        texto: '🔁 Lógica das 3 contagens: 1ª contagem diverge do sistema → pede 2ª contagem (qualquer operador, desde que seja diferente de quem fez a 1ª). Se a 2ª também divergir da 1ª, pede uma 3ª contagem de desempate — que só pode ser feita por um usuário com papel Líder (ou ADM). O valor final é a moda entre as contagens, ou a mais próxima do sistema. Ao final, o Líder (diferente do Operador) vê a acuracidade da sessão.',
+      },
+      {
+        tipo: 'passos',
+        titulo: 'Como retomar itens pendentes a qualquer momento:',
+        itens: [
+          'Em Sessões, toque em "Ver itens pendentes" no card da sessão em andamento — não precisa ter acabado de finalizar uma rodada para ver essa lista.',
+          'A tela separa os pendentes em 3 grupos: "Itens que faltou bipar" (nunca contados), "Aguardando 2ª contagem" (divergiram da 1ª) e "Aguardando 3ª contagem — desempate" (divergiram entre a 1ª e a 2ª).',
+          'Cada grupo tem um botão que já abre o Scanner na rodada certa para aquele item.',
+          'O grupo de desempate só mostra o botão de contar para quem tem papel Líder ou ADM — para os demais aparece um aviso informando que só o Líder pode fazer o desempate.',
+          'A mesma separação aparece automaticamente na tela de Resumo, logo depois de finalizar uma rodada.',
+        ],
       },
     ],
   },

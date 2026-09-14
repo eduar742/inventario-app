@@ -17,6 +17,7 @@ import {
   processarRodada,
   pegarUsuario,
   buscarPerfilAtual,
+  buscarResumoSessao,
 } from '../services/api';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
@@ -33,8 +34,10 @@ export default function ResumoScreen({ navigation, route }) {
   const [erroGeral, setErroGeral] = useState('');
   const [sessaoEncerrada, setSessaoEncerrada] = useState(false);
   const [encerrando, setEncerrando] = useState(false);
+  const [acuracidade, setAcuracidade] = useState(null);
   // Conjunto de indices ja salvos — evita duplo envio em retentativas
   const itensSalvosRef = React.useRef(new Set());
+  const acuracidadeBuscadaRef = React.useRef(false);
 
   useEffect(() => {
     finalizarInventario();
@@ -48,6 +51,16 @@ export default function ResumoScreen({ navigation, route }) {
       setPapel(usuario?.papel || 'operador');
     } catch (_) {}
   }
+
+  // Acuracidade final da sessao — operador nao ve (inventario cego), mas
+  // lider, gestor e admin recebem esse numero assim que a sessao encerra.
+  useEffect(() => {
+    if (!sessaoEncerrada || papel === 'operador' || acuracidadeBuscadaRef.current) return;
+    acuracidadeBuscadaRef.current = true;
+    buscarResumoSessao(sessao.id)
+      .then(r => setAcuracidade(r.acuracidade))
+      .catch(() => {});
+  }, [sessaoEncerrada, papel]);
 
   // Encerramento forcado quando operador clica em "Finalizar agora" com pendentes
   async function encerrarSessaoAgora() {
@@ -187,6 +200,11 @@ export default function ResumoScreen({ navigation, route }) {
               Sessao encerrada com sucesso.{'\n'}
               O gestor revisara as divergencias para concluir o inventario.
             </Text>
+            {acuracidade != null && (
+              <Text style={estilos.bannerAcuracidade}>
+                Acuracidade desta sessao: {acuracidade}%
+              </Text>
+            )}
           </View>
         )}
 
@@ -349,6 +367,11 @@ const estilos = StyleSheet.create({
   },
   bannerSessaoEncerradaTexto: {
     fontSize: fontSize.sm, color: colors.text, lineHeight: 20,
+  },
+  bannerAcuracidade: {
+    fontSize: fontSize.md, fontWeight: '700', color: colors.success,
+    marginTop: spacing.sm, paddingTop: spacing.sm,
+    borderTopWidth: 1, borderTopColor: colors.success + '33',
   },
   bannerErroCritico: {
     backgroundColor: colors.dangerSoft, borderRadius: radius.md,

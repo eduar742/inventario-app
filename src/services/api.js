@@ -465,6 +465,10 @@ export async function listarContagensDaSessao(sessaoId, page = 1, pageSize = 50)
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/contagens?${params}`);
 }
 
+export async function buscarResumoSessao(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/resumo`);
+}
+
 export async function ajustarContagem(contagemId, { quantidade, justificativa }) {
   return await chamarAPI(`/api/v1/contagens/${contagemId}/ajuste`, {
     method: 'PATCH',
