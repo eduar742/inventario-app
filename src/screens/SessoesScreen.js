@@ -268,6 +268,16 @@ export default function SessoesScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* Acompanhar ao vivo: qualquer papel nao-operador pode ver o progresso em tempo real */}
+        {papel !== 'operador' && item.status === 'em_andamento' && (
+          <TouchableOpacity
+            style={[estilos.botaoCardAcao, { backgroundColor: colors.successSoft, marginTop: spacing.md }]}
+            onPress={() => navigation.navigate('AcompanhamentoSessao', { sessao: item, loja })}
+          >
+            <Text style={[estilos.botaoCardAcaoTexto, { color: colors.success }]}>Acompanhar ao vivo</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Encerrar sessao: admin e gestor podem encerrar sessoes da sua loja */}
         {(isAdmin || papel === 'gestor') && item.status === 'em_andamento' && (
           <TouchableOpacity

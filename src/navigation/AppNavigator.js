@@ -25,6 +25,7 @@ import DashboardConsolidadoScreen        from '../screens/DashboardConsolidadoSc
 import AjudaScreen                       from '../screens/AjudaScreen';
 import AuditoriaScreen                   from '../screens/AuditoriaScreen';
 import RevisaoContagensScreen            from '../screens/RevisaoContagensScreen';
+import AcompanhamentoSessaoScreen        from '../screens/AcompanhamentoSessaoScreen';
 
 import { colors } from '../theme/colors';
 import { navRef } from './navRef';
@@ -78,6 +79,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Ajuda"                  component={AjudaScreen}                   options={{ headerShown: false }} />
         <Stack.Screen name="Auditoria"              component={AuditoriaScreen}               options={{ headerShown: false }} />
         <Stack.Screen name="RevisaoContagens"       component={RevisaoContagensScreen}        options={({ route }) => ({ title: `Revisar: ${route.params?.sessao?.nome || 'Contagens'}` })} />
+        <Stack.Screen name="AcompanhamentoSessao"   component={AcompanhamentoSessaoScreen}    options={{ title: 'Acompanhamento ao vivo' }} />
 
       </Stack.Navigator>
     </NavigationContainer>
