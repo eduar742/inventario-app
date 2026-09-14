@@ -268,6 +268,17 @@ export default function SessoesScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* Ver pendentes: quem pode contar (operador, lider, gestor, admin) ve a lista
+            separada de itens que faltou bipar / aguardando 2a ou 3a contagem */}
+        {podeEscrever && item.status === 'em_andamento' && (
+          <TouchableOpacity
+            style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft, marginTop: spacing.md }]}
+            onPress={() => navigation.navigate('PendentesOperador', { sessao: item, loja })}
+          >
+            <Text style={[estilos.botaoCardAcaoTexto, { color: colors.warning }]}>Ver itens pendentes</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Acompanhar ao vivo: qualquer papel nao-operador pode ver o progresso em tempo real */}
         {papel !== 'operador' && item.status === 'em_andamento' && (
           <TouchableOpacity

@@ -15,6 +15,8 @@ import {
   encerrarSessao,
   gerarDivergencias,
   processarRodada,
+  pegarUsuario,
+  buscarPerfilAtual,
 } from '../services/api';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
@@ -27,6 +29,7 @@ export default function ResumoScreen({ navigation, route }) {
   const [processando, setProcessando] = useState(true);
   const [totalSalvos, setTotalSalvos] = useState(0);
   const [pendentes, setPendentes] = useState([]);
+  const [papel, setPapel] = useState('operador');
   const [erroGeral, setErroGeral] = useState('');
   const [sessaoEncerrada, setSessaoEncerrada] = useState(false);
   const [encerrando, setEncerrando] = useState(false);
@@ -35,7 +38,16 @@ export default function ResumoScreen({ navigation, route }) {
 
   useEffect(() => {
     finalizarInventario();
+    carregarPapel();
   }, []);
+
+  async function carregarPapel() {
+    try {
+      let usuario = await pegarUsuario();
+      if (!usuario?.papel) usuario = await buscarPerfilAtual();
+      setPapel(usuario?.papel || 'operador');
+    } catch (_) {}
+  }
 
   // Encerramento forcado quando operador clica em "Finalizar agora" com pendentes
   async function encerrarSessaoAgora() {
@@ -125,12 +137,21 @@ export default function ResumoScreen({ navigation, route }) {
     setProcessando(false);
   }
 
-  function iniciarProximaRodada() {
+  // Cada item pendente traz "motivo" (nao_contado | divergente) e
+  // "proxima_rodada" (calculada pelo backend a partir da sequencia real de
+  // contagens do produto, nao do numero global da rodada) — usados aqui pra
+  // separar em 3 grupos distintos, cada um com a rodada certa pra reabrir o Scanner.
+  const naoContados  = pendentes.filter(p => p.motivo === 'nao_contado');
+  const aguardando2  = pendentes.filter(p => p.motivo === 'divergente' && p.proxima_rodada === 2);
+  const aguardando3  = pendentes.filter(p => p.motivo === 'divergente' && p.proxima_rodada === 3);
+  const podeDesempatar = papel === 'lider' || papel === 'admin';
+
+  function iniciarContagem(rodadaAlvo, itens) {
     navigation.navigate('Scanner', {
       sessao,
       loja,
-      rodada: rodada + 1,
-      itensPendentes: pendentes.map(p => ({
+      rodada: rodadaAlvo,
+      itensPendentes: itens.map(p => ({
         codigoQr: p.codigo_qr,
         sku: p.sku,
         descricao: p.descricao,
@@ -197,36 +218,71 @@ export default function ResumoScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Pendentes para proxima rodada */}
-        {pendentes.length > 0 && !sessaoEncerrada && (
+        {/* Itens que faltou bipar — nunca tiveram nenhuma contagem */}
+        {naoContados.length > 0 && !sessaoEncerrada && (
           <View style={estilos.secao}>
             <Text style={estilos.secaoTitulo}>
-              Aguardando {ORDINAL[rodada + 1] || `${rodada + 1}ª`} contagem ({pendentes.length})
+              Itens que faltou bipar ({naoContados.length})
             </Text>
-            {pendentes.map((item) => (
+            {naoContados.map((item) => (
+              <View key={item.codigo_qr} style={[estilos.cardPendente, { borderLeftColor: colors.danger }]}>
+                <Text style={estilos.cardNome} numberOfLines={2}>{item.descricao || item.sku}</Text>
+                <Text style={estilos.cardSku}>{item.sku}</Text>
+              </View>
+            ))}
+            <View style={{ height: spacing.md }} />
+            <Button titulo="Bipar itens que faltaram" onPress={() => iniciarContagem(1, naoContados)} />
+          </View>
+        )}
+
+        {/* Itens contados mas divergentes — aguardando 2a contagem */}
+        {aguardando2.length > 0 && !sessaoEncerrada && (
+          <View style={estilos.secao}>
+            <Text style={estilos.secaoTitulo}>
+              Aguardando 2ª contagem ({aguardando2.length})
+            </Text>
+            {aguardando2.map((item) => (
               <View key={item.codigo_qr} style={estilos.cardPendente}>
                 <Text style={estilos.cardNome} numberOfLines={2}>{item.descricao || item.sku}</Text>
                 <Text style={estilos.cardSku}>{item.sku}</Text>
               </View>
             ))}
+            <View style={{ height: spacing.md }} />
+            <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
+          </View>
+        )}
 
-            {rodada < 3 && (
-              <>
-                <View style={{ height: spacing.md }} />
-                <Button
-                  titulo={`Iniciar ${ORDINAL[rodada + 1] || `${rodada + 1}ª`} contagem`}
-                  onPress={iniciarProximaRodada}
-                />
-              </>
+        {/* Itens que nao convergiram entre 1a e 2a — aguardando desempate (so lider/admin) */}
+        {aguardando3.length > 0 && !sessaoEncerrada && (
+          <View style={estilos.secao}>
+            <Text style={estilos.secaoTitulo}>
+              Aguardando 3ª contagem — desempate ({aguardando3.length})
+            </Text>
+            {aguardando3.map((item) => (
+              <View key={item.codigo_qr} style={[estilos.cardPendente, { borderLeftColor: colors.info }]}>
+                <Text style={estilos.cardNome} numberOfLines={2}>{item.descricao || item.sku}</Text>
+                <Text style={estilos.cardSku}>{item.sku}</Text>
+              </View>
+            ))}
+            <View style={{ height: spacing.md }} />
+            {podeDesempatar ? (
+              <Button titulo="Iniciar 3ª contagem (desempate)" onPress={() => iniciarContagem(3, aguardando3)} />
+            ) : (
+              <Text style={estilos.dica}>
+                Apenas um usuario com papel Lider pode fazer o desempate.
+              </Text>
             )}
+          </View>
+        )}
 
-            <View style={{ height: spacing.sm }} />
+        {pendentes.length > 0 && !sessaoEncerrada && (
+          <View style={estilos.secao}>
             <Button
               titulo={encerrando ? 'Encerrando...' : 'Finalizar inventario agora'}
               variante="secondary"
               carregando={encerrando}
               onPress={() => {
-                const msg = `Ainda ha ${pendentes.length} produto(s) para recontar.\n\nAo finalizar agora, o gestor decidira sobre as divergencias. Deseja continuar?`;
+                const msg = `Ainda ha ${pendentes.length} produto(s) pendente(s).\n\nAo finalizar agora, o gestor decidira sobre as divergencias. Deseja continuar?`;
                 confirmarAlerta('Finalizar inventario?', msg)
                   .then(ok => { if (ok) encerrarSessaoAgora(); });
               }}
