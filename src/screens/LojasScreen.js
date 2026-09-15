@@ -76,9 +76,9 @@ export default function LojasScreen({ navigation }) {
         }
       }
 
-      // Gestor: filtra pela loja vinculada SOMENTE se o cadastro tiver loja_id definido.
+      // Gestor e Lider: filtra pela loja vinculada SOMENTE se o cadastro tiver loja_id definido.
       // Se ainda nao tiver (migracao pendente), mostra todas as lojas para nao bloquear acesso.
-      if (u?.papel === 'gestor') {
+      if (u?.papel === 'gestor' || u?.papel === 'lider') {
         const ids = u?.lojas_ids || (u?.loja_id ? [u.loja_id] : []);
         if (ids.length === 1) {
           const lojaVinculada = ativas.find(l => l.id === ids[0]);
