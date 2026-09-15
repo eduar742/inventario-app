@@ -21,7 +21,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { avisar, confirmar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
-import { buscarProdutoPorQR } from '../services/api';
+import { buscarProdutoPorQR, registrarContagem } from '../services/api';
 import { limparCodigoQr } from '../utils/qrCode';
 
 export default function ContagemScreen({ navigation, route }) {
@@ -37,6 +37,7 @@ export default function ContagemScreen({ navigation, route }) {
 
   const [carregandoProduto, setCarregandoProduto] = useState(true);
   const [produto, setProduto] = useState(null);
+  const [enviando, setEnviando] = useState(false);
   const [quantidade, setQuantidade] = useState('');
   const [localizacao, setLocalizacao] = useState('');
   const [observacoes, setObservacoes] = useState('');
@@ -108,7 +109,11 @@ export default function ContagemScreen({ navigation, route }) {
     setModalScanLoc(false);
   }
 
-  function handleConfirmar() {
+  // Registra a bipagem na API imediatamente (nao espera o "Finalizar" do
+  // Scanner), pra que o painel de acompanhamento ao vivo do gestor/lider
+  // reflita a contagem assim que o operador confirma, e pra nao perder o
+  // lote inteiro se o app fechar antes de finalizar.
+  async function handleConfirmar() {
     const qtd = parseFloat(quantidade.replace(',', '.'));
     if (isNaN(qtd) || qtd < 0) {
       avisar('Quantidade invalida', 'Digite um numero valido (ex: 60 ou 12,5)');
@@ -125,7 +130,7 @@ export default function ContagemScreen({ navigation, route }) {
       return;
     }
 
-    route.params.onAdicionar({
+    const item = {
       codigoQr,
       sku: produto.sku,
       descricao: produto.descricao,
@@ -135,8 +140,26 @@ export default function ContagemScreen({ navigation, route }) {
       localizacao: locDigitada || null,
       confirmarLocalizacao: locConfirmada,
       observacoes: observacoes || null,
-    });
+    };
 
+    setEnviando(true);
+    try {
+      await registrarContagem({
+        sessaoId: sessao.id,
+        codigoQr: item.codigoQr,
+        quantidadeContada: item.quantidade,
+        rodada: item.rodada,
+        localizacao: item.localizacao,
+        confirmarLocalizacao: item.confirmarLocalizacao,
+        observacoes: item.observacoes,
+      });
+    } catch (err) {
+      setEnviando(false);
+      avisar('Erro ao registrar contagem', err.message || 'Nao foi possivel salvar esta contagem. Verifique a conexao e tente novamente.');
+      return;
+    }
+
+    route.params.onAdicionar(item);
     navigation.goBack();
   }
 
@@ -302,9 +325,10 @@ export default function ContagemScreen({ navigation, route }) {
           <View style={{ height: spacing.lg }} />
 
           <Button
-            titulo="Adicionar ao inventario"
+            titulo={enviando ? 'Salvando...' : 'Adicionar ao inventario'}
             onPress={handleConfirmar}
-            desabilitado={!quantidade || (localizacaoObrigatoria && !locDigitada)}
+            carregando={enviando}
+            desabilitado={enviando || !quantidade || (localizacaoObrigatoria && !locDigitada)}
           />
 
           <View style={{ height: spacing.sm }} />
@@ -313,6 +337,7 @@ export default function ContagemScreen({ navigation, route }) {
             titulo="Cancelar"
             variante="secondary"
             onPress={() => navigation.goBack()}
+            desabilitado={enviando}
           />
         </ScrollView>
       </KeyboardAvoidingView>

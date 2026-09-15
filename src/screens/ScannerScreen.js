@@ -51,6 +51,9 @@ export default function ScannerScreen({ navigation, route }) {
     }
   }, [route.params?.resetContagens]);
 
+  // Chamado pela tela de Contagem depois que ela ja registrou a bipagem na
+  // API — aqui so acumulamos localmente para exibir progresso e detectar
+  // itens repetidos nesta rodada (multi-localizacao).
   function adicionarContagem(novaContagem) {
     setContagens(prev => [...prev, novaContagem]);
   }

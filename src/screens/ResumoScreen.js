@@ -11,7 +11,6 @@ import {
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import {
-  registrarContagem,
   encerrarSessao,
   gerarDivergencias,
   processarRodada,
@@ -35,8 +34,6 @@ export default function ResumoScreen({ navigation, route }) {
   const [sessaoEncerrada, setSessaoEncerrada] = useState(false);
   const [encerrando, setEncerrando] = useState(false);
   const [acuracidade, setAcuracidade] = useState(null);
-  // Conjunto de indices ja salvos — evita duplo envio em retentativas
-  const itensSalvosRef = React.useRef(new Set());
   const acuracidadeBuscadaRef = React.useRef(false);
 
   useEffect(() => {
@@ -91,44 +88,10 @@ export default function ResumoScreen({ navigation, route }) {
       return;
     }
 
-    let totalErros = 0;
-    let primeiroErro = '';
-    let salvos = itensSalvosRef.current.size;
-
-    // Envia cada bipagem individualmente — o backend soma por produto/rodada
-    for (let i = 0; i < contagens.length; i++) {
-      if (itensSalvosRef.current.has(i)) continue;
-
-      const item = contagens[i];
-      try {
-        await registrarContagem({
-          sessaoId: sessao.id,
-          codigoQr: item.codigoQr,
-          quantidadeContada: item.quantidade,
-          observacoes: item.observacoes || null,
-          rodada: item.rodada || rodada,
-        });
-        itensSalvosRef.current.add(i);
-        salvos++;
-      } catch (err) {
-        totalErros++;
-        const msg = err.message || 'Erro desconhecido';
-        if (!primeiroErro) primeiroErro = msg;
-      }
-    }
-
-    setTotalSalvos(salvos);
-
-    if (totalErros > 0) {
-      const ehColdStart = primeiroErro.includes('inesperada') || primeiroErro.includes('demorou');
-      setErroGeral(
-        ehColdStart
-          ? `O servidor demorou para responder (pode estar iniciando).\n\nAguarde alguns segundos e tente novamente.`
-          : `${totalErros} item(ns) nao foram salvos. Erro: ${primeiroErro}\n\nTente novamente para reenviar apenas os itens com erro.`
-      );
-      setProcessando(false);
-      return;
-    }
+    // Cada bipagem ja foi enviada e persistida individualmente na tela de
+    // Contagem (ver ContagemScreen.handleConfirmar) — aqui so falta pedir
+    // ao backend o processamento da rodada.
+    setTotalSalvos(contagens.length);
 
     // Solicita ao backend o processamento da rodada: calcula totais, detecta pendentes
     try {
