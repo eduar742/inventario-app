@@ -25,6 +25,8 @@ import {
   buscarParticipacaoOperadores,
   listarUsuarios,
   listarLojas,
+  pegarUsuario,
+  buscarPerfilAtual,
 } from '../services/api';
 
 const IMG_RESUMO = require('../../assets/Resumo do Período.png');
@@ -436,10 +438,20 @@ export default function AuditoriaScreen({ navigation }) {
   const [mesesSelecionados,setMesesSelecionados]= useState([]);
   const [lojasSelecionadas,setLojasSelecionadas]= useState([]);
   const [lojas,            setLojas]            = useState([]);
+  // Exportar audit log e restrito a ADM (dado sensivel de LGPD/seguranca)
+  const [papel, setPapel] = useState('operador');
+  const podeExportarAuditLog = papel === 'admin';
 
   // Carrega lista de lojas uma vez
   useEffect(() => {
     listarLojas().then(ls => setLojas(Array.isArray(ls) ? ls : [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    pegarUsuario()
+      .then(u => (u?.papel ? u : buscarPerfilAtual()))
+      .then(u => setPapel(u?.papel || 'operador'))
+      .catch(() => {});
   }, []);
 
   // Produto cartesiano anos x meses -> array de "YYYY-MM"
@@ -1588,54 +1600,60 @@ export default function AuditoriaScreen({ navigation }) {
       <>
         <View style={ek.ferrCard}>
           <Text style={ek.ferrTitulo}>Exportar Audit Log</Text>
-          <Text style={ek.ferrSub}>Exporta eventos do sistema em Excel (.xlsx)</Text>
-          <Text style={ek.ferrRotulo}>Tipo de Acao</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md }}>
-            {TIPOS_ACAO.map(t => (
-              <TouchableOpacity key={String(t.valor)}
-                style={[ek.chip, tipoAcao === t.valor && ek.chipAtivo]}
-                onPress={() => setTipoAcao(t.valor)} activeOpacity={0.7}>
-                <Text style={[ek.chipTxt, tipoAcao === t.valor && { color: '#FFFFFF' }]}>{t.rotulo}</Text>
+          {!podeExportarAuditLog ? (
+            <Text style={ek.ferrSub}>Disponivel somente para administradores.</Text>
+          ) : (
+            <>
+              <Text style={ek.ferrSub}>Exporta eventos do sistema em Excel (.xlsx)</Text>
+              <Text style={ek.ferrRotulo}>Tipo de Acao</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md }}>
+                {TIPOS_ACAO.map(t => (
+                  <TouchableOpacity key={String(t.valor)}
+                    style={[ek.chip, tipoAcao === t.valor && ek.chipAtivo]}
+                    onPress={() => setTipoAcao(t.valor)} activeOpacity={0.7}>
+                    <Text style={[ek.chipTxt, tipoAcao === t.valor && { color: '#FFFFFF' }]}>{t.rotulo}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={ek.periodoCard}>
+                <View style={{ flex: 1, padding: spacing.sm }}>
+                  <Text style={ek.periodoRot}>Mes Inicio</Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity style={ek.dropBtn} onPress={() => setDropAberto('mesInicio')} activeOpacity={0.7}>
+                      <Text style={ek.dropBtnTxt} numberOfLines={1}>{MESES_NOMES[mesInicioIdx]}</Text>
+                      <Text style={{ color: DK.txt3, fontSize: 10 }}>▾</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[ek.dropBtn, { maxWidth: 76 }]} onPress={() => setDropAberto('anoInicio')} activeOpacity={0.7}>
+                      <Text style={ek.dropBtnTxt}>{anoInicio}</Text>
+                      <Text style={{ color: DK.txt3, fontSize: 10 }}>▾</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <View style={{ width: 1, backgroundColor: DK.borda, marginVertical: 8 }} />
+                <View style={{ flex: 1, padding: spacing.sm }}>
+                  <Text style={ek.periodoRot}>Mes Fim</Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity style={ek.dropBtn} onPress={() => setDropAberto('mesFim')} activeOpacity={0.7}>
+                      <Text style={ek.dropBtnTxt} numberOfLines={1}>{MESES_NOMES[mesFimIdx]}</Text>
+                      <Text style={{ color: DK.txt3, fontSize: 10 }}>▾</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[ek.dropBtn, { maxWidth: 76 }]} onPress={() => setDropAberto('anoFim')} activeOpacity={0.7}>
+                      <Text style={ek.dropBtnTxt}>{anoFim}</Text>
+                      <Text style={{ color: DK.txt3, fontSize: 10 }}>▾</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+              {erroExp ? <Text style={{ color: DK.nRed, fontSize: 13, marginBottom: 8 }}>{erroExp}</Text> : null}
+              <TouchableOpacity style={[ek.btnExportar, exportando && { opacity: 0.65 }]}
+                onPress={handleExportar} disabled={exportando} activeOpacity={0.85}>
+                {exportando
+                  ? <ActivityIndicator size="small" color="#FFFFFF" />
+                  : <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF' }}>⬇  Exportar Audit Log (.xlsx)</Text>
+                }
               </TouchableOpacity>
-            ))}
-          </View>
-          <View style={ek.periodoCard}>
-            <View style={{ flex: 1, padding: spacing.sm }}>
-              <Text style={ek.periodoRot}>Mes Inicio</Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <TouchableOpacity style={ek.dropBtn} onPress={() => setDropAberto('mesInicio')} activeOpacity={0.7}>
-                  <Text style={ek.dropBtnTxt} numberOfLines={1}>{MESES_NOMES[mesInicioIdx]}</Text>
-                  <Text style={{ color: DK.txt3, fontSize: 10 }}>▾</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[ek.dropBtn, { maxWidth: 76 }]} onPress={() => setDropAberto('anoInicio')} activeOpacity={0.7}>
-                  <Text style={ek.dropBtnTxt}>{anoInicio}</Text>
-                  <Text style={{ color: DK.txt3, fontSize: 10 }}>▾</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            <View style={{ width: 1, backgroundColor: DK.borda, marginVertical: 8 }} />
-            <View style={{ flex: 1, padding: spacing.sm }}>
-              <Text style={ek.periodoRot}>Mes Fim</Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <TouchableOpacity style={ek.dropBtn} onPress={() => setDropAberto('mesFim')} activeOpacity={0.7}>
-                  <Text style={ek.dropBtnTxt} numberOfLines={1}>{MESES_NOMES[mesFimIdx]}</Text>
-                  <Text style={{ color: DK.txt3, fontSize: 10 }}>▾</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[ek.dropBtn, { maxWidth: 76 }]} onPress={() => setDropAberto('anoFim')} activeOpacity={0.7}>
-                  <Text style={ek.dropBtnTxt}>{anoFim}</Text>
-                  <Text style={{ color: DK.txt3, fontSize: 10 }}>▾</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-          {erroExp ? <Text style={{ color: DK.nRed, fontSize: 13, marginBottom: 8 }}>{erroExp}</Text> : null}
-          <TouchableOpacity style={[ek.btnExportar, exportando && { opacity: 0.65 }]}
-            onPress={handleExportar} disabled={exportando} activeOpacity={0.85}>
-            {exportando
-              ? <ActivityIndicator size="small" color="#FFFFFF" />
-              : <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF' }}>⬇  Exportar Audit Log (.xlsx)</Text>
-            }
-          </TouchableOpacity>
+            </>
+          )}
         </View>
 
         <View style={[ek.ferrCard, { marginTop: spacing.md }]}>

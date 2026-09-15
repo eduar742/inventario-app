@@ -21,7 +21,7 @@ const BLOCOS = [
     emoji: '📦',
     cor: '#2563EB',
     tela: 'Lojas',
-    papeis: ['admin', 'gestor', 'operador', 'lider'],
+    papeis: ['admin', 'gestor', 'operador', 'lider', 'gerente'],
   },
   {
     id: 'dashboard',
@@ -57,7 +57,7 @@ const BLOCOS = [
     emoji: '📥',
     cor: '#D97706',
     tela: 'Importacao',
-    papeis: ['admin'],
+    papeis: ['admin', 'gerente'],
   },
   {
     id: 'usuarios',
@@ -66,7 +66,7 @@ const BLOCOS = [
     emoji: '👥',
     cor: '#7C3AED',
     tela: 'Gestores',
-    papeis: ['admin'],
+    papeis: ['admin', 'gerente'],
   },
   {
     id: 'auditoria',
@@ -75,7 +75,7 @@ const BLOCOS = [
     emoji: '🔍',
     cor: '#0891B2',
     tela: 'Auditoria',
-    papeis: ['admin'],
+    papeis: ['admin', 'gerente'],
   },
   {
     id: 'ajuda',

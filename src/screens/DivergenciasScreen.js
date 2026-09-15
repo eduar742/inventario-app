@@ -472,7 +472,7 @@ export default function DivergenciasScreen({ navigation, route }) {
       )}
 
       {/* Concluir sessao — aparece quando nao ha pendentes (inclusive sem divergencias) */}
-      {pendentes === 0 && (
+      {pendentes === 0 && !isReadOnly && (
         <TouchableOpacity
           style={estilos.botaoConcluir}
           onPress={async () => {

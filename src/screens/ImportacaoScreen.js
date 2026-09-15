@@ -37,10 +37,14 @@ export default function ImportacaoScreen({ navigation }) {
   // Campos extras para importacao historica
   const [nomeSessao, setNomeSessao] = useState('');
   const [naturezaSel, setNaturezaSel] = useState(null); // objeto natureza
+  // Gerente tem acesso somente leitura — visualiza a tela, mas nao pode importar
+  const [papel, setPapel] = useState('operador');
+  const isReadOnly = papel === 'gerente';
 
   useEffect(() => {
     pegarUsuario().then(u => {
       if (u?.papel === 'gestor') { navigation.replace('Home'); return; }
+      setPapel(u?.papel || 'operador');
       carregarDados();
     }).catch(() => carregarDados());
   }, []);
@@ -334,8 +338,14 @@ export default function ImportacaoScreen({ navigation }) {
 
             <SeletorArquivo />
             <View style={{ height: spacing.xl }} />
-            <Button titulo="Importar estoque" onPress={handleImportar} carregando={importando}
-              desabilitado={!lojaSelecionada || !validarMesAno(mesAno) || !arquivo || importando} />
+            {isReadOnly ? (
+              <View style={estilos.infoBox}>
+                <Text style={estilos.infoTxt}>Seu perfil tem acesso somente leitura — nao e possivel importar planilhas.</Text>
+              </View>
+            ) : (
+              <Button titulo="Importar estoque" onPress={handleImportar} carregando={importando}
+                desabilitado={!lojaSelecionada || !validarMesAno(mesAno) || !arquivo || importando} />
+            )}
           </>
         )}
 
@@ -394,8 +404,14 @@ export default function ImportacaoScreen({ navigation }) {
 
             <SeletorArquivo />
             <View style={{ height: spacing.xl }} />
-            <Button titulo="Importar inventario historico" onPress={handleImportarHistorico} carregando={importando}
-              desabilitado={!lojaSelecionada || !validarMesAno(mesAno) || !arquivo || importando} />
+            {isReadOnly ? (
+              <View style={estilos.infoBox}>
+                <Text style={estilos.infoTxt}>Seu perfil tem acesso somente leitura — nao e possivel importar planilhas.</Text>
+              </View>
+            ) : (
+              <Button titulo="Importar inventario historico" onPress={handleImportarHistorico} carregando={importando}
+                desabilitado={!lojaSelecionada || !validarMesAno(mesAno) || !arquivo || importando} />
+            )}
           </>
         )}
 

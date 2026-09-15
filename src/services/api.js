@@ -526,6 +526,12 @@ export async function atualizarUsuario(usuarioId, { nome, papel, lojaId, lojasId
   });
 }
 
+export async function excluirUsuario(usuarioId) {
+  return await chamarAPI(`/api/v1/usuarios/${usuarioId}`, {
+    method: 'DELETE',
+  });
+}
+
 // ============================================================
 // ENDPOINTS DE NATUREZAS
 // ============================================================

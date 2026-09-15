@@ -1,5 +1,6 @@
-// Tela de gerenciamento de usuarios. Apenas ADM.
-// Permite listar, criar e editar usuarios com vinculacao de multiplas lojas.
+// Tela de gerenciamento de usuarios.
+// ADM: lista, cria, edita e exclui usuarios com vinculacao de multiplas lojas.
+// Gerente: acesso somente leitura (visualiza a lista, sem criar/editar/excluir).
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -9,9 +10,12 @@ import {
 
 import AppLayout from '../components/AppLayout';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { avisar } from '../utils/alertas';
+import { avisar, confirmar } from '../utils/alertas';
 import Button from '../components/Button';
-import { listarUsuarios, criarUsuarioAPI, atualizarUsuario, listarLojas } from '../services/api';
+import {
+  listarUsuarios, criarUsuarioAPI, atualizarUsuario, excluirUsuario,
+  listarLojas, pegarUsuario, buscarPerfilAtual,
+} from '../services/api';
 
 
 // Papeis disponiveis para criacao/edicao
@@ -37,6 +41,10 @@ export default function GestoresScreen({ navigation }) {
   const [modalLojas, setModalLojas] = useState(false); // modal de selecao de lojas
   const [editando, setEditando] = useState(null);
   const [salvando, setSalvando] = useState(false);
+  const [excluindoId, setExcluindoId] = useState(null);
+  // Papel do usuario logado — apenas ADM pode criar/editar/excluir usuarios
+  const [papelLogado, setPapelLogado] = useState('operador');
+  const isAdmin = papelLogado === 'admin';
 
   // Campos do formulario
   const [nome, setNome] = useState('');
@@ -48,7 +56,15 @@ export default function GestoresScreen({ navigation }) {
   const [novaSenha, setNovaSenha] = useState('');          // redefinicao de senha (edicao)
   const [mostrarSenha, setMostrarSenha] = useState(false); // toggle visibilidade
 
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => { carregarPapel(); carregar(); }, []);
+
+  async function carregarPapel() {
+    try {
+      let usuario = await pegarUsuario();
+      if (!usuario?.papel) usuario = await buscarPerfilAtual();
+      setPapelLogado(usuario?.papel || 'operador');
+    } catch (_) {}
+  }
 
   async function carregar() {
     try {
@@ -109,6 +125,25 @@ export default function GestoresScreen({ navigation }) {
     }
   }
 
+  function handleExcluir(usuario) {
+    confirmar(
+      'Excluir usuario',
+      `Excluir definitivamente "${usuario.nome}"?\n\nEsta acao nao pode ser desfeita. Usuarios com historico de contagens/sessoes nao podem ser excluidos — desative-os em vez disso.`,
+    ).then(ok => { if (ok) confirmarExclusao(usuario); });
+  }
+
+  async function confirmarExclusao(usuario) {
+    setExcluindoId(usuario.id);
+    try {
+      await excluirUsuario(usuario.id);
+      setUsuarios(prev => prev.filter(u => u.id !== usuario.id));
+    } catch (err) {
+      avisar('Nao foi possivel excluir', err.message || 'Tente novamente');
+    } finally {
+      setExcluindoId(null);
+    }
+  }
+
   // ── Seletor de lojas ───────────────────────────────────────────────
   function toggleLoja(id) {
     setLojasSelecionadas(prev =>
@@ -139,25 +174,43 @@ export default function GestoresScreen({ navigation }) {
     const cor = COR_PAPEL[item.papel] || COR_PAPEL.operador;
     const ids = item.lojas_ids || (item.loja_id ? [item.loja_id] : []);
     const codigos = ids.map(id => lojas.find(l => l.id === id)?.codigo || '').filter(Boolean).join(', ');
-    return (
-      <TouchableOpacity style={estilos.card} onPress={() => abrirEdicao(item)} activeOpacity={0.7}>
-        <View style={estilos.cardTopo}>
-          <View style={{ flex: 1 }}>
-            <Text style={[estilos.nomeUsuario, !item.ativo && { color: colors.textMuted }]}>
-              {item.nome} {!item.ativo ? '(inativo)' : ''}
+    const conteudo = (
+      <View style={estilos.cardTopo}>
+        <View style={{ flex: 1 }}>
+          <Text style={[estilos.nomeUsuario, !item.ativo && { color: colors.textMuted }]}>
+            {item.nome} {!item.ativo ? '(inativo)' : ''}
+          </Text>
+          <Text style={estilos.emailUsuario}>{item.email}</Text>
+          {codigos ? (
+            <Text style={estilos.lojaUsuario}>
+              {ids.length > 1 ? `${ids.length} lojas: ` : ''}{codigos}
             </Text>
-            <Text style={estilos.emailUsuario}>{item.email}</Text>
-            {codigos ? (
-              <Text style={estilos.lojaUsuario}>
-                {ids.length > 1 ? `${ids.length} lojas: ` : ''}{codigos}
-              </Text>
-            ) : null}
-          </View>
-          <View style={[estilos.badge, { backgroundColor: cor.bg }]}>
-            <Text style={[estilos.badgeTexto, { color: cor.txt }]}>{item.papel.toUpperCase()}</Text>
-          </View>
+          ) : null}
         </View>
-      </TouchableOpacity>
+        <View style={[estilos.badge, { backgroundColor: cor.bg }]}>
+          <Text style={[estilos.badgeTexto, { color: cor.txt }]}>{item.papel.toUpperCase()}</Text>
+        </View>
+      </View>
+    );
+    return (
+      <View style={estilos.card}>
+        {isAdmin ? (
+          <TouchableOpacity onPress={() => abrirEdicao(item)} activeOpacity={0.7}>
+            {conteudo}
+          </TouchableOpacity>
+        ) : conteudo}
+        {isAdmin && (
+          <TouchableOpacity
+            style={estilos.botaoExcluir}
+            onPress={() => handleExcluir(item)}
+            disabled={excluindoId === item.id}
+          >
+            {excluindoId === item.id
+              ? <ActivityIndicator size="small" color={colors.danger} />
+              : <Text style={estilos.botaoExcluirTexto}>Excluir usuário</Text>}
+          </TouchableOpacity>
+        )}
+      </View>
     );
   }
 
@@ -180,9 +233,15 @@ export default function GestoresScreen({ navigation }) {
         contentContainerStyle={estilos.lista}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); carregar(); }} colors={[colors.primary]} tintColor={colors.primary} />}
         ListHeaderComponent={
-          <TouchableOpacity style={estilos.botaoNovo} onPress={abrirNovo}>
-            <Text style={estilos.botaoNovoTexto}>+ Novo usuario</Text>
-          </TouchableOpacity>
+          isAdmin ? (
+            <TouchableOpacity style={estilos.botaoNovo} onPress={abrirNovo}>
+              <Text style={estilos.botaoNovoTexto}>+ Novo usuario</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={estilos.avisoLeitura}>
+              <Text style={estilos.avisoLeituraTexto}>Modo somente leitura — voce pode visualizar os usuarios, mas nao alterar.</Text>
+            </View>
+          )
         }
         ListEmptyComponent={<Text style={estilos.vazio}>Nenhum usuario encontrado</Text>}
       />
@@ -386,6 +445,10 @@ const estilos = StyleSheet.create({
   badge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
   badgeTexto: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   vazio: { textAlign: 'center', color: colors.textMuted, padding: spacing.xl },
+  avisoLeitura: { backgroundColor: colors.infoSoft, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
+  avisoLeituraTexto: { color: colors.info, fontSize: fontSize.sm, fontWeight: '500' },
+  botaoExcluir: { marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, alignItems: 'center' },
+  botaoExcluirTexto: { color: colors.danger, fontSize: fontSize.sm, fontWeight: '700' },
 
   // Modal principal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

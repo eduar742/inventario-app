@@ -59,8 +59,8 @@ const ITENS_NAV = [
   { rotulo: 'Dashboard',   icone: 'dashboard', corIcone: '#3B82F6',               tela: 'Dashboard',            papeis: ['admin','gestor','gerente','auditor'] },
   { rotulo: 'Consolidado', icone: 'building',  corIcone: '#8B5CF6',               tela: 'DashboardConsolidado', papeis: ['admin','gerente','auditor'] },
   { rotulo: 'Rel. Geral',  icone: 'relatorio', corIcone: '#10B981',               tela: 'RelatorioConsolidado', papeis: ['admin','gerente','auditor'] },
-  { rotulo: 'Importar',    icone: 'importar',  corIcone: '#F59E0B',               tela: 'Importacao',           papeis: ['admin'] },
-  { rotulo: 'Usuários',    icone: 'usuarios',  corIcone: '#EC4899',               tela: 'Gestores',             papeis: ['admin'] },
+  { rotulo: 'Importar',    icone: 'importar',  corIcone: '#F59E0B',               tela: 'Importacao',           papeis: ['admin', 'gerente'] },
+  { rotulo: 'Usuários',    icone: 'usuarios',  corIcone: '#EC4899',               tela: 'Gestores',             papeis: ['admin', 'gerente'] },
   { rotulo: 'Auditoria',   icone: 'auditoria', corIcone: '#06B6D4',               tela: 'Auditoria',            papeis: ['admin','gerente','auditor'] },
 ];
 

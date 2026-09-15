@@ -59,8 +59,21 @@ const SECOES = [
         ],
       },
       {
+        tipo: 'passos',
+        titulo: 'Como excluir um usuário definitivamente:',
+        itens: [
+          'Toque em "Excluir usuário" no rodapé do card (visível apenas para o ADM).',
+          'Confirme a exclusão — essa ação não pode ser desfeita.',
+          'Usuários que já registraram contagens, sessões, produtos ou importações NÃO podem ser excluídos — o sistema bloqueia para não perder o rastreio de auditoria. Nesse caso, inative o usuário em vez de excluir.',
+        ],
+      },
+      {
         tipo: 'texto',
         texto: '📍 Operador com loja vinculada: ao fazer login, o operador é redirecionado automaticamente para as sessões da(s) sua(s) loja(s) — sem precisar selecionar.',
+      },
+      {
+        tipo: 'texto',
+        texto: '👁️ Gerente (somente leitura): pode abrir a tela Usuários e ver a lista completa, mas não vê o botão "+ Novo usuário", não consegue editar nenhum card e não vê o botão de excluir.',
       },
     ],
   },
@@ -80,13 +93,16 @@ const SECOES = [
         tipo: 'tabela',
         colunas: ['Ação', 'ADM', 'Gestor', 'Gerente', 'Auditor', 'Operador'],
         linhas: [
+          ['Visualizar todas as telas do sistema', '✓', '✗', '✓', '✗', '✗'],
           ['Realizar inventário (scanner)', '✓', '✓', '✗', '✗', '✓'],
           ['Criar/encerrar sessões', '✓', '✓', '✗', '✗', '✗'],
           ['Aprovar divergências', '✓', '✓', '✗', '✗', '✗'],
           ['Ver dashboards e KPIs', '✓', '✓', '✓', '✓', '✗'],
           ['Exportar relatórios', '✓', '✓', '✓', '✓', '✗'],
           ['Importar planilhas', '✓', '✓', '✗', '✗', '✗'],
-          ['Gerenciar usuários', '✓', '✗', '✗', '✗', '✗'],
+          ['Ver lista de usuários', '✓', '✗', '✓', '✗', '✗'],
+          ['Gerenciar usuários (criar/editar)', '✓', '✗', '✗', '✗', '✗'],
+          ['Excluir usuários cadastrados', '✓', '✗', '✗', '✗', '✗'],
           ['Excluir sessões concluídas', '✓', '✗', '✗', '✗', '✗'],
           ['Ver credenciais de acesso', '✓', '✗', '✗', '✗', '✗'],
           ['Ver qtd. brutas nas divergências', '✓', '✗', '✗', '✗', '✗'],
@@ -94,7 +110,11 @@ const SECOES = [
       },
       {
         tipo: 'texto',
-        texto: '⚠️ Gerente e Auditor têm acesso somente leitura — veem dashboards e relatórios, mas não executam ações. Operadores veem apenas as lojas vinculadas ao seu perfil.',
+        texto: '👁️ Gerente: enxerga TODAS as telas do sistema (Inventário, Dashboard, Consolidado, Relatórios, Importar, Usuários e Auditoria) para fins de acompanhamento, mas não executa nenhuma ação — não conta produtos, não cria/encerra sessões, não aprova divergências, não importa planilhas e não cria/edita/exclui usuários. Onde houver um botão de ação (novo, editar, importar, excluir), ele fica oculto para o Gerente.',
+      },
+      {
+        tipo: 'texto',
+        texto: '⚠️ Auditor tem acesso somente leitura aos dashboards e relatórios (mesma regra de não executar ações), mas — diferente do Gerente — não acessa as telas de Inventário, Importar e Usuários. Operadores veem apenas as lojas vinculadas ao seu perfil.',
       },
       {
         tipo: 'texto',
@@ -159,6 +179,10 @@ const SECOES = [
           'A tela mostra o % de progresso, quantos SKUs já foram contados e o feed das últimas bipagens (produto, quantidade, operador e horário).',
           'Atualiza sozinha a cada 15 segundos enquanto a sessão estiver em andamento — não precisa ficar puxando para atualizar.',
         ],
+      },
+      {
+        tipo: 'texto',
+        texto: '👁️ Gerente: vê a lista de sessões de cada loja e pode acompanhar ao vivo, mas os cards de sessão não têm botão para bipar, "+ Nova sessão", "Encerrar sessão" nem "Cancelar sessão" — todos ficam ocultos.',
       },
     ],
   },
@@ -335,6 +359,10 @@ const SECOES = [
           'Toque em "Importar".',
           'Verifique o resultado: linhas com sucesso e erros, se houver.',
         ],
+      },
+      {
+        tipo: 'texto',
+        texto: '👁️ Gerente: acessa a tela Importar para acompanhar o formato exigido e o histórico de importações, mas o botão de importar fica desabilitado com o aviso "acesso somente leitura".',
       },
     ],
   },
