@@ -22,10 +22,11 @@ import { avisar, confirmar } from '../utils/alertas';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { buscarProdutoPorQR } from '../services/api';
+import { limparCodigoQr } from '../utils/qrCode';
 
 export default function ContagemScreen({ navigation, route }) {
-  // Limpa asteriscos e caracteres extras que alguns coletores adicionam ao codigo
-  const codigoQr = (route.params.codigoQr || '').trim().replace(/[*\r\n\t]+/g, '').trim();
+  // O QR do produto traz SKU*lote*pedido de compra*... — considera so ate o primeiro asterisco
+  const codigoQr = limparCodigoQr(route.params.codigoQr);
   const { sessao, loja } = route.params;
   const rodada = route.params?.rodada ?? 1;
   // Indica se este produto ja foi bipado nesta rodada (multi-localizacao)
@@ -98,7 +99,7 @@ export default function ContagemScreen({ navigation, route }) {
   function handleLocEscaneada({ data }) {
     if (locEscaneadaRef.current) return;
     locEscaneadaRef.current = true;
-    const valor = (data || '').trim().replace(/[*\r\n\t]+/g, '').trim();
+    const valor = limparCodigoQr(data);
     if (valor) {
       setLocalizacao(valor);
       setLocDiferente(false);

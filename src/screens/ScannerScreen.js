@@ -21,6 +21,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
+import { limparCodigoQr } from '../utils/qrCode';
 
 // Sufixos de ordinal feminino (contagem)
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
@@ -61,13 +62,8 @@ export default function ScannerScreen({ navigation, route }) {
     }
   }, [permissao]);
 
-  // Remove caracteres extras que alguns coletores adicionam (asterisco, CR, LF, espacos)
-  function limparCodigo(raw) {
-    return (raw || '').trim().replace(/[*\r\n\t]+/g, '').trim();
-  }
-
-   function confirmarCodigoManual() {
-    const codigo = limparCodigo(codigoManual);
+  function confirmarCodigoManual() {
+    const codigo = limparCodigoQr(codigoManual);
     if (!codigo) return;
     setModalVisivel(false);
     navigation.navigate('Contagem', {
@@ -94,7 +90,7 @@ export default function ScannerScreen({ navigation, route }) {
   }
 
   function handleBarCodeScanned({ data }) {
-    const codigo = limparCodigo(data);
+    const codigo = limparCodigoQr(data);
     if (!codigo) return;
     if (escaneado || codigo === ultimoCodigoRef.current) return;
     setEscaneado(true);
