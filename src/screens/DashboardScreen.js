@@ -765,24 +765,38 @@ export default function DashboardScreen({ navigation }) {
         {ativas.length > 0 && (
           <View style={es.card}>
             <Text style={es.titulo}>Sessões Ativas ({ativas.length})</Text>
-            {ativas.map(s => (
-              <View key={s.sessao_id} style={es.sessao}>
-                <View style={es.sTop}>
-                  <View style={[es.badge, { backgroundColor: s.status === 'aguardando_aprovacao' ? '#FFFBEB' : '#EFF6FF' }]}>
-                    <Text style={[es.badgeTxt, { color: s.status === 'aguardando_aprovacao' ? '#D97706' : '#3B82F6' }]}>{s.loja_codigo}</Text>
+            {ativas.map(s => {
+              // Progresso da RODADA ATUAL (nao soma das 3 rodadas) — mesmo
+              // campo usado no painel de acompanhamento ao vivo. Com fallback
+              // pros campos antigos caso a API ainda nao tenha os novos.
+              const rodadaAtual = s.rodada_atual || 1;
+              const pctRodada   = s.percentual_progresso_rodada_atual ?? s.percentual_progresso;
+              const contadosR   = s.total_produtos_contados_rodada_atual ?? s.contados;
+              const totalR      = s.total_produtos_rodada_atual ?? s.total_produtos;
+              return (
+                <View key={s.sessao_id} style={es.sessao}>
+                  <View style={es.sTop}>
+                    <View style={[es.badge, { backgroundColor: s.status === 'aguardando_aprovacao' ? '#FFFBEB' : '#EFF6FF' }]}>
+                      <Text style={[es.badgeTxt, { color: s.status === 'aguardando_aprovacao' ? '#D97706' : '#3B82F6' }]}>{s.loja_codigo}</Text>
+                    </View>
+                    {rodadaAtual > 1 && (
+                      <View style={[es.badge, { backgroundColor: rodadaAtual === 3 ? '#FEF3C7' : '#F0F9FF' }]}>
+                        <Text style={[es.badgeTxt, { color: rodadaAtual === 3 ? '#D97706' : '#0284C7' }]}>{rodadaAtual}ª contagem</Text>
+                      </View>
+                    )}
+                    <Text style={es.nome} numberOfLines={1}>{s.nome}</Text>
+                    <Text style={es.pct}>{pctRodada}%</Text>
                   </View>
-                  <Text style={es.nome} numberOfLines={1}>{s.nome}</Text>
-                  <Text style={es.pct}>{s.percentual_progresso}%</Text>
+                  <View style={es.progFundo}>
+                    <View style={[es.progFill, { width: `${Math.max(pctRodada, 1)}%` }]} />
+                  </View>
+                  <Text style={es.sSub}>
+                    {contadosR}/{totalR} produtos{rodadaAtual > 1 ? ` · ${rodadaAtual}ª contagem` : ''}
+                    {s.status === 'aguardando_aprovacao' ? ' · Aguardando aprovação' : ''}
+                  </Text>
                 </View>
-                <View style={es.progFundo}>
-                  <View style={[es.progFill, { width: `${Math.max(s.percentual_progresso, 1)}%` }]} />
-                </View>
-                <Text style={es.sSub}>
-                  {s.contados}/{s.total_produtos} produtos
-                  {s.status === 'aguardando_aprovacao' ? ' · Aguardando aprovação' : ''}
-                </Text>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 

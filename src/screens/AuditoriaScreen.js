@@ -558,10 +558,20 @@ export default function AuditoriaScreen({ navigation }) {
 
   const totalSessoes = statusSessoes.concluidas_total || 0;
 
-  // Metricas do card Status da Auditoria
-  const todasSessoes  = [...sessoes, ...(dash?.sessoes_ativas || [])];
-  const skusPlanejados = todasSessoes.reduce((a, s) => a + (s.total_produtos_loja || s.total_produtos || 0), 0);
-  const skusAuditados  = todasSessoes.reduce((a, s) => a + (s.total_produtos_contados || s.contados || 0), 0);
+  // Metricas do card Status da Auditoria.
+  // Sessoes CONCLUIDAS: total/contados = a sessao inteira (ja convergiu, o
+  // campo *_rodada_atual delas so refletiria a ultima rodada usada, um
+  // subconjunto menor — errado pra "SKUs Planejados" do periodo).
+  // Sessoes ATIVAS: usa o progresso da rodada atual (nao soma das 3
+  // rodadas) — senao uma sessao em recontagem contava como "quase
+  // auditada" so por ter sido bipada uma vez na 1a rodada, mesmo com
+  // desempate pendente.
+  const skusPlanejados =
+    sessoes.reduce((a, s) => a + (s.total_produtos_loja || 0), 0) +
+    (dash?.sessoes_ativas || []).reduce((a, s) => a + (s.total_produtos_rodada_atual ?? s.total_produtos ?? 0), 0);
+  const skusAuditados =
+    sessoes.reduce((a, s) => a + (s.total_produtos_contados || 0), 0) +
+    (dash?.sessoes_ativas || []).reduce((a, s) => a + (s.total_produtos_contados_rodada_atual ?? s.contados ?? 0), 0);
   const skusPendentes  = Math.max(0, skusPlanejados - skusAuditados);
   const pctAuditado    = skusPlanejados > 0 ? (skusAuditados / skusPlanejados) * 100 : 0;
 
