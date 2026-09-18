@@ -174,6 +174,17 @@ export default function SessoesScreen({ navigation, route }) {
     const { bg, txt, label } = badgeStatus(item.status);
     const podeContar = item.status === 'em_andamento' && podeEscrever;
 
+    // Enquanto a sessao esta em andamento, mostra o progresso da RODADA
+    // ATUAL (1a/2a/3a) em vez da soma das 3 rodadas — senao a barra passa de
+    // 100% assim que a 1a termina (ou com item avulso), mesmo com
+    // recontagem/desempate ainda pendente. Sessao ja concluida/aguardando
+    // aprovacao mostra o total da sessao inteira mesmo (ja convergiu).
+    const rodadaAtual = item.rodada_atual || 1;
+    const usaProgressoRodada = item.status === 'em_andamento';
+    const totalProgresso  = usaProgressoRodada ? (item.total_produtos_rodada_atual ?? 0) : (item.total_produtos_loja || 0);
+    const contadosProgresso = usaProgressoRodada ? (item.total_produtos_contados_rodada_atual ?? 0) : (item.total_produtos_contados || 0);
+    const percentualProgresso = usaProgressoRodada ? (item.percentual_progresso_rodada_atual ?? 0) : (item.percentual_progresso || 0);
+
     return (
       <TouchableOpacity
         style={estilos.card}
@@ -202,6 +213,13 @@ export default function SessoesScreen({ navigation, route }) {
             <View style={[estilos.badge, { backgroundColor: bg }]}>
               <Text style={[estilos.badgeTexto, { color: txt }]}>{label.toUpperCase()}</Text>
             </View>
+            {usaProgressoRodada && rodadaAtual > 1 && (
+              <View style={[estilos.badge, { backgroundColor: rodadaAtual === 3 ? colors.warningSoft : colors.infoSoft }]}>
+                <Text style={[estilos.badgeTexto, { color: rodadaAtual === 3 ? colors.warning : colors.info }]}>
+                  {rodadaAtual}ª CONTAGEM
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -228,29 +246,29 @@ export default function SessoesScreen({ navigation, route }) {
             <View
               style={[
                 estilos.barraProgressoFill,
-                { width: `${item.percentual_progresso || 0}%` },
+                { width: `${percentualProgresso}%` },
               ]}
             />
           </View>
           <Text style={estilos.progressoTexto}>
-            {item.percentual_progresso || 0}%
+            {percentualProgresso}%
           </Text>
         </View>
 
         <View style={estilos.rodape}>
           <View style={estilos.stat}>
-            <Text style={estilos.statValor}>{item.total_produtos_loja || 0}</Text>
+            <Text style={estilos.statValor}>{totalProgresso}</Text>
             <Text style={estilos.statLabel}>Total</Text>
           </View>
           <View style={estilos.statDivisor} />
           <View style={estilos.stat}>
-            <Text style={estilos.statValor}>{item.total_produtos_contados || 0}</Text>
+            <Text style={estilos.statValor}>{contadosProgresso}</Text>
             <Text style={estilos.statLabel}>Contados</Text>
           </View>
           <View style={estilos.statDivisor} />
           <View style={estilos.stat}>
             <Text style={estilos.statValor}>
-              {(item.total_produtos_loja || 0) - (item.total_produtos_contados || 0)}
+              {Math.max(totalProgresso - contadosProgresso, 0)}
             </Text>
             <Text style={estilos.statLabel}>Faltam</Text>
           </View>
