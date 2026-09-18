@@ -45,6 +45,12 @@ export default function ContagemScreen({ navigation, route }) {
   const [locDiferente, setLocDiferente] = useState(false);      // alerta visivel
   const [locConfirmada, setLocConfirmada] = useState(false);    // operador confirmou
 
+  // Controle de confirmação de duplicidade entre operadores: outro operador
+  // ja bipou este SKU nesta rodada (descoberto so na resposta 409 da API,
+  // ja que este operador nao tem visibilidade do que os outros bipam).
+  const [dupOperador, setDupOperador] = useState(null);  // detalhe do 409, ou null
+  const [dupConfirmada, setDupConfirmada] = useState(false);
+
   // Scanner de localizacao
   const [modalScanLoc, setModalScanLoc] = useState(false);
   const [permissaoCamera, solicitarPermissaoCamera] = useCameraPermissions();
@@ -151,10 +157,17 @@ export default function ContagemScreen({ navigation, route }) {
         rodada: item.rodada,
         localizacao: item.localizacao,
         confirmarLocalizacao: item.confirmarLocalizacao,
+        confirmarDuplicidadeOperador: dupConfirmada,
         observacoes: item.observacoes,
       });
     } catch (err) {
       setEnviando(false);
+      // Outro operador ja contou este SKU nesta rodada — pede confirmacao
+      // em vez de mostrar um erro generico (ver POST /contagens no backend).
+      if (err.status === 409 && err.dados?.detail?.tipo === 'duplicidade_operador') {
+        setDupOperador(err.dados.detail);
+        return;
+      }
       avisar('Erro ao registrar contagem', err.message || 'Nao foi possivel salvar esta contagem. Verifique a conexao e tente novamente.');
       return;
     }
@@ -311,6 +324,39 @@ export default function ContagemScreen({ navigation, route }) {
             </View>
           )}
 
+          {/* Alerta: outro operador ja contou este SKU nesta rodada */}
+          {dupOperador && !dupConfirmada && (
+            <View style={estilos.cardLocDiferente}>
+              <Text style={estilos.cardLocDiferenteTitulo}>
+                ⚠️ Já contado por outro operador
+              </Text>
+              <Text style={estilos.cardLocDiferenteTexto}>{dupOperador.mensagem}</Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+                <TouchableOpacity
+                  style={[estilos.botaoLocAcao, { flex: 1, backgroundColor: colors.backgroundSoft, borderColor: colors.border }]}
+                  onPress={() => setDupOperador(null)}
+                >
+                  <Text style={[estilos.botaoLocAcaoTxt, { color: colors.textSecondary }]}>Revisar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[estilos.botaoLocAcao, { flex: 1, backgroundColor: '#FEF3C7', borderColor: '#D97706' }]}
+                  onPress={() => setDupConfirmada(true)}
+                >
+                  <Text style={[estilos.botaoLocAcaoTxt, { color: '#92400E' }]}>Confirmar mesmo assim</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Confirmação visual quando a duplicidade foi aceita */}
+          {dupConfirmada && dupOperador && (
+            <View style={estilos.locConfirmadaBox}>
+              <Text style={estilos.locConfirmadaTxt}>
+                ✓ Confirmado: local diferente do já contado por {dupOperador.operadores_ja_contaram?.join(', ')}
+              </Text>
+            </View>
+          )}
+
           <Text style={estilos.inputLabelPequeno}>Observacoes (opcional)</Text>
           <TextInput
             style={estilos.inputObs}
@@ -328,7 +374,10 @@ export default function ContagemScreen({ navigation, route }) {
             titulo={enviando ? 'Salvando...' : 'Adicionar ao inventario'}
             onPress={handleConfirmar}
             carregando={enviando}
-            desabilitado={enviando || !quantidade || (localizacaoObrigatoria && !locDigitada)}
+            desabilitado={
+              enviando || !quantidade || (localizacaoObrigatoria && !locDigitada) ||
+              (dupOperador && !dupConfirmada)
+            }
           />
 
           <View style={{ height: spacing.sm }} />

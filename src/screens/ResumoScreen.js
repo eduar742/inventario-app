@@ -17,6 +17,7 @@ import {
   pegarUsuario,
   buscarPerfilAtual,
   buscarResumoSessao,
+  liberarRecontagem,
 } from '../services/api';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
@@ -35,6 +36,9 @@ export default function ResumoScreen({ navigation, route }) {
   const [encerrando, setEncerrando] = useState(false);
   const [acuracidade, setAcuracidade] = useState(null);
   const acuracidadeBuscadaRef = React.useRef(false);
+  const [recontagemLiberada, setRecontagemLiberada] = useState(false);
+  const [operadoresAtivos, setOperadoresAtivos] = useState(0);
+  const [liberando, setLiberando] = useState(false);
 
   useEffect(() => {
     finalizarInventario();
@@ -96,6 +100,8 @@ export default function ResumoScreen({ navigation, route }) {
     // Solicita ao backend o processamento da rodada: calcula totais, detecta pendentes
     try {
       const resultado = await processarRodada(sessao.id, rodada);
+      setRecontagemLiberada(!!resultado.recontagem_liberada);
+      setOperadoresAtivos(resultado.operadores_ativos || 0);
       if (resultado.sessao_encerrada) {
         setSessaoEncerrada(true);
       } else {
@@ -121,6 +127,19 @@ export default function ResumoScreen({ navigation, route }) {
   const aguardando2  = pendentes.filter(p => p.motivo === 'divergente' && p.proxima_rodada === 2);
   const aguardando3  = pendentes.filter(p => p.motivo === 'divergente' && p.proxima_rodada === 3);
   const podeDesempatar = papel === 'lider' || papel === 'admin';
+  const podeLiberarRecontagem = papel === 'lider' || papel === 'gestor';
+
+  async function handleLiberarRecontagem() {
+    setLiberando(true);
+    try {
+      await liberarRecontagem(sessao.id);
+      setRecontagemLiberada(true);
+    } catch (err) {
+      avisar('Nao foi possivel liberar', err.message || 'Tente novamente.');
+    } finally {
+      setLiberando(false);
+    }
+  }
 
   function iniciarContagem(rodadaAlvo, itens) {
     navigation.navigate('Scanner', {
@@ -229,7 +248,30 @@ export default function ResumoScreen({ navigation, route }) {
               </View>
             ))}
             <View style={{ height: spacing.md }} />
-            <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
+            {recontagemLiberada ? (
+              <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
+            ) : podeLiberarRecontagem ? (
+              <>
+                <Text style={estilos.dica}>
+                  {operadoresAtivos > 0
+                    ? `Aguardando ${operadoresAtivos} operador(es) saírem da sessão antes de liberar.`
+                    : 'Todos os operadores saíram — pronto para liberar.'}
+                </Text>
+                <View style={{ height: spacing.sm }} />
+                <Button
+                  titulo={liberando ? 'Liberando...' : 'Liberar 2ª contagem'}
+                  variante="secondary"
+                  carregando={liberando}
+                  desabilitado={operadoresAtivos > 0}
+                  onPress={handleLiberarRecontagem}
+                />
+              </>
+            ) : (
+              <Text style={estilos.dica}>
+                Aguardando o Lider ou Gestor liberar a 2ª contagem
+                {operadoresAtivos > 0 ? ` (ainda há ${operadoresAtivos} operador(es) na sessão)` : ''}.
+              </Text>
+            )}
           </View>
         )}
 

@@ -3,7 +3,7 @@
 // e itens aguardando desempate (3a contagem, exige papel lider/admin) — cada
 // grupo com um botao que ja abre o Scanner na rodada certa.
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
@@ -17,8 +17,14 @@ import {
   listarRecontagemNecessaria,
   pegarUsuario,
   buscarPerfilAtual,
+  buscarSessao,
+  liberarRecontagem,
 } from '../services/api';
 import { avisar } from '../utils/alertas';
+
+// Enquanto a 2a contagem estiver aguardando liberacao, atualiza o contador
+// de operadores ativos periodicamente (mesmo padrao do AcompanhamentoSessaoScreen).
+const INTERVALO_POLL = 15000;
 
 export default function PendentesOperadorScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
@@ -29,14 +35,30 @@ export default function PendentesOperadorScreen({ navigation, route }) {
   const [aguardando2, setAguardando2] = useState([]);
   const [aguardando3, setAguardando3] = useState([]);
   const [papel, setPapel] = useState('operador');
+  const [recontagemLiberada, setRecontagemLiberada] = useState(false);
+  const [operadoresAtivos, setOperadoresAtivos] = useState(0);
+  const [liberando, setLiberando] = useState(false);
+  const timerRef = useRef(null);
 
   useFocusEffect(
     useCallback(() => {
       carregar();
+      return () => clearInterval(timerRef.current);
     }, [])
   );
 
-  async function carregar() {
+  // Poll leve so enquanto ha itens aguardando 2a contagem e ela ainda nao
+  // foi liberada — e o unico cenario onde "operadores_ativos" muda sem o
+  // operador interagir com esta tela.
+  React.useEffect(() => {
+    clearInterval(timerRef.current);
+    if (aguardando2.length > 0 && !recontagemLiberada) {
+      timerRef.current = setInterval(() => carregar(true), INTERVALO_POLL);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [aguardando2.length, recontagemLiberada]);
+
+  async function carregar(silencioso = false) {
     try {
       let usuario = await pegarUsuario();
       if (!usuario?.papel) usuario = await buscarPerfilAtual();
@@ -44,12 +66,15 @@ export default function PendentesOperadorScreen({ navigation, route }) {
     } catch (_) {}
 
     try {
-      const [pendentes, aguardandoRecontagem] = await Promise.all([
+      const [pendentes, aguardandoRecontagem, sessaoAtualizada] = await Promise.all([
         listarPendentes(sessao.id),
         listarRecontagemNecessaria(sessao.id),
+        buscarSessao(sessao.id),
       ]);
 
       setNaoContados(pendentes || []);
+      setRecontagemLiberada(!!sessaoAtualizada.recontagem_liberada);
+      setOperadoresAtivos(sessaoAtualizada.operadores_ativos || 0);
 
       const bucket2 = [];
       const bucket3 = [];
@@ -60,7 +85,7 @@ export default function PendentesOperadorScreen({ navigation, route }) {
       setAguardando2(bucket2);
       setAguardando3(bucket3);
     } catch (err) {
-      avisar('Erro', err.message || 'Nao foi possivel carregar os pendentes');
+      if (!silencioso) avisar('Erro', err.message || 'Nao foi possivel carregar os pendentes');
     } finally {
       setCarregando(false);
       setRefreshing(false);
@@ -81,7 +106,20 @@ export default function PendentesOperadorScreen({ navigation, route }) {
     });
   }
 
+  async function handleLiberarRecontagem() {
+    setLiberando(true);
+    try {
+      await liberarRecontagem(sessao.id);
+      setRecontagemLiberada(true);
+    } catch (err) {
+      avisar('Nao foi possivel liberar', err.message || 'Tente novamente.');
+    } finally {
+      setLiberando(false);
+    }
+  }
+
   const podeDesempatar = papel === 'lider' || papel === 'admin';
+  const podeLiberarRecontagem = papel === 'lider' || papel === 'gestor';
   const totalPendentes = naoContados.length + aguardando2.length + aguardando3.length;
 
   function Secao({ titulo, itens, corBorda, acao }) {
@@ -142,7 +180,32 @@ export default function PendentesOperadorScreen({ navigation, route }) {
               titulo="Aguardando 2ª contagem"
               itens={aguardando2}
               corBorda={colors.warning}
-              acao={<Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />}
+              acao={
+                recontagemLiberada ? (
+                  <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
+                ) : podeLiberarRecontagem ? (
+                  <>
+                    <Text style={estilos.dica}>
+                      {operadoresAtivos > 0
+                        ? `Aguardando ${operadoresAtivos} operador(es) saírem da sessão antes de liberar.`
+                        : 'Todos os operadores saíram — pronto para liberar.'}
+                    </Text>
+                    <View style={{ height: spacing.sm }} />
+                    <Button
+                      titulo={liberando ? 'Liberando...' : 'Liberar 2ª contagem'}
+                      variante="secondary"
+                      carregando={liberando}
+                      desabilitado={operadoresAtivos > 0}
+                      onPress={handleLiberarRecontagem}
+                    />
+                  </>
+                ) : (
+                  <Text style={estilos.dica}>
+                    Aguardando o Lider ou Gestor liberar a 2ª contagem
+                    {operadoresAtivos > 0 ? ` (ainda há ${operadoresAtivos} operador(es) na sessão)` : ''}.
+                  </Text>
+                )
+              }
             />
             <Secao
               titulo="Aguardando 3ª contagem — desempate"

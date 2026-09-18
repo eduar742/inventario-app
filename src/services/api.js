@@ -436,7 +436,7 @@ export async function buscarProdutoPorQR(codigoQr) {
 // ENDPOINT DE CONTAGEM (o mais usado!)
 // ============================================================
 
-export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada, rodada = 1, localizacao, confirmarLocalizacao, observacoes }) {
+export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada, rodada = 1, localizacao, confirmarLocalizacao, confirmarDuplicidadeOperador, observacoes }) {
   return await chamarAPI('/api/v1/contagens', {
     method: 'POST',
     body: JSON.stringify({
@@ -446,6 +446,7 @@ export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada,
       rodada,
       localizacao: localizacao || null,
       confirmar_localizacao: confirmarLocalizacao || false,
+      confirmar_duplicidade_operador: confirmarDuplicidadeOperador || false,
       observacoes: observacoes || null,
     }),
   });
@@ -484,6 +485,36 @@ export async function cancelarSessao(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/cancelar`, {
     method: 'PATCH',
   });
+}
+
+// ============================================================
+// PRESENCA NA SESSAO (trava de liberacao da 2a contagem)
+// ============================================================
+
+// Chamado quando o operador abre o Scanner de uma sessao.
+export async function entrarSessao(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/presenca/entrar`, { method: 'POST' });
+}
+
+// Sinal periodico de "ainda aqui", enquanto o Scanner estiver aberto.
+export async function heartbeatSessao(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/presenca/heartbeat`, { method: 'POST' });
+}
+
+// Chamado quando o operador sai do Scanner (volta para a lista de sessoes).
+export async function sairSessao(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/presenca/sair`, { method: 'POST' });
+}
+
+// Lista quem esta com a sessao aberta agora — usado pelo Lider/Gestor.
+export async function listarPresencaAtiva(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/presenca`);
+}
+
+// Libera a 2a contagem (recontagem) da sessao — apenas Lider/Gestor, e so
+// quando ninguem mais estiver com a sessao aberta.
+export async function liberarRecontagem(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/liberar-recontagem`, { method: 'POST' });
 }
 
 // Distribuicao de SKUs por natureza para uma loja/mes — usado na criacao de sessao

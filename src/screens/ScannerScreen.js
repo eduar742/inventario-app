@@ -22,9 +22,15 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { limparCodigoQr } from '../utils/qrCode';
+import { entrarSessao, heartbeatSessao, sairSessao } from '../services/api';
 
 // Sufixos de ordinal feminino (contagem)
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
+
+// Intervalo do heartbeat de presenca — por tempo, nao por acao do operador,
+// entao continua rodando igual mesmo se ele demorar preenchendo um item na
+// tela de Contagem (este componente fica montado por baixo o tempo todo).
+const INTERVALO_HEARTBEAT = 60000;
 
 export default function ScannerScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
@@ -50,6 +56,23 @@ export default function ScannerScreen({ navigation, route }) {
       navigation.setParams({ resetContagens: undefined });
     }
   }, [route.params?.resetContagens]);
+
+  // Presenca na sessao: entra ao montar, manda heartbeat periodico enquanto
+  // estiver aqui (mesmo com Contagem/Resumo empilhados por cima — este
+  // componente continua montado por baixo) e sai ao desmontar (operador
+  // apertou "Voltar" ou a pilha foi resetada de volta para "Sessoes"). Usado
+  // pelo Lider/Gestor para saber quando pode liberar a 2a contagem.
+  // Best-effort: falha de rede aqui nao pode travar o fluxo de bipagem.
+  useEffect(() => {
+    entrarSessao(sessao.id).catch(() => {});
+    const intervalo = setInterval(() => {
+      heartbeatSessao(sessao.id).catch(() => {});
+    }, INTERVALO_HEARTBEAT);
+    return () => {
+      clearInterval(intervalo);
+      sairSessao(sessao.id).catch(() => {});
+    };
+  }, [sessao.id]);
 
   // Chamado pela tela de Contagem depois que ela ja registrou a bipagem na
   // API — aqui so acumulamos localmente para exibir progresso e detectar

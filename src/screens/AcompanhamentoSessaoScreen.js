@@ -16,6 +16,12 @@ import { formatarDataHora, formatarHora } from '../utils/formatadores';
 const INTERVALO = 15000;
 const FEED_TAMANHO = 100;
 
+const ROTULO_RODADA = {
+  1: '1ª contagem em andamento',
+  2: '2ª contagem em andamento',
+  3: '3ª contagem em andamento (desempate)',
+};
+
 export default function AcompanhamentoSessaoScreen({ route }) {
   const { sessao: sessaoInicial, loja } = route.params;
 
@@ -79,10 +85,15 @@ export default function AcompanhamentoSessaoScreen({ route }) {
       )
     : feed;
 
-  const total = sessaoInfo?.total_produtos_loja || 0;
-  const contados = sessaoInfo?.total_produtos_contados || 0;
+  // Progresso da RODADA ATUAL (1a, 2a ou 3a) — nao do inventario inteiro
+  // somando as 3 rodadas, senao a barra fica presa perto de 100% (ou passa
+  // disso, com item avulso) assim que a 1a contagem termina, mesmo com a 2a/
+  // 3a ainda pendentes. Ver backend: _progresso_por_rodada em sessoes.py.
+  const rodadaAtual = sessaoInfo?.rodada_atual || 1;
+  const total = sessaoInfo?.total_produtos_rodada_atual || 0;
+  const contados = sessaoInfo?.total_produtos_contados_rodada_atual || 0;
   const faltam = Math.max(total - contados, 0);
-  const percentual = sessaoInfo?.percentual_progresso || 0;
+  const percentual = sessaoInfo?.percentual_progresso_rodada_atual || 0;
 
   function renderItem({ item }) {
     return (
@@ -132,6 +143,14 @@ export default function AcompanhamentoSessaoScreen({ route }) {
           )}
         </View>
         <Text style={estilos.subLoja}>{loja?.nome}</Text>
+
+        {emAndamento && (
+          <View style={[estilos.rodadaBadge, rodadaAtual === 3 && estilos.rodadaBadgeDesempate]}>
+            <Text style={[estilos.rodadaBadgeTxt, rodadaAtual === 3 && estilos.rodadaBadgeTxtDesempate]}>
+              {ROTULO_RODADA[rodadaAtual] || `${rodadaAtual}ª contagem em andamento`}
+            </Text>
+          </View>
+        )}
 
         <View style={estilos.barraProgressoContainer}>
           <View style={estilos.barraProgressoFundo}>
@@ -216,6 +235,14 @@ const estilos = StyleSheet.create({
   cabecalhoTopo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   nomeSessao: { flex: 1, fontSize: fontSize.lg, fontWeight: '700', color: colors.text, marginRight: spacing.sm },
   subLoja: { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2, marginBottom: spacing.md },
+  rodadaBadge: {
+    alignSelf: 'flex-start', backgroundColor: colors.infoSoft,
+    borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 3,
+    marginBottom: spacing.sm,
+  },
+  rodadaBadgeTxt: { fontSize: fontSize.xs, fontWeight: '700', color: colors.info },
+  rodadaBadgeDesempate: { backgroundColor: colors.warningSoft },
+  rodadaBadgeTxtDesempate: { color: colors.warning },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accentGreen },
   liveTxt: { fontSize: fontSize.xs, color: colors.accentGreen, fontWeight: '600' },
