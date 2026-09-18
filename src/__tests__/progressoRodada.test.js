@@ -77,3 +77,27 @@ describe('derivarProgresso (logica extraida da AcompanhamentoSessaoScreen)', () 
     expect(r.faltam).toBe(0);
   });
 });
+
+// ─── badge de rodada no feed — espelha a correcao de numero_contagem -> ────
+// rodada em AcompanhamentoSessaoScreen.renderItem
+
+function rodadaDoBadge(itemFeed) {
+  return itemFeed.rodada || 1;
+}
+
+describe('rodadaDoBadge (logica extraida do feed de bipagens)', () => {
+  it('usa o campo rodada (1a/2a/3a oficial), nao numero_contagem', () => {
+    // Produto bipado pela 4a vez nesta sessao (multi-localizacao), mas
+    // ainda dentro da 1a rodada oficial — o badge deve mostrar "1", nao "4".
+    const item = { numero_contagem: 4, rodada: 1 };
+    expect(rodadaDoBadge(item)).toBe(1);
+  });
+
+  it('reflete corretamente uma bipagem da 2a rodada', () => {
+    expect(rodadaDoBadge({ numero_contagem: 5, rodada: 2 })).toBe(2);
+  });
+
+  it('assume rodada 1 quando o campo nao vem (dado legado)', () => {
+    expect(rodadaDoBadge({ numero_contagem: 2 })).toBe(1);
+  });
+});

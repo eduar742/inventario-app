@@ -96,11 +96,16 @@ export default function AcompanhamentoSessaoScreen({ route }) {
   const percentual = sessaoInfo?.percentual_progresso_rodada_atual || 0;
 
   function renderItem({ item }) {
+    // Rodada REAL da bipagem (1a/2a/3a contagem oficial) — nao numero_contagem,
+    // que so conta quantas vezes aquele SKU foi bipado nesta sessao (inclui
+    // bipagens de multi-localizacao na MESMA rodada, entao podia passar de 3
+    // e confundir com uma "4a contagem" que nao existe no sistema).
+    const rodadaBipagem = item.rodada || 1;
     return (
       <View style={estilos.linhaFeed}>
-        <View style={[estilos.numeroBadge, { backgroundColor: corContagem(item.numero_contagem) + '22' }]}>
-          <Text style={[estilos.numeroBadgeTexto, { color: corContagem(item.numero_contagem) }]}>
-            {item.numero_contagem}ª
+        <View style={[estilos.numeroBadge, { backgroundColor: corContagem(rodadaBipagem) + '22' }]}>
+          <Text style={[estilos.numeroBadgeTexto, { color: corContagem(rodadaBipagem) }]}>
+            {rodadaBipagem}ª
           </Text>
         </View>
         <View style={{ flex: 1 }}>
