@@ -110,19 +110,23 @@ const SECOES = [
       },
       {
         tipo: 'texto',
-        texto: '👁️ Gerente: enxerga TODAS as telas do sistema (Inventário, Dashboard, Consolidado, Relatórios, Importar, Usuários e Auditoria) para fins de acompanhamento, mas não executa nenhuma ação — não conta produtos, não cria/encerra sessões, não aprova divergências, não importa planilhas e não cria/edita/exclui usuários. Onde houver um botão de ação (novo, editar, importar, excluir), ele fica oculto para o Gerente.',
+        texto: '👁️ Gerente: enxerga TODAS as telas do sistema (Inventário, Dashboard, Consolidado, Relatórios, Importar, Usuários e Auditoria) para fins de acompanhamento, mas não executa nenhuma ação — não conta produtos, não cria/encerra sessões, não importa planilhas e não cria/edita/exclui usuários. Onde houver um botão de ação (novo, editar, importar, excluir), ele fica oculto para o Gerente. Exceção: a tela de Divergências agora é restrita a ADM e Gestor — o Gerente não vê nem o botão nem a tela.',
       },
       {
         tipo: 'texto',
-        texto: '⚠️ Auditor tem acesso somente leitura aos dashboards e relatórios (mesma regra de não executar ações), mas — diferente do Gerente — não acessa as telas de Inventário, Importar e Usuários. Operadores veem apenas as lojas vinculadas ao seu perfil.',
+        texto: '⚠️ Auditor tem acesso somente leitura aos dashboards e relatórios (mesma regra de não executar ações), mas — diferente do Gerente — não acessa as telas de Inventário, Importar, Usuários e Divergências. Operadores veem apenas as lojas vinculadas ao seu perfil.',
       },
       {
         tipo: 'texto',
-        texto: '🔒 Inventário Cego estendido: somente o ADM vê as quantidades brutas (saldo do sistema, quantidade contada e diferença em unidades) nas divergências. Gestor, Gerente e Auditor enxergam apenas o Ajuste financeiro (R$) de cada item.',
+        texto: '🔒 Inventário Cego estendido: somente o ADM vê as quantidades brutas (saldo do sistema, quantidade contada e diferença em unidades) nas divergências. O Gestor enxerga apenas o Ajuste financeiro (R$) de cada item. Gerente, Auditor, Líder e Operador não acessam mais a tela de Divergências.',
       },
       {
         tipo: 'texto',
-        texto: '🏅 Papel Líder: acesso igual ao Operador (só o menu Inventário e Ajuda) — não vê Dashboard, não cria/encerra sessões nem aprova divergências. A única diferença é que, ao final da sessão (quando ele fecha a última rodada de desempate ou finaliza o inventário), o Líder recebe a informação de quanto ficou a acuracidade do estoque contado — algo que o Operador não vê.',
+        texto: '🏅 Papel Líder: acesso igual ao Operador (só o menu Inventário e Ajuda) — não vê Dashboard, não cria/encerra sessões, não acessa a tela de Divergências e não aprova nada. A única diferença é que, ao final da sessão (quando ele fecha a última rodada de desempate ou finaliza o inventário), o Líder recebe a informação de quanto ficou a acuracidade do estoque contado — algo que o Operador não vê.',
+      },
+      {
+        tipo: 'texto',
+        texto: '🎯 Líder é exclusivo do desempate: ele só pode registrar a 3ª contagem (desempate). Não participa da 1ª nem da 2ª contagem — os botões de bipar ficam ocultos para ele nessas rodadas, com um aviso explicando que o papel é exclusivo do desempate.',
       },
     ],
   },
@@ -243,7 +247,7 @@ const SECOES = [
       },
       {
         tipo: 'texto',
-        texto: '🔁 Lógica das 3 contagens: 1ª contagem diverge do sistema → pede 2ª contagem (qualquer operador, desde que seja diferente de quem fez a 1ª). Se a 2ª também divergir da 1ª, pede uma 3ª contagem de desempate — que só pode ser feita por um usuário com papel Líder (ou ADM). O valor final é a moda entre as contagens, ou a mais próxima do sistema. Ao final, o Líder (diferente do Operador) vê a acuracidade da sessão.',
+        texto: '🔁 Lógica das 3 contagens: 1ª contagem diverge do sistema → pede 2ª contagem (qualquer operador, inclusive o mesmo que fez a 1ª). Se a 2ª também divergir da 1ª, pede uma 3ª contagem de desempate — que só pode ser feita por um usuário com papel Líder (ou ADM). O Líder só participa dessa 3ª rodada: ele não bipa na 1ª nem na 2ª contagem. O valor final é a moda entre as contagens, ou a mais próxima do sistema. Ao final, o Líder (diferente do Operador) vê a acuracidade da sessão.',
       },
       {
         tipo: 'passos',
@@ -268,20 +272,44 @@ const SECOES = [
     conteudo: [
       {
         tipo: 'texto',
-        texto: 'Após encerrar a sessão, o sistema compara o contado vs o sistema e gera divergências para revisão do Gestor/ADM.',
+        texto: 'Após encerrar a sessão, o sistema compara o contado vs o sistema e gera divergências para revisão. Só ADM e Gestor da loja acessam a tela de Divergências — nenhum outro papel (Líder, Gerente, Auditor, Operador) vê ou aprova nada aqui.',
       },
       {
         tipo: 'texto',
-        texto: '🔒 Inventário Cego também na aprovação: o Gestor (e demais perfis que não sejam ADM) veem apenas o Ajuste financeiro (R$) de cada item — sem ver o saldo do sistema, a quantidade contada nem a diferença em unidades. Isso garante que a decisão de aprovar seja baseada no impacto financeiro real, sem viés das quantidades.',
+        texto: '🔒 Inventário Cego também na aprovação: o Gestor vê apenas o Ajuste financeiro (R$) de cada item — sem ver o saldo do sistema, a quantidade contada nem a diferença em unidades. Isso garante que a decisão de aprovar seja baseada no impacto financeiro real, sem viés das quantidades.',
       },
       {
         tipo: 'passos',
         titulo: 'O que cada perfil vê em cada card de divergência:',
         itens: [
           'ADM: vê as três colunas — Sistema | Contado | Diferença (em unidades) — e as parcelas por localização.',
-          'Gestor / Gerente / Auditor: veem somente "Ajuste financeiro: +R$ 350,00" (verde = ganho para a empresa, vermelho = perda).',
+          'Gestor: vê somente "Ajuste financeiro: +R$ 350,00" (verde = ganho para a empresa, vermelho = perda).',
           'Produto sem custo unitário cadastrado no estoque: exibe "Sem custo cadastrado" no lugar do valor.',
-          'O motivo do bloqueio (item com ⚠️) aparece como "Requer aprovação individual" para não-ADM.',
+          'O motivo do bloqueio (item com ⚠️) aparece como "Requer aprovação individual" para o Gestor.',
+        ],
+      },
+      {
+        tipo: 'passos',
+        titulo: 'Aprovação em duas etapas — ADM primeiro, depois Gestor:',
+        itens: [
+          'Toda divergência nasce "PENDENTE" e primeiro passa pelo ADM.',
+          'O ADM confere o item — saída de pedido em trânsito, material com custo zero ou não encontrado na planilha — e toca em "Aprovar (ADM)" ou "Rejeitar".',
+          'Ao aprovar, o status vira "AGUARDANDO GESTOR" — só a partir daí o Gestor da loja consegue agir.',
+          'Se o Gestor tentar aprovar antes disso, a tela mostra o aviso "Aguardando aprovação do ADM" no lugar dos botões.',
+          'O Gestor então toca em "Aprovar definitivamente" ou "Rejeitar" — essa é a aprovação final.',
+          'O ADM também pode fazer as duas etapas sozinho, se precisar — não fica travado esperando o Gestor.',
+          'A sessão só pode ser concluída depois que TODAS as divergências passaram pelas duas etapas (aprovadas ou rejeitadas).',
+        ],
+      },
+      {
+        tipo: 'passos',
+        titulo: 'ADM pode corrigir a quantidade contada (com justificativa obrigatória):',
+        itens: [
+          'Enquanto a divergência ainda está "PENDENTE", o ADM vê o botão "Alterar quantidade (ADM)" no card.',
+          'Usa isso quando descobre uma explicação para a diferença — ex: pedido em trânsito confirmado no ERP, item com custo zero, produto que não estava na planilha.',
+          'É obrigatório escrever uma justificativa (mínimo 5 caracteres) — sem ela o sistema não salva o ajuste.',
+          'A quantidade contada originalmente pelos operadores fica preservada e visível no card, junto com a justificativa — nada é apagado, é um ajuste auditável.',
+          'A diferença é recalculada automaticamente com o novo valor (ex: ajustar de 304 para 316 zera a diferença de -12).',
         ],
       },
       {
@@ -289,11 +317,11 @@ const SECOES = [
         titulo: 'Como revisar divergências (Gestor/ADM):',
         itens: [
           'No card da sessão (status "Aguard. aprovação"), toque em "Revisar divergências".',
-          'Cada card exibe: nome do produto, SKU, status e o ajuste financeiro (R$).',
-          'Itens com ⚠️ excederam o limite configurado e exigem aprovação individual.',
-          'Para cada divergência: toque em "Aprovar ajuste" ou "Rejeitar".',
-          'Ou use o botão azul "Aprovar todo o inventário" para aprovar em lote (exceto os marcados com ⚠️).',
-          'Após resolver todas, toque em "Concluir sessão de inventário".',
+          'Cada card exibe: nome do produto, SKU, status (Pendente / Aguardando gestor / Aprovada / Rejeitada) e o ajuste financeiro (R$).',
+          'Itens com ⚠️ excederam o limite configurado e exigem aprovação individual (não entram no lote).',
+          'Para cada divergência, na etapa que for a sua: toque em "Aprovar" ou "Rejeitar".',
+          'Ou use o botão azul de aprovação em lote — ele aprova a SUA etapa: ADM avança as pendentes, Gestor avança as que o ADM já aprovou.',
+          'Após resolver todas nas duas etapas, toque em "Concluir sessão de inventário".',
         ],
       },
       {

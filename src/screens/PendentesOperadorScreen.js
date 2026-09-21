@@ -120,6 +120,8 @@ export default function PendentesOperadorScreen({ navigation, route }) {
 
   const podeDesempatar = papel === 'lider' || papel === 'admin';
   const podeLiberarRecontagem = papel === 'lider' || papel === 'gestor';
+  // Lider e exclusivo da 3a contagem (desempate) — nao conta na 1a nem na 2a.
+  const podeContarRodada1e2 = papel !== 'lider';
   const totalPendentes = naoContados.length + aguardando2.length + aguardando3.length;
 
   function Secao({ titulo, itens, corBorda, acao }) {
@@ -174,7 +176,10 @@ export default function PendentesOperadorScreen({ navigation, route }) {
               titulo="Itens que faltou bipar"
               itens={naoContados}
               corBorda={colors.danger}
-              acao={<Button titulo="Bipar itens que faltaram" onPress={() => iniciarContagem(1, naoContados)} />}
+              acao={podeContarRodada1e2
+                ? <Button titulo="Bipar itens que faltaram" onPress={() => iniciarContagem(1, naoContados)} />
+                : <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
+              }
             />
             <Secao
               titulo="Aguardando 2ª contagem"
@@ -182,7 +187,11 @@ export default function PendentesOperadorScreen({ navigation, route }) {
               corBorda={colors.warning}
               acao={
                 recontagemLiberada ? (
-                  <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
+                  podeContarRodada1e2 ? (
+                    <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
+                  ) : (
+                    <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
+                  )
                 ) : podeLiberarRecontagem ? (
                   <>
                     <Text style={estilos.dica}>

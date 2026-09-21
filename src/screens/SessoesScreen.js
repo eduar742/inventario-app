@@ -172,7 +172,9 @@ export default function SessoesScreen({ navigation, route }) {
     const estaCancelando = cancelando === item.id;
     const estaEncerrando = encerrando === item.id;
     const { bg, txt, label } = badgeStatus(item.status);
-    const podeContar = item.status === 'em_andamento' && podeEscrever;
+    // Lider e exclusivo da 3a contagem (desempate) — nao inicia a 1a contagem
+    // aqui; ele usa "Ver itens pendentes" quando houver desempate a fazer.
+    const podeContar = item.status === 'em_andamento' && podeEscrever && papel !== 'lider';
 
     // Enquanto a sessao esta em andamento, mostra o progresso da RODADA
     // ATUAL (1a/2a/3a) em vez da soma das 3 rodadas — senao a barra passa de
@@ -188,7 +190,15 @@ export default function SessoesScreen({ navigation, route }) {
     return (
       <TouchableOpacity
         style={estilos.card}
-        onPress={() => podeContar ? selecionarSessao(item) : null}
+        onPress={() => {
+          if (podeContar) { selecionarSessao(item); return; }
+          if (item.status === 'em_andamento' && podeEscrever && papel === 'lider') {
+            avisar(
+              'Acesso restrito',
+              'O papel Líder realiza apenas a 3ª contagem (desempate). Use "Ver itens pendentes" quando houver itens aguardando desempate.',
+            );
+          }
+        }}
         activeOpacity={podeContar ? 0.7 : 1}
         disabled={estaCancelando || estaEncerrando}
       >
@@ -336,12 +346,15 @@ export default function SessoesScreen({ navigation, route }) {
               </TouchableOpacity>
             )}
             <View style={estilos.acoesCard}>
-              <TouchableOpacity
-                style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft, flex: 2 }]}
-                onPress={() => navigation.navigate('Divergencias', { sessao: item, loja })}
-              >
-                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.warning }]}>Revisar divergencias</Text>
-              </TouchableOpacity>
+              {/* Divergencias: acesso restrito a ADM e Gestor da loja */}
+              {(isAdmin || papel === 'gestor') && (
+                <TouchableOpacity
+                  style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft, flex: 2 }]}
+                  onPress={() => navigation.navigate('Divergencias', { sessao: item, loja })}
+                >
+                  <Text style={[estilos.botaoCardAcaoTexto, { color: colors.warning }]}>Revisar divergencias</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[estilos.botaoCardAcao, { backgroundColor: colors.infoSoft }]}
                 onPress={() => navigation.navigate('HistoricoContagens', { sessao: item, loja })}
@@ -356,12 +369,15 @@ export default function SessoesScreen({ navigation, route }) {
         {papel !== 'operador' && item.status === 'concluida' && (
           <View style={{ gap: 4 }}>
             <View style={estilos.acoesCard}>
-              <TouchableOpacity
-                style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft }]}
-                onPress={() => navigation.navigate('Divergencias', { sessao: item, loja })}
-              >
-                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.warning }]}>Divergencias</Text>
-              </TouchableOpacity>
+              {/* Divergencias: acesso restrito a ADM e Gestor da loja */}
+              {(isAdmin || papel === 'gestor') && (
+                <TouchableOpacity
+                  style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft }]}
+                  onPress={() => navigation.navigate('Divergencias', { sessao: item, loja })}
+                >
+                  <Text style={[estilos.botaoCardAcaoTexto, { color: colors.warning }]}>Divergencias</Text>
+                </TouchableOpacity>
+              )}
               {/* Historico exibe contagens — gestor nao tem acesso a quantidades */}
               {papel !== 'gestor' && (
                 <TouchableOpacity

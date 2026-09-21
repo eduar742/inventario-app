@@ -128,6 +128,8 @@ export default function ResumoScreen({ navigation, route }) {
   const aguardando3  = pendentes.filter(p => p.motivo === 'divergente' && p.proxima_rodada === 3);
   const podeDesempatar = papel === 'lider' || papel === 'admin';
   const podeLiberarRecontagem = papel === 'lider' || papel === 'gestor';
+  // Lider e exclusivo da 3a contagem (desempate) — nao conta na 1a nem na 2a.
+  const podeContarRodada1e2 = papel !== 'lider';
 
   async function handleLiberarRecontagem() {
     setLiberando(true);
@@ -231,7 +233,11 @@ export default function ResumoScreen({ navigation, route }) {
               </View>
             ))}
             <View style={{ height: spacing.md }} />
-            <Button titulo="Bipar itens que faltaram" onPress={() => iniciarContagem(1, naoContados)} />
+            {podeContarRodada1e2 ? (
+              <Button titulo="Bipar itens que faltaram" onPress={() => iniciarContagem(1, naoContados)} />
+            ) : (
+              <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
+            )}
           </View>
         )}
 
@@ -249,7 +255,11 @@ export default function ResumoScreen({ navigation, route }) {
             ))}
             <View style={{ height: spacing.md }} />
             {recontagemLiberada ? (
-              <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
+              podeContarRodada1e2 ? (
+                <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
+              ) : (
+                <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
+              )
             ) : podeLiberarRecontagem ? (
               <>
                 <Text style={estilos.dica}>
