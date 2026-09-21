@@ -96,6 +96,7 @@ const SECOES = [
           ['Visualizar todas as telas do sistema', '✓', '✗', '✓', '✗', '✗'],
           ['Realizar inventário (scanner)', '✓', '✓', '✗', '✗', '✓'],
           ['Criar/encerrar sessões', '✓', '✓', '✗', '✗', '✗'],
+          ['Reabrir sessão encerrada por engano', '✓', '✗', '✗', '✗', '✗'],
           ['Aprovar divergências', '✓', '✓', '✗', '✗', '✗'],
           ['Ver dashboards e KPIs', '✓', '✓', '✓', '✓', '✗'],
           ['Exportar relatórios', '✓', '✓', '✓', '✓', '✗'],
@@ -170,9 +171,24 @@ const SECOES = [
           'ADM/Gestor: toque em "Encerrar sessão" no card da sessão ativa.',
           'Operador: toque em "Finalizar inventário" no Resumo ao terminar de bipar.',
           'A sessão só encerra sozinha quando TODOS os produtos esperados foram bipados e as contagens convergiram — itens nunca bipados continuam pendentes, nenhum SKU fica de fora do processo.',
-          'Se ainda houver pendentes, é possível tocar em "Finalizar inventário agora" para encerrar mesmo assim — os itens sem contagem entram como divergência "Produto não bipado" para o Gestor/ADM revisar.',
+          'Se restar produto nunca bipado (e só esse caso), ADM ou Gestor podem tocar em "Finalizar inventário agora" para encerrar mesmo assim — o item vira divergência "Produto não bipado" para revisão.',
           'Após encerramento, o sistema gera as divergências automaticamente.',
           'A sessão passa para "Aguardando aprovação".',
+        ],
+      },
+      {
+        tipo: 'texto',
+        texto: '🔒 Trava contra encerramento prematuro: se algum produto estiver aguardando 2ª contagem (recontagem) ou 3ª contagem (desempate) já iniciada, o sistema NÃO deixa a sessão ser encerrada — nem com "Finalizar inventário agora", nem por ADM. É preciso terminar essa contagem primeiro. Isso existe porque um encerramento no meio do desempate gera divergências calculadas com dados incompletos.',
+      },
+      {
+        tipo: 'passos',
+        titulo: 'Reabrir uma sessão encerrada por engano (ADM):',
+        itens: [
+          'No card de uma sessão "Aguard. aprovação", toque em "Reabrir sessão (ADM)" — só o ADM vê esse botão.',
+          'Escreva o motivo (obrigatório) — por exemplo, "sessão encerrada antes do desempate terminar".',
+          'A sessão volta para "Em andamento": todas as bipagens já registradas continuam valendo, ninguém perde contagem.',
+          'As divergências que já tinham sido geradas são descartadas — elas serão recalculadas corretamente quando a sessão for encerrada de novo.',
+          'Use isso quando alguém encerrar a sessão antes da hora (ex: por engano, ou clicando no botão errado).',
         ],
       },
       {
@@ -186,7 +202,7 @@ const SECOES = [
       },
       {
         tipo: 'texto',
-        texto: '👁️ Gerente: vê a lista de sessões de cada loja e pode acompanhar ao vivo, mas os cards de sessão não têm botão para bipar, "+ Nova sessão", "Encerrar sessão" nem "Cancelar sessão" — todos ficam ocultos.',
+        texto: '👁️ Gerente: vê a lista de sessões de cada loja e pode acompanhar ao vivo, mas os cards de sessão não têm botão para bipar, "+ Nova sessão", "Encerrar sessão", "Cancelar sessão" nem "Reabrir sessão" — todos ficam ocultos.',
       },
     ],
   },

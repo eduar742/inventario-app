@@ -67,15 +67,18 @@ export default function ResumoScreen({ navigation, route }) {
   async function encerrarSessaoAgora() {
     setEncerrando(true);
     try {
-      await encerrarSessao(sessao.id);
+      await encerrarSessao(sessao.id, true);
       await gerarDivergencias(sessao.id);
       setSessaoEncerrada(true);
     } catch (err) {
       const msg = err.message || '';
-      if (msg.includes('aguardando') || msg.includes('concluida') || err.status === 400) {
+      // So trata como "ja encerrada" quando a mensagem e literalmente sobre o
+      // status ja ter mudado (corrida com outro fechamento) — nao confundir
+      // com o bloqueio de pendentes (que tambem usa a palavra "aguardando").
+      if (msg.includes('Status atual')) {
         setSessaoEncerrada(true);
       } else {
-        avisar('Erro ao encerrar', msg);
+        avisar('Nao foi possivel finalizar', msg);
       }
     } finally {
       setEncerrando(false);
@@ -308,20 +311,25 @@ export default function ResumoScreen({ navigation, route }) {
           </View>
         )}
 
-        {pendentes.length > 0 && !sessaoEncerrada && (
+        {/* Finalizar com pendentes: so quando restam APENAS itens nunca bipados
+            (nenhum aguardando 2a/3a contagem — essa trava e do backend, nao
+            deixa nem o ADM pular uma recontagem/desempate em andamento) e
+            somente ADM/Gestor podem decidir dar um produto como "nao encontrado". */}
+        {naoContados.length > 0 && aguardando2.length === 0 && aguardando3.length === 0 &&
+         !sessaoEncerrada && (papel === 'admin' || papel === 'gestor') && (
           <View style={estilos.secao}>
             <Button
               titulo={encerrando ? 'Encerrando...' : 'Finalizar inventario agora'}
               variante="secondary"
               carregando={encerrando}
               onPress={() => {
-                const msg = `Ainda ha ${pendentes.length} produto(s) pendente(s).\n\nAo finalizar agora, o gestor decidira sobre as divergencias. Deseja continuar?`;
+                const msg = `Ainda ha ${naoContados.length} produto(s) nunca bipado(s).\n\nAo finalizar agora, esses itens entram como divergencia "nao bipado" para revisao. Deseja continuar?`;
                 confirmarAlerta('Finalizar inventario?', msg)
                   .then(ok => { if (ok) encerrarSessaoAgora(); });
               }}
             />
             <Text style={estilos.dica}>
-              Ao finalizar agora, o gestor revisara os itens pendentes.
+              Ao finalizar agora, os itens nunca bipados entram como divergência para revisão.
             </Text>
           </View>
         )}

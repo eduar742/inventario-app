@@ -275,8 +275,19 @@ export async function iniciarSessao(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/iniciar`, { method: 'PATCH' });
 }
 
-export async function encerrarSessao(sessaoId) {
-  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/encerrar`, { method: 'PATCH' });
+export async function encerrarSessao(sessaoId, forcar = false) {
+  const q = forcar ? '?forcar=true' : '';
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/encerrar${q}`, { method: 'PATCH' });
+}
+
+// ADM reabre uma sessao 'aguardando_aprovacao' encerrada por engano, sem
+// perder as contagens ja registradas. Descarta as divergencias antigas
+// (recalculadas quando a sessao for encerrada de novo).
+export async function reabrirSessao(sessaoId, motivo) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/reabrir`, {
+    method: 'PATCH',
+    body: JSON.stringify({ motivo }),
+  });
 }
 
 export async function gerarDivergencias(sessaoId, forcaRegerar = false) {

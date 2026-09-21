@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarSessoes, pegarUsuario, buscarPerfilAtual, cancelarSessao, encerrarSessao, gerarDivergencias, adicionarNotaAdm } from '../services/api';
+import { listarSessoes, pegarUsuario, buscarPerfilAtual, cancelarSessao, encerrarSessao, gerarDivergencias, adicionarNotaAdm, reabrirSessao } from '../services/api';
 import Button from '../components/Button';
 import { formatarDataHora } from '../utils/formatadores';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
@@ -41,6 +41,9 @@ export default function SessoesScreen({ navigation, route }) {
   const [modalNota, setModalNota] = useState(null); // sessao selecionada para nota
   const [novaNotaInput, setNovaNotaInput] = useState('');
   const [salvandoNota, setSalvandoNota] = useState(false);
+  const [modalReabrir, setModalReabrir] = useState(null); // sessao selecionada para reabrir
+  const [motivoReabrirInput, setMotivoReabrirInput] = useState('');
+  const [reabrindo, setReabrindo] = useState(false);
 
   useEffect(() => {
     carregarDados();
@@ -90,12 +93,15 @@ export default function SessoesScreen({ navigation, route }) {
     if (!ok) return;
     setEncerrando(sessao.id);
     try {
-      await encerrarSessao(sessao.id);
+      // forcar=true: ADM/Gestor pode encerrar mesmo com produtos nunca bipados
+      // (viram divergencia "nao bipado"); produtos aguardando 2a/3a contagem
+      // continuam bloqueando o encerramento — o backend nao deixa pular isso.
+      await encerrarSessao(sessao.id, true);
       await gerarDivergencias(sessao.id);
       await carregarDados();
       avisar('Sessao encerrada', 'Divergencias geradas. Acesse "Divergencias" para aprovar ou rejeitar os ajustes.');
     } catch (err) {
-      avisar('Erro', err.message || 'Nao foi possivel encerrar');
+      avisar('Nao foi possivel encerrar', err.message || 'Tente novamente.');
     } finally {
       setEncerrando(null);
     }
@@ -137,6 +143,25 @@ export default function SessoesScreen({ navigation, route }) {
       avisar('Erro', err.message || 'Nao foi possivel salvar a nota');
     } finally {
       setSalvandoNota(false);
+    }
+  }
+
+  async function confirmarReabrir() {
+    if (!modalReabrir || motivoReabrirInput.trim().length < 5) return;
+    setReabrindo(true);
+    try {
+      await reabrirSessao(modalReabrir.id, motivoReabrirInput.trim());
+      setModalReabrir(null);
+      setMotivoReabrirInput('');
+      await carregarDados();
+      avisar(
+        'Sessao reaberta',
+        'A sessao voltou para "Em andamento". As contagens ja registradas continuam valendo — as divergencias anteriores foram descartadas e serao recalculadas ao encerrar novamente.',
+      );
+    } catch (err) {
+      avisar('Nao foi possivel reabrir', err.message || 'Tente novamente.');
+    } finally {
+      setReabrindo(false);
     }
   }
 
@@ -342,6 +367,17 @@ export default function SessoesScreen({ navigation, route }) {
               >
                 <Text style={[estilos.botaoCardAcaoTexto, { color: colors.primary, fontWeight: '700' }]}>
                   Revisar contagens (ADM)
+                </Text>
+              </TouchableOpacity>
+            )}
+            {/* ADM: reabre a sessao encerrada por engano, sem perder as contagens */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={[estilos.botaoCardAcao, { backgroundColor: colors.backgroundSoft, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => { setModalReabrir(item); setMotivoReabrirInput(''); }}
+              >
+                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.textSecondary }]}>
+                  Reabrir sessao (ADM)
                 </Text>
               </TouchableOpacity>
             )}
@@ -573,6 +609,62 @@ export default function SessoesScreen({ navigation, route }) {
                 {salvandoNota
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Text style={[estilos.modalBotaoTexto, { color: '#fff' }]}>Salvar nota</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal de reabertura de sessao — apenas ADM */}
+      <Modal
+        visible={!!modalReabrir}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalReabrir(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={estilos.modalOverlay}
+        >
+          <View style={estilos.modalBox}>
+            <Text style={estilos.modalTitulo}>Reabrir sessao</Text>
+            {modalReabrir && (
+              <Text style={estilos.modalSessaoNome} numberOfLines={2}>{modalReabrir.nome}</Text>
+            )}
+            <Text style={estilos.semNotas}>
+              A sessao volta para "Em andamento" — as contagens ja registradas continuam valendo.
+              As divergencias geradas anteriormente serao descartadas e recalculadas quando a
+              sessao for encerrada de novo.
+            </Text>
+
+            <Text style={estilos.modalLabel}>Motivo (obrigatorio):</Text>
+            <TextInput
+              style={estilos.modalInput}
+              value={motivoReabrirInput}
+              onChangeText={setMotivoReabrirInput}
+              placeholder="Ex: sessao encerrada antes de terminar o desempate..."
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              numberOfLines={3}
+              maxLength={1000}
+            />
+
+            <View style={estilos.modalAcoes}>
+              <TouchableOpacity
+                style={[estilos.modalBotao, { backgroundColor: colors.backgroundSoft, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => setModalReabrir(null)}
+              >
+                <Text style={[estilos.modalBotaoTexto, { color: colors.textSecondary }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[estilos.modalBotao, { backgroundColor: colors.primary, opacity: (motivoReabrirInput.trim().length < 5 || reabrindo) ? 0.5 : 1 }]}
+                onPress={confirmarReabrir}
+                disabled={motivoReabrirInput.trim().length < 5 || reabrindo}
+              >
+                {reabrindo
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={[estilos.modalBotaoTexto, { color: '#fff' }]}>Reabrir sessao</Text>
                 }
               </TouchableOpacity>
             </View>
