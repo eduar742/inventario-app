@@ -9,22 +9,33 @@ import {
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia, atualizarInfoProduto } from '../services/api';
+import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia, atualizarInfoProduto, ajustarDivergencia } from '../services/api';
 import Paginacao from '../components/Paginacao';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
 const STATUS_COR = {
-  pendente:  { bg: colors.warningSoft,  txt: colors.warning },
-  aprovada:  { bg: colors.successSoft,  txt: colors.success },
-  rejeitada: { bg: colors.dangerSoft,   txt: colors.danger  },
+  pendente:     { bg: colors.warningSoft, txt: colors.warning },
+  aprovada_adm: { bg: colors.infoSoft,    txt: colors.info    },
+  aprovada:     { bg: colors.successSoft, txt: colors.success },
+  rejeitada:    { bg: colors.dangerSoft,  txt: colors.danger  },
+};
+
+const STATUS_ROTULO = {
+  pendente:     'PENDENTE',
+  aprovada_adm: 'AGUARDANDO GESTOR',
+  aprovada:     'APROVADA',
+  rejeitada:    'REJEITADA',
 };
 
 export default function DivergenciasScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
 
-  // Papeis leitura-somente nao podem aprovar/rejeitar divergencias
-  const [papelUsuario, setPapelUsuario] = useState('gestor');
-  const isReadOnly = ['gerente', 'auditor'].includes(papelUsuario);
+  // Acesso a tela: somente ADM e Gestor da loja
+  const [papelUsuario, setPapelUsuario] = useState(null);
+  const acessoPermitido = papelUsuario === 'admin' || papelUsuario === 'gestor';
+  // Papeis leitura-somente nao podem aprovar/rejeitar divergencias (defesa extra —
+  // a navegacao ja restringe quem chega nesta tela a ADM/Gestor)
+  const isReadOnly = !acessoPermitido;
   // Somente ADM ve quantidades brutas (saldo sistema, contado, diferenca em unidades)
   // Gestor ve apenas impacto financeiro durante aprovacao — diferencas ficam nos relatorios
   const escondeQuantidades = papelUsuario !== 'admin';
@@ -46,15 +57,28 @@ export default function DivergenciasScreen({ navigation, route }) {
   const [unidadeInput, setUnidadeInput] = useState('');
   const [salvandoCusto, setSalvandoCusto] = useState(false);
 
+  // Modal de ajuste de quantidade pelo ADM (justificativa obrigatoria)
+  const [modalAjuste, setModalAjuste] = useState(null);
+  const [quantidadeAjusteInput, setQuantidadeAjusteInput] = useState('');
+  const [justificativaAjusteInput, setJustificativaAjusteInput] = useState('');
+  const [salvandoAjuste, setSalvandoAjuste] = useState(false);
+
   useEffect(() => {
-    carregar();
     async function carregarPapel() {
+      let papel = null;
       try {
         let u = await pegarUsuario();
         // Fallback ao servidor se o cache nao tiver o papel
         if (!u?.papel) u = await buscarPerfilAtual();
-        if (u?.papel) setPapelUsuario(u.papel);
+        papel = u?.papel || null;
       } catch (_) {}
+      setPapelUsuario(papel);
+      if (papel !== 'admin' && papel !== 'gestor') {
+        avisar('Acesso restrito', 'Apenas ADM e Gestor da loja podem acessar as divergencias.');
+        navigation.goBack();
+        return;
+      }
+      carregar();
     }
     carregarPapel();
   }, []);
@@ -76,9 +100,9 @@ export default function DivergenciasScreen({ navigation, route }) {
   async function executarAprovar(div) {
     setProcessando(div.id);
     try {
-      await aprovarDivergencia(div.id);
+      const atualizado = await aprovarDivergencia(div.id);
       setDivergencias(prev =>
-        prev.map(d => d.id === div.id ? { ...d, status: 'aprovada' } : d)
+        prev.map(d => d.id === div.id ? { ...d, ...atualizado } : d)
       );
     } catch (err) {
       avisar('Erro', err.message || 'Nao foi possivel aprovar');
@@ -90,9 +114,9 @@ export default function DivergenciasScreen({ navigation, route }) {
   async function executarRejeitar(div) {
     setProcessando(div.id);
     try {
-      await rejeitarDivergencia(div.id);
+      const atualizado = await rejeitarDivergencia(div.id);
       setDivergencias(prev =>
-        prev.map(d => d.id === div.id ? { ...d, status: 'rejeitada' } : d)
+        prev.map(d => d.id === div.id ? { ...d, ...atualizado } : d)
       );
     } catch (err) {
       avisar('Erro', err.message || 'Nao foi possivel rejeitar');
@@ -151,6 +175,36 @@ export default function DivergenciasScreen({ navigation, route }) {
       avisar('Erro', err.message || 'Nao foi possivel salvar');
     } finally {
       setSalvandoCusto(false);
+    }
+  }
+
+  function abrirModalAjuste(div) {
+    setModalAjuste(div);
+    setQuantidadeAjusteInput(String(parseFloat(div.quantidade_final)).replace('.', ','));
+    setJustificativaAjusteInput('');
+  }
+
+  async function salvarAjuste() {
+    const quantidade = parseFloat(quantidadeAjusteInput.replace(',', '.'));
+    if (isNaN(quantidade) || quantidade < 0) {
+      avisar('Quantidade invalida', 'Informe uma quantidade numerica valida.');
+      return;
+    }
+    if (justificativaAjusteInput.trim().length < 5) {
+      avisar('Justificativa obrigatoria', 'Descreva o motivo do ajuste (minimo 5 caracteres).');
+      return;
+    }
+    setSalvandoAjuste(true);
+    try {
+      const atualizado = await ajustarDivergencia(modalAjuste.id, quantidade, justificativaAjusteInput.trim());
+      setDivergencias(prev =>
+        prev.map(d => d.id === modalAjuste.id ? { ...d, ...atualizado } : d)
+      );
+      setModalAjuste(null);
+    } catch (err) {
+      avisar('Erro', err.message || 'Nao foi possivel ajustar a quantidade');
+    } finally {
+      setSalvandoAjuste(false);
     }
   }
 
@@ -213,7 +267,7 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
           <View style={[estilos.badge, { backgroundColor: cores.bg }]}>
             <Text style={[estilos.badgeTexto, { color: cores.txt }]}>
-              {div.status.toUpperCase()}
+              {STATUS_ROTULO[div.status] || div.status.toUpperCase()}
             </Text>
           </View>
         </View>
@@ -285,8 +339,24 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* Ajuste de quantidade feito pelo ADM — visivel para ADM e Gestor */}
+        {div.quantidade_final_original != null && (
+          <View style={estilos.ajusteBox}>
+            <Text style={estilos.ajusteTitulo}>Quantidade ajustada pelo ADM</Text>
+            {!escondeQuantidades && (
+              <Text style={estilos.ajusteValores}>
+                {parseFloat(div.quantidade_final_original).toFixed(0)} → {parseFloat(div.quantidade_final).toFixed(0)} {div.unidade_medida || ''}
+                {div.ajustado_por_nome ? ` · ${div.ajustado_por_nome}` : ''}
+              </Text>
+            )}
+            {!!div.justificativa_ajuste && (
+              <Text style={estilos.ajusteJustificativa}>"{div.justificativa_ajuste}"</Text>
+            )}
+          </View>
+        )}
+
         {/* Custo unitario — ADM informa, gestor ve antes de aprovar */}
-        {div.status === 'pendente' && (
+        {['pendente', 'aprovada_adm'].includes(div.status) && (
           <View style={estilos.custoRow}>
             <View style={{ flex: 1 }}>
               {div.custo_unitario_definido ? (
@@ -313,57 +383,85 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Botoes de acao apenas para quem pode escrever */}
-        {div.status === 'pendente' && !isReadOnly && (
-          <View style={estilos.acoes}>
-            {emProcessamento ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[estilos.botaoAcao, estilos.botaoAprovar,
-                    !div.custo_unitario_definido && estilos.botaoDesabilitado]}
-                  onPress={() => {
-                    if (!div.custo_unitario_definido) {
-                      avisar(
-                        'Custo nao informado',
-                        papelUsuario === 'admin'
-                          ? 'Informe o custo unitario acima antes de aprovar.'
-                          : 'O ADM precisa informar o custo unitario antes da aprovacao.',
-                      );
-                      return;
-                    }
-                    handleAprovar(div);
-                  }}
-                >
-                  <Text style={[estilos.botaoAprovarTexto,
-                    !div.custo_unitario_definido && estilos.textoDesabilitado]}>
-                    Aprovar ajuste
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[estilos.botaoAcao, estilos.botaoRejeitar]}
-                  onPress={() => handleRejeitar(div)}
-                >
-                  <Text style={estilos.botaoRejeitarTexto}>Rejeitar</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+        {/* ADM pode corrigir a quantidade final antes da 1a etapa de aprovacao */}
+        {div.status === 'pendente' && papelUsuario === 'admin' && (
+          <TouchableOpacity
+            style={estilos.botaoAjustarQtd}
+            onPress={() => abrirModalAjuste(div)}
+          >
+            <Text style={estilos.botaoAjustarQtdTexto}>Alterar quantidade (ADM)</Text>
+          </TouchableOpacity>
         )}
+
+        {/* Botoes de acao — respeitam a etapa (1a: ADM, 2a: Gestor apos ADM) */}
+        {['pendente', 'aprovada_adm'].includes(div.status) && !isReadOnly && (() => {
+          const aguardandoAdm = div.status === 'pendente' && papelUsuario !== 'admin';
+          const podeAgir = (div.status === 'pendente' && papelUsuario === 'admin')
+            || (div.status === 'aprovada_adm' && (papelUsuario === 'admin' || papelUsuario === 'gestor'));
+
+          if (aguardandoAdm) {
+            return (
+              <View style={estilos.avisoEtapa}>
+                <Text style={estilos.avisoEtapaTexto}>Aguardando aprovação do ADM</Text>
+              </View>
+            );
+          }
+          if (!podeAgir) return null;
+
+          return (
+            <View style={estilos.acoes}>
+              {emProcessamento ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[estilos.botaoAcao, estilos.botaoAprovar,
+                      !div.custo_unitario_definido && estilos.botaoDesabilitado]}
+                    onPress={() => {
+                      if (!div.custo_unitario_definido) {
+                        avisar(
+                          'Custo nao informado',
+                          papelUsuario === 'admin'
+                            ? 'Informe o custo unitario acima antes de aprovar.'
+                            : 'O ADM precisa informar o custo unitario antes da aprovacao.',
+                        );
+                        return;
+                      }
+                      handleAprovar(div);
+                    }}
+                  >
+                    <Text style={[estilos.botaoAprovarTexto,
+                      !div.custo_unitario_definido && estilos.textoDesabilitado]}>
+                      {div.status === 'pendente' ? 'Aprovar (ADM)' : 'Aprovar definitivamente'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[estilos.botaoAcao, estilos.botaoRejeitar]}
+                    onPress={() => handleRejeitar(div)}
+                  >
+                    <Text style={estilos.botaoRejeitarTexto}>Rejeitar</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          );
+        })()}
       </View>
     );
   }
 
   const [concluindo, setConcluindo] = useState(false);
   const [aprovandoTudo, setAprovandoTudo] = useState(false);
-  const pendentes  = divergencias.filter(d => d.status === 'pendente').length;
+  // "Pendentes" = ainda nao resolvidas em nenhuma das duas etapas (ADM ou Gestor)
+  const pendentes  = divergencias.filter(d => d.status === 'pendente' || d.status === 'aprovada_adm').length;
   const aprovadas  = divergencias.filter(d => d.status === 'aprovada').length;
   const rejeitadas = divergencias.filter(d => d.status === 'rejeitada').length;
 
-  // Quantidade de divergencias pendentes bloqueadas do lote (excedem limites)
-  const bloqueadasLote = divergencias.filter(d => d.status === 'pendente' && d.bloqueado_lote);
-  const aprovaveisPorLote = divergencias.filter(d => d.status === 'pendente' && !d.bloqueado_lote);
+  // Etapa em lote: ADM aprova 'pendente'; Gestor so aprova o que o ADM ja aprovou ('aprovada_adm')
+  const statusAlvoLote = papelUsuario === 'admin' ? 'pendente' : 'aprovada_adm';
+  const itensDaEtapa = divergencias.filter(d => d.status === statusAlvoLote);
+  const bloqueadasLote = itensDaEtapa.filter(d => d.bloqueado_lote);
+  const aprovaveisPorLote = itensDaEtapa.filter(d => !d.bloqueado_lote);
 
   // M5: aprova em lote (somente as que passam nos limites)
   async function handleAprovarTudo() {
@@ -373,7 +471,8 @@ export default function DivergenciasScreen({ navigation, route }) {
       ? `R$ ${(divergencias[0].limite_valor_brl || 500).toLocaleString('pt-BR', {minimumFractionDigits:2})} ou ${divergencias[0].limite_diferenca_pct || 10}% de diferença`
       : 'limites configurados';
 
-    let msg = `Aprovar em lote ${nAprov} divergencia(s)?`;
+    const etapaTexto = papelUsuario === 'admin' ? '(1ª etapa — ADM)' : '(2ª etapa — Gestor)';
+    let msg = `Aprovar em lote ${etapaTexto} ${nAprov} divergencia(s)?`;
     if (nBloq > 0) {
       msg += `\n\n⚠️ ${nBloq} divergencia(s) NÃO serão incluídas por excederem ${limite}.\nElas exigem aprovação individual.`;
     }
@@ -386,15 +485,17 @@ export default function DivergenciasScreen({ navigation, route }) {
       const resultado = await aprovarInventario(sessao.id);
       const nAprov = resultado.total_aprovadas || 0;
       const nBloq = resultado.total_bloqueadas || 0;
-      if (nBloq > 0) {
-        avisar(
-          `${nAprov} aprovada(s) em lote`,
-          `${nBloq} divergencia(s) bloqueada(s) requerem aprovação individual.\n\n${resultado.mensagem}`
-        );
-        carregar(pagina); // recarrega para mostrar as restantes
-      } else {
+      if (resultado.sessao_status === 'concluida') {
         avisar('Inventario aprovado!', resultado.mensagem || 'Sessao concluida.');
         navigation.navigate('Sessoes', { loja, filtroInicial: 'concluidas' });
+      } else {
+        avisar(
+          `${nAprov} aprovada(s) em lote`,
+          resultado.mensagem || (nBloq > 0
+            ? `${nBloq} divergencia(s) bloqueada(s) requerem aprovação individual.`
+            : 'Falta a proxima etapa de aprovacao para concluir a sessao.')
+        );
+        carregar(pagina); // recarrega para mostrar o estado atual
       }
     } catch (err) {
       avisar('Erro', err.message || 'Nao foi possivel aprovar o inventario');
@@ -427,8 +528,8 @@ export default function DivergenciasScreen({ navigation, route }) {
         <TotalizadorFinanceiro divergencias={divergencias} totalPaginas={totalPaginas} />
       )}
 
-      {/* M5: Botao de aprovacao em lote — apenas para quem pode escrever */}
-      {divergencias.length > 0 && pendentes > 0 && !isReadOnly && (
+      {/* M5: Botao de aprovacao em lote — ADM aprova 'pendente', Gestor aprova 'aprovada_adm' */}
+      {divergencias.length > 0 && itensDaEtapa.length > 0 && !isReadOnly && (
         <View>
           {bloqueadasLote.length > 0 && (
             <View style={estilos.alertaLote}>
@@ -446,8 +547,10 @@ export default function DivergenciasScreen({ navigation, route }) {
               ? <ActivityIndicator size="small" color={colors.white} />
               : <Text style={estilos.botaoAprovarTudoTexto}>
                   {bloqueadasLote.length > 0
-                    ? `Aprovar em lote (${aprovaveisPorLote.length} de ${pendentes})`
-                    : `Aprovar todo o inventario (${pendentes} pendente${pendentes > 1 ? 's' : ''})`
+                    ? `Aprovar em lote (${aprovaveisPorLote.length} de ${itensDaEtapa.length})`
+                    : papelUsuario === 'admin'
+                      ? `Aprovar (ADM) — 1ª etapa (${itensDaEtapa.length})`
+                      : `Aprovar (Gestor) — 2ª etapa (${itensDaEtapa.length})`
                   }
                 </Text>
             }
@@ -570,6 +673,65 @@ export default function DivergenciasScreen({ navigation, route }) {
                 disabled={salvandoCusto}
               >
                 {salvandoCusto
+                  ? <ActivityIndicator size="small" color={colors.success} />
+                  : <Text style={estilos.botaoAprovarTexto}>Salvar</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal de ajuste de quantidade — apenas ADM, justificativa obrigatoria */}
+      <Modal
+        visible={!!modalAjuste}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalAjuste(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={estilos.modalOverlay}
+        >
+          <View style={estilos.modalBox}>
+            <Text style={estilos.modalTitulo}>Alterar quantidade contada</Text>
+            <Text style={estilos.modalSku}>{modalAjuste?.descricao_produto || modalAjuste?.sku}</Text>
+
+            <Text style={[estilos.modalSecaoLabel, { marginTop: spacing.sm }]}>QUANTIDADE FINAL</Text>
+            <TextInput
+              style={estilos.modalInput}
+              value={quantidadeAjusteInput}
+              onChangeText={setQuantidadeAjusteInput}
+              placeholder="Ex: 316"
+              keyboardType="decimal-pad"
+              selectTextOnFocus
+            />
+            <Text style={estilos.modalDica}>
+              Valor contado pelos operadores: {modalAjuste ? parseFloat(modalAjuste.quantidade_final).toFixed(0) : ''} {modalAjuste?.unidade_medida || ''}
+            </Text>
+
+            <Text style={estilos.modalSecaoLabel}>JUSTIFICATIVA (OBRIGATORIA)</Text>
+            <TextInput
+              style={[estilos.modalInputTexto, { minHeight: 70, textAlignVertical: 'top' }]}
+              value={justificativaAjusteInput}
+              onChangeText={setJustificativaAjusteInput}
+              placeholder="Ex: pedido em transito confirmado no ERP"
+              multiline
+            />
+
+            <View style={estilos.modalAcoes}>
+              <TouchableOpacity
+                style={[estilos.botaoAcao, estilos.botaoRejeitar, { flex: 1 }]}
+                onPress={() => setModalAjuste(null)}
+              >
+                <Text style={estilos.botaoRejeitarTexto}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[estilos.botaoAcao, estilos.botaoAprovar, { flex: 1 }]}
+                onPress={salvarAjuste}
+                disabled={salvandoAjuste}
+              >
+                {salvandoAjuste
                   ? <ActivityIndicator size="small" color={colors.success} />
                   : <Text style={estilos.botaoAprovarTexto}>Salvar</Text>
                 }
@@ -828,6 +990,34 @@ const estilos = StyleSheet.create({
   botaoDefinirCustoTexto: { fontSize: fontSize.xs, fontWeight: '700', color: colors.primary },
   botaoDesabilitado: { opacity: 0.45 },
   textoDesabilitado: { color: colors.textMuted },
+
+  // Ajuste de quantidade pelo ADM
+  ajusteBox: {
+    backgroundColor: colors.infoSoft,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.info,
+  },
+  ajusteTitulo: { fontSize: 10, fontWeight: '700', color: colors.info, textTransform: 'uppercase', letterSpacing: 0.5 },
+  ajusteValores: { fontSize: fontSize.sm, color: colors.text, fontWeight: '600', marginTop: 2 },
+  ajusteJustificativa: { fontSize: fontSize.xs, color: colors.textSecondary, fontStyle: 'italic', marginTop: 2 },
+  botaoAjustarQtd: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.infoSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: 4,
+    borderWidth: 1, borderColor: colors.info,
+    marginBottom: spacing.sm,
+  },
+  botaoAjustarQtdTexto: { fontSize: fontSize.xs, fontWeight: '700', color: colors.info },
+  // Aviso de etapa (gestor aguardando ADM aprovar primeiro)
+  avisoEtapa: {
+    borderTopWidth: 1, borderTopColor: colors.border,
+    paddingTop: spacing.sm, alignItems: 'center',
+  },
+  avisoEtapaTexto: { fontSize: fontSize.sm, color: colors.textMuted, fontStyle: 'italic' },
   // Modal de custo
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',

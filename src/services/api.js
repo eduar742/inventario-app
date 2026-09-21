@@ -316,6 +316,15 @@ export async function definirCustoDivergencia(divergenciaId, custoUnitario) {
   });
 }
 
+// ADM ajusta a quantidade final da divergencia (justificativa obrigatoria).
+// Permitido somente enquanto a divergencia estiver 'pendente'.
+export async function ajustarDivergencia(divergenciaId, quantidadeFinal, justificativa) {
+  return await chamarAPI(`/api/v1/divergencias/${divergenciaId}/ajustar`, {
+    method: 'PATCH',
+    body: JSON.stringify({ quantidade_final: quantidadeFinal, justificativa }),
+  });
+}
+
 export async function atualizarInfoProduto(produtoId, dados) {
   return await chamarAPI(`/api/v1/produtos/${produtoId}`, {
     method: 'PATCH',

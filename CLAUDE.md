@@ -90,6 +90,38 @@ Inventarios sao agrupados em **sessoes**:
 - Status: `criada` -> `em_andamento` -> `concluida`
 - Operadores so contam em sessoes `em_andamento`
 
+### Decisao 6: Divergencias — acesso restrito e aprovacao em duas etapas (implementado 2026-09)
+
+**Acesso a tela de Divergencias:** restrito a **ADM e Gestor da loja**. Outros papeis
+(lider, gerente, auditor, operador) nao veem mais o botao "Divergencias"/"Revisar
+divergencias" em `SessoesScreen.js`, e o backend (`GET /sessoes/{id}/divergencias`,
+`GET /divergencias/{id}`) passou a exigir `get_admin_or_gestor` + checagem de loja.
+
+**Ajuste de quantidade pelo ADM:** antes da aprovacao, o ADM pode corrigir a
+quantidade final de uma divergencia (ex: pedido em transito, item com custo zero,
+nao encontrado na planilha) com **justificativa obrigatoria** (minimo 5 caracteres).
+A quantidade original das contagens fica preservada para auditoria
+(`quantidade_final_original`) e a diferenca e recalculada. Endpoint:
+`PATCH /divergencias/{id}/ajustar` (somente ADM, somente enquanto `pendente`).
+
+**Aprovacao em duas etapas:** o gestor so pode aprovar/rejeitar uma divergencia
+**depois** que o ADM aprovar. Fluxo de status: `pendente` (ADM revisa) ->
+`aprovada_adm` (ADM aprovou, aguardando gestor) -> `aprovada` (gestor, ou ADM,
+finaliza). Rejeicao pode acontecer em qualquer uma das duas etapas. O ADM continua
+podendo fazer as duas etapas sozinho (nao fica bloqueado esperando gestor). A
+aprovacao em lote (`POST /sessoes/{id}/aprovar-inventario`) segue a mesma logica:
+ADM aprova em lote a 1a etapa, gestor aprova em lote a 2a — a sessao so conclui
+quando nada resta pendente em nenhuma das duas.
+
+**Migration:** `018_aprovacao_duas_etapas.py` adiciona colunas em `divergencias`
+(`aprovado_adm_por_id`, `aprovado_adm_em`, `quantidade_final_original`, `ajustado_em`,
+`ajustado_por_id`, `justificativa_ajuste`). E idempotente (usa inspector antes de
+criar colunas) porque as migrations `016` e `017` tinham um bug pre-existente que
+travava `alembic upgrade head` (tentavam recriar tabelas/indices que ja existiam
+em ambientes cujo schema foi bootstrapado via `init_db.py`/`create_all` em vez de
+alembic sequencial) — corrigido nesta mesma leva para que a cadeia de migrations
+volte a rodar do zero. Ver [[revisao-migrations-alembic]] se essa memoria existir.
+
 ### Decisao 5: Hardening de seguranca (implementado)
 
 Backend ja tem 8 camadas de seguranca implementadas (ver `docs/SEGURANCA.md` quando criado):
@@ -230,6 +262,8 @@ Telas registradas (em `src/navigation/AppNavigator.js`):
 - [x] Scanner QR Code em tempo real + input manual de codigo
 - [x] Inventario CEGO com acumulador local + soma de parciais
 - [x] Logica de 3 contagens com recontagem interativa no Resumo
+- [x] Divergencias: acesso restrito a ADM/Gestor, ajuste de quantidade pelo ADM
+      com justificativa obrigatoria, aprovacao em duas etapas (ADM depois Gestor)
 - [x] Fluxo completo de sessao: criar -> iniciar -> encerrar -> divergencias -> concluir
 - [x] Sistema de importacao de planilhas xlsx/csv (modo completo e parcial)
 - [x] Sistema de relatorios xlsx/pdf/csv com 5 perfis de auditoria
