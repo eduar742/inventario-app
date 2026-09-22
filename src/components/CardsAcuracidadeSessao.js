@@ -28,6 +28,10 @@ export default function CardsAcuracidadeSessao({ resumo }) {
   const valorDivergente = parseFloat(resumo.valor_divergente_total) || 0;
   const corValor = valorDivergente > 0 ? colors.success : valorDivergente < 0 ? colors.danger : colors.textMuted;
   const totalDiv = resumo.total_divergencias || 0;
+  // Divergencias que ainda tem diferenca != 0 hoje — exclui as que o ADM
+  // ajustou e zerou (PATCH .../ajustar), pra "bateram com o sistema" refletir
+  // a correcao em vez de ignora-la.
+  const totalDivAtivas = resumo.total_divergencias_ativas ?? totalDiv;
   const totalContados = resumo.total_contados || 0;
 
   return (
@@ -40,7 +44,7 @@ export default function CardsAcuracidadeSessao({ resumo }) {
         </Text>
         <Text style={est.legenda}>
           {resumo.total_produtos_loja > 0
-            ? `${resumo.total_produtos_loja - totalDiv} de ${resumo.total_produtos_loja} produtos bateram com o sistema`
+            ? `${resumo.total_produtos_loja - totalDivAtivas} de ${resumo.total_produtos_loja} produtos bateram com o sistema`
             : 'Sem produtos esperados para comparar'}
         </Text>
       </View>
