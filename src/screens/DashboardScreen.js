@@ -287,45 +287,42 @@ function GaugeSemiCircle({ valor = 0, tamanho = 220 }) {
   );
 }
 
-// ── Grafico de barras ─────────────────────────────────────────────────────────
-function BarChartV2({ labels, nomes, data }) {
-  if (!data || data.length === 0) return null;
-  const altMax = 160;
+// ── Ranking horizontal de acuracidade por loja ─────────────────────────────────
+// Uma linha por loja (barra horizontal), ordenado da maior pra menor
+// acuracidade — legivel mesmo com as 17 lojas da rede, sem cortar nome.
+function RankingAcuracidadeLojas({ lojas }) {
+  if (!lojas || lojas.length === 0) return null;
+  const ordenadas = [...lojas].sort(
+    (a, b) => (parseFloat(b.acuracidade) || 0) - (parseFloat(a.acuracidade) || 0)
+  );
   return (
     <View>
-      {/* Linha de referencia 100% */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, paddingHorizontal: 4 }}>
-        <Text style={{ fontSize: 11, color: '#9CA3AF', width: 36 }}>100%</Text>
-        <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: altMax + 64, paddingHorizontal: 4, gap: 6 }}>
-          {data.map((val, i) => {
-            const h = Math.max((val / 100) * altMax, 6);
-            const cor = corAcur(val);
-            return (
-              <View key={i} style={{ alignItems: 'center', width: 76, minWidth: 0 }}>
-                <Text style={{ fontSize: 11, color: cor, fontWeight: '700', marginBottom: 5, textAlign: 'center' }}>
-                  {val.toFixed(1)}%
-                </Text>
-                <View style={{
-                  width: 38, height: h, backgroundColor: cor,
-                  borderRadius: 4, borderTopLeftRadius: 4, borderTopRightRadius: 4,
-                }} />
-                <Text style={{ fontSize: 10, color: '#374151', fontWeight: '600', marginTop: 6, textAlign: 'center' }} numberOfLines={1}>
-                  {labels[i]}
-                </Text>
-                {nomes?.[i] ? (
-                  <Text style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1, textAlign: 'center', width: 76 }} numberOfLines={1}>
-                    {nomes[i]}
-                  </Text>
-                ) : null}
-              </View>
-            );
-          })}
-        </View>
-      </ScrollView>
-      <View style={{ flexDirection: 'row', gap: 20, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+      {ordenadas.map((l, i) => {
+        const val = parseFloat(l.acuracidade) || 0;
+        const cor = corAcur(val);
+        return (
+          <View key={l.loja_codigo} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={{ width: 26, fontSize: 12, fontWeight: '700', color: '#9CA3AF' }}>
+              {i + 1}º
+            </Text>
+            <View style={{ width: 118, marginRight: 10 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#111827' }} numberOfLines={1}>
+                {l.loja_codigo}
+              </Text>
+              <Text style={{ fontSize: 11, color: '#6B7280' }} numberOfLines={1}>
+                {l.loja_nome}
+              </Text>
+            </View>
+            <View style={{ flex: 1, height: 16, backgroundColor: '#F1F5F9', borderRadius: 8, overflow: 'hidden' }}>
+              <View style={{ width: `${Math.min(Math.max(val, 2), 100)}%`, height: '100%', backgroundColor: cor, borderRadius: 8 }} />
+            </View>
+            <Text style={{ width: 58, textAlign: 'right', fontSize: 13, fontWeight: '700', color: cor }}>
+              {val.toFixed(1)}%
+            </Text>
+          </View>
+        );
+      })}
+      <View style={{ flexDirection: 'row', gap: 20, marginTop: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
         {[
           { cor: '#16A34A', txt: '≥ 95% Excelente'  },
           { cor: '#F97316', txt: '85%–94% Atenção'  },
@@ -744,18 +741,17 @@ export default function DashboardScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Grafico por loja */}
+        {/* Ranking por loja */}
         {acLoja.length > 0 && (
           <View style={gr.card}>
             <View style={gr.hRow}>
-              <Text style={gr.titulo}>Acuracidade por Loja</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={gr.titulo}>Acuracidade por Loja (SKU)</Text>
+                <Text style={gr.subtitulo}>% de produtos que bateram com o sistema — maior acuracidade no topo</Text>
+              </View>
               <TouchableOpacity><IcoDownload size={18} cor="#9CA3AF" /></TouchableOpacity>
             </View>
-            <BarChartV2
-              labels={acLoja.map(l => l.loja_codigo)}
-              nomes={acLoja.map(l => l.loja_nome)}
-              data={acLoja.map(l => parseFloat(l.acuracidade || 0))}
-            />
+            <RankingAcuracidadeLojas lojas={acLoja} />
           </View>
         )}
 
@@ -865,9 +861,10 @@ const mt = StyleSheet.create({
 });
 
 const gr = StyleSheet.create({
-  card:  { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', padding: 24, marginBottom: 24 },
-  hRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  titulo:{ fontSize: 16, fontWeight: '700', color: '#111827' },
+  card:     { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', padding: 24, marginBottom: 24 },
+  hRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  titulo:   { fontSize: 16, fontWeight: '700', color: '#111827' },
+  subtitulo:{ fontSize: 12, color: '#9CA3AF', marginTop: 2 },
 });
 
 const es = StyleSheet.create({
