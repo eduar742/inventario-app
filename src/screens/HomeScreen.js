@@ -39,7 +39,7 @@ const BLOCOS = [
     emoji: '🏢',
     cor: '#16A34A',
     tela: 'DashboardConsolidado',
-    papeis: ['admin', 'gerente', 'auditor'],
+    papeis: ['admin', 'gestor', 'gerente', 'auditor'],
   },
   {
     id: 'relatorio',
