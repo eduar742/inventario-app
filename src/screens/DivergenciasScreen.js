@@ -29,6 +29,10 @@ const STATUS_ROTULO = {
 
 export default function DivergenciasScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
+  // Sessao ja concluida (revisao posterior): botoes de aprovar/concluir nao fazem
+  // mais sentido aqui — o backend so aceita essas acoes em 'aguardando_aprovacao'
+  // e retornaria erro se chamadas de novo.
+  const sessaoConcluida = sessao.status === 'concluida';
 
   // Acesso a tela: somente ADM e Gestor da loja
   const [papelUsuario, setPapelUsuario] = useState(null);
@@ -529,7 +533,7 @@ export default function DivergenciasScreen({ navigation, route }) {
       )}
 
       {/* M5: Botao de aprovacao em lote — ADM aprova 'pendente', Gestor aprova 'aprovada_adm' */}
-      {divergencias.length > 0 && itensDaEtapa.length > 0 && !isReadOnly && (
+      {divergencias.length > 0 && itensDaEtapa.length > 0 && !isReadOnly && !sessaoConcluida && (
         <View>
           {bloqueadasLote.length > 0 && (
             <View style={estilos.alertaLote}>
@@ -562,20 +566,25 @@ export default function DivergenciasScreen({ navigation, route }) {
       {pendentes === 0 && (
         <View style={estilos.bannerProntoParaConcluir}>
           <Text style={estilos.bannerProntoTitulo}>
-            {divergencias.length === 0
-              ? 'Inventario sem divergencias!'
-              : 'Todas as divergencias foram resolvidas!'}
+            {sessaoConcluida
+              ? 'Sessao ja concluida'
+              : divergencias.length === 0
+                ? 'Inventario sem divergencias!'
+                : 'Todas as divergencias foram resolvidas!'}
           </Text>
           <Text style={estilos.bannerProntoTexto}>
-            {divergencias.length === 0
-              ? 'Todos os produtos bateram com o sistema. Clique abaixo para finalizar.'
-              : `${aprovadas} aprovada(s) · ${rejeitadas} rejeitada(s) · Clique abaixo para finalizar.`}
+            {sessaoConcluida
+              ? `${aprovadas} aprovada(s) · ${rejeitadas} rejeitada(s) · inventario ja finalizado.`
+              : divergencias.length === 0
+                ? 'Todos os produtos bateram com o sistema. Clique abaixo para finalizar.'
+                : `${aprovadas} aprovada(s) · ${rejeitadas} rejeitada(s) · Clique abaixo para finalizar.`}
           </Text>
         </View>
       )}
 
-      {/* Concluir sessao — aparece quando nao ha pendentes (inclusive sem divergencias) */}
-      {pendentes === 0 && !isReadOnly && (
+      {/* Concluir sessao — aparece quando nao ha pendentes e a sessao ainda nao foi concluida
+          (backend so aceita /concluir com status 'aguardando_aprovacao') */}
+      {pendentes === 0 && !isReadOnly && !sessaoConcluida && (
         <TouchableOpacity
           style={estilos.botaoConcluir}
           onPress={async () => {
