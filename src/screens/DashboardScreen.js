@@ -13,7 +13,7 @@ import Svg, {
 
 import AppLayout from '../components/AppLayout';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { buscarDashboardGeral, buscarSkusProblematicos } from '../services/api';
+import { buscarDashboardGeral, buscarSkusProblematicos, pegarUsuario } from '../services/api';
 import NaturezaFiltro from '../components/NaturezaFiltro';
 import GrupoMaterialFiltro from '../components/GrupoMaterialFiltro';
 
@@ -288,7 +288,7 @@ function GaugeSemiCircle({ valor = 0, tamanho = 220 }) {
 }
 
 // ── Grafico de barras ─────────────────────────────────────────────────────────
-function BarChartV2({ labels, data }) {
+function BarChartV2({ labels, nomes, data }) {
   if (!data || data.length === 0) return null;
   const altMax = 160;
   return (
@@ -299,12 +299,12 @@ function BarChartV2({ labels, data }) {
         <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: altMax + 50, paddingHorizontal: 4, gap: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: altMax + 64, paddingHorizontal: 4, gap: 6 }}>
           {data.map((val, i) => {
             const h = Math.max((val / 100) * altMax, 6);
             const cor = corAcur(val);
             return (
-              <View key={i} style={{ alignItems: 'center', width: 54, minWidth: 0 }}>
+              <View key={i} style={{ alignItems: 'center', width: 76, minWidth: 0 }}>
                 <Text style={{ fontSize: 11, color: cor, fontWeight: '700', marginBottom: 5, textAlign: 'center' }}>
                   {val.toFixed(1)}%
                 </Text>
@@ -315,6 +315,11 @@ function BarChartV2({ labels, data }) {
                 <Text style={{ fontSize: 10, color: '#374151', fontWeight: '600', marginTop: 6, textAlign: 'center' }} numberOfLines={1}>
                   {labels[i]}
                 </Text>
+                {nomes?.[i] ? (
+                  <Text style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1, textAlign: 'center', width: 76 }} numberOfLines={1}>
+                    {nomes[i]}
+                  </Text>
+                ) : null}
               </View>
             );
           })}
@@ -562,6 +567,7 @@ const tb = StyleSheet.create({
 // ── Tela principal ────────────────────────────────────────────────────────────
 export default function DashboardScreen({ navigation }) {
   const [dados, setDados] = useState(null);
+  const [papel, setPapel] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [ultimaAtu, setUltimaAtu] = useState(null);
@@ -595,6 +601,10 @@ export default function DashboardScreen({ navigation }) {
     timerRef.current = setInterval(() => carregar(true), INTERVALO);
     return () => clearInterval(timerRef.current);
   }, [carregar]);
+
+  useEffect(() => {
+    pegarUsuario().then(u => setPapel(u?.papel || null)).catch(() => {});
+  }, []);
 
   if (carregando && !dados) {
     return (
@@ -743,6 +753,7 @@ export default function DashboardScreen({ navigation }) {
             </View>
             <BarChartV2
               labels={acLoja.map(l => l.loja_codigo)}
+              nomes={acLoja.map(l => l.loja_nome)}
               data={acLoja.map(l => parseFloat(l.acuracidade || 0))}
             />
           </View>
@@ -827,15 +838,18 @@ export default function DashboardScreen({ navigation }) {
           </View>
         )}
 
-        {/* Link detalhe por loja */}
-        <TouchableOpacity
-          style={{ backgroundColor: '#EEF2FF', borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 32 }}
-          onPress={() => navigation.navigate('DashboardLojas')}
-        >
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#4F46E5', textAlign: 'center' }}>
-            Ver histórico de todas as lojas →
-          </Text>
-        </TouchableOpacity>
+        {/* Link detalhe por loja — gestor e restrito a uma unica loja, "todas
+            as lojas" nao se aplica a esse papel */}
+        {papel !== 'gestor' && (
+          <TouchableOpacity
+            style={{ backgroundColor: '#EEF2FF', borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 32 }}
+            onPress={() => navigation.navigate('DashboardLojas')}
+          >
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#4F46E5', textAlign: 'center' }}>
+              Ver histórico de todas as lojas →
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </AppLayout>
   );

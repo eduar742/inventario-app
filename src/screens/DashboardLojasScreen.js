@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { buscarDashboardLojas, buscarDashboardHistorico } from '../services/api';
+import { buscarDashboardLojas, buscarDashboardHistorico, pegarUsuario } from '../services/api';
 import NaturezaFiltro from '../components/NaturezaFiltro';
 import GrupoMaterialFiltro from '../components/GrupoMaterialFiltro';
 
@@ -114,6 +114,15 @@ export default function DashboardLojasScreen({ navigation }) {
     try { const d = await buscarDashboardLojas(naturezaId, grupoMaterial); setLojas(d); } catch (_) {}
     finally { setCarregando(false); setRefreshing(false); }
   }, [naturezaId, grupoMaterial]);
+
+  // Gestor e restrito a uma unica loja — a visao "todas as lojas" nao se aplica
+  // a ele (o backend ja so devolve a propria loja, mas a tela em si nao faz
+  // sentido pra esse papel). Mesmo padrao de guarda do DashboardConsolidadoScreen.
+  useEffect(() => {
+    pegarUsuario().then(u => {
+      if (u?.papel === 'gestor') navigation.replace('Home');
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     carregar();
