@@ -12,7 +12,7 @@ import {
 import AppLayout from '../components/AppLayout';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import NaturezaFiltro from '../components/NaturezaFiltro';
-import { chamarAPI, pegarUsuario } from '../services/api';
+import { chamarAPI } from '../services/api';
 
 // ── Constantes de layout ────────────────────────────────────────────
 const COL_LABEL     = 168;
@@ -137,12 +137,6 @@ export default function DashboardConsolidadoScreen({ navigation }) {
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    pegarUsuario().then(u => {
-      if (u?.papel === 'gestor') navigation.replace('Home');
-    }).catch(() => {});
-  }, []);
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
