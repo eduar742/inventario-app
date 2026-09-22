@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
+import CardsAcuracidadeSessao from '../components/CardsAcuracidadeSessao';
 import {
   encerrarSessao,
   gerarDivergencias,
@@ -34,7 +35,7 @@ export default function ResumoScreen({ navigation, route }) {
   const [erroGeral, setErroGeral] = useState('');
   const [sessaoEncerrada, setSessaoEncerrada] = useState(false);
   const [encerrando, setEncerrando] = useState(false);
-  const [acuracidade, setAcuracidade] = useState(null);
+  const [resumoSessao, setResumoSessao] = useState(null);
   const acuracidadeBuscadaRef = React.useRef(false);
   const [recontagemLiberada, setRecontagemLiberada] = useState(false);
   const [operadoresAtivos, setOperadoresAtivos] = useState(0);
@@ -53,13 +54,13 @@ export default function ResumoScreen({ navigation, route }) {
     } catch (_) {}
   }
 
-  // Acuracidade final da sessao — operador nao ve (inventario cego), mas
-  // lider, gestor e admin recebem esse numero assim que a sessao encerra.
+  // Mini-dashboard final da sessao — operador nao ve (inventario cego), mas
+  // lider, gestor e admin recebem esses indicadores assim que a sessao encerra.
   useEffect(() => {
     if (!sessaoEncerrada || papel === 'operador' || acuracidadeBuscadaRef.current) return;
     acuracidadeBuscadaRef.current = true;
     buscarResumoSessao(sessao.id)
-      .then(r => setAcuracidade(r.acuracidade))
+      .then(r => setResumoSessao(r))
       .catch(() => {});
   }, [sessaoEncerrada, papel]);
 
@@ -187,11 +188,13 @@ export default function ResumoScreen({ navigation, route }) {
               Sessao encerrada com sucesso.{'\n'}
               O gestor revisara as divergencias para concluir o inventario.
             </Text>
-            {acuracidade != null && (
-              <Text style={estilos.bannerAcuracidade}>
-                Acuracidade desta sessao: {acuracidade}%
-              </Text>
-            )}
+          </View>
+        )}
+
+        {/* Mini-dashboard da sessao — lider, gestor e admin (operador nao ve, inventario cego) */}
+        {sessaoEncerrada && !erroGeral && resumoSessao && (
+          <View style={{ marginBottom: spacing.md }}>
+            <CardsAcuracidadeSessao resumo={resumoSessao} />
           </View>
         )}
 
@@ -390,11 +393,6 @@ const estilos = StyleSheet.create({
   },
   bannerSessaoEncerradaTexto: {
     fontSize: fontSize.sm, color: colors.text, lineHeight: 20,
-  },
-  bannerAcuracidade: {
-    fontSize: fontSize.md, fontWeight: '700', color: colors.success,
-    marginTop: spacing.sm, paddingTop: spacing.sm,
-    borderTopWidth: 1, borderTopColor: colors.success + '33',
   },
   bannerErroCritico: {
     backgroundColor: colors.dangerSoft, borderRadius: radius.md,

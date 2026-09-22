@@ -405,6 +405,13 @@ export default function SessoesScreen({ navigation, route }) {
         {papel !== 'operador' && item.status === 'concluida' && (
           <View style={{ gap: 4 }}>
             <View style={estilos.acoesCard}>
+              {/* Acuracidade da sessao: lider, gestor, auditor e admin */}
+              <TouchableOpacity
+                style={[estilos.botaoCardAcao, { backgroundColor: colors.primarySoft }]}
+                onPress={() => navigation.navigate('AcuracidadeSessao', { sessao: item, loja })}
+              >
+                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.primary }]}>Acuracidade da Sessao</Text>
+              </TouchableOpacity>
               {/* Divergencias: acesso restrito a ADM e Gestor da loja */}
               {(isAdmin || papel === 'gestor') && (
                 <TouchableOpacity
@@ -895,6 +902,7 @@ const estilos = StyleSheet.create({
   naturezaChipTxt: { fontSize: 10, color: '#92400E', fontWeight: '600' },
   acoesCard: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
     marginTop: spacing.md,
     paddingTop: spacing.sm,
@@ -902,7 +910,7 @@ const estilos = StyleSheet.create({
     borderTopColor: colors.border,
   },
   botaoCardAcao: {
-    flex: 1, paddingVertical: spacing.sm,
+    flex: 1, minWidth: 110, paddingVertical: spacing.sm,
     borderRadius: radius.sm, alignItems: 'center',
   },
   botaoCardAcaoTexto: {
