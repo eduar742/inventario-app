@@ -108,6 +108,15 @@ export default function ScannerScreen({ navigation, route }) {
 
   const skusUnicos = new Set(contagens.map(c => c.codigoQr)).size;
 
+  // Progresso da RODADA: quando o scanner abre com uma lista de itens
+  // (2a contagem, desempate ou "bipar itens que faltaram"), o universo e so
+  // essa lista — nao o total de SKUs da sessao (mostrava "Faltam 6" com 2 itens).
+  const temListaRodada = itensPendentes.length > 0;
+  const totalRodada = temListaRodada ? itensPendentes.length : (sessao.total_produtos_loja ?? 0);
+  const bipadosRodada = temListaRodada
+    ? itensPendentes.filter(p => contagens.some(c => c.codigoQr === p.codigoQr)).length
+    : skusUnicos;
+
   // Calcula total ja acumulado para um QR code especifico
   function totalAcumulado(codigoQr) {
     return contagens
@@ -289,18 +298,20 @@ export default function ScannerScreen({ navigation, route }) {
                 {/* Linha de numeros */}
                 <View style={estilos.progressoNums}>
                   <View style={estilos.progressoStat}>
-                    <Text style={estilos.progressoValor}>{sessao.total_produtos_loja ?? '—'}</Text>
+                    <Text style={estilos.progressoValor}>
+                      {temListaRodada ? totalRodada : (sessao.total_produtos_loja ?? '—')}
+                    </Text>
                     <Text style={estilos.progressoLabel}>Total</Text>
                   </View>
                   <View style={estilos.progressoDiv} />
                   <View style={estilos.progressoStat}>
-                    <Text style={[estilos.progressoValor, { color: '#4ADE80' }]}>{skusUnicos}</Text>
+                    <Text style={[estilos.progressoValor, { color: '#4ADE80' }]}>{bipadosRodada}</Text>
                     <Text style={estilos.progressoLabel}>Bipados</Text>
                   </View>
                   <View style={estilos.progressoDiv} />
                   <View style={estilos.progressoStat}>
                     {(() => {
-                      const faltam = (sessao.total_produtos_loja ?? 0) - skusUnicos;
+                      const faltam = totalRodada - bipadosRodada;
                       return (
                         <>
                           <Text style={[estilos.progressoValor, { color: faltam > 0 ? '#FCA5A5' : '#4ADE80' }]}>
@@ -318,11 +329,11 @@ export default function ScannerScreen({ navigation, route }) {
                   </View>
                 </View>
                 {/* Barra de progresso visual */}
-                {(sessao.total_produtos_loja ?? 0) > 0 && (
+                {totalRodada > 0 && (
                   <View style={estilos.progressoBarraFundo}>
                     <View style={[
                       estilos.progressoBarraFill,
-                      { width: `${Math.min(skusUnicos / sessao.total_produtos_loja * 100, 100)}%` }
+                      { width: `${Math.min(bipadosRodada / totalRodada * 100, 100)}%` }
                     ]} />
                   </View>
                 )}
