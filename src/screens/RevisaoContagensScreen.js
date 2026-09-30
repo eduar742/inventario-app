@@ -12,6 +12,7 @@ import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { avisar } from '../utils/alertas';
 import Button from '../components/Button';
 import { formatarDataHora } from '../utils/formatadores';
+import { rodadaDaContagem, valorFinalContagens } from '../utils/contagens';
 import {
   listarContagensDaSessao,
   ajustarContagem,
@@ -142,9 +143,12 @@ export default function RevisaoContagensScreen({ navigation, route }) {
               {grupo.descricao || 'Produto sem descricao'}
             </Text>
           </View>
+          {/* Valor final pela regra das 3 contagens — somar todas as rodadas
+              juntas (1a + 2a + 3a) daria um total sem sentido */}
           <View style={estilos.totalChip}>
             <Text style={estilos.totalChipTxt}>
-              {grupo.contagens.reduce((s, c) => s + parseFloat(c.quantidade_contada || 0), 0)} un
+              {valorFinalContagens(grupo.contagens) ?? 'aguard. desempate'}
+              {valorFinalContagens(grupo.contagens) != null ? ' un' : ''}
             </Text>
           </View>
         </View>
@@ -160,7 +164,7 @@ export default function RevisaoContagensScreen({ navigation, route }) {
             >
               <View style={{ flex: 1 }}>
                 <Text style={estilos.linhaCont}>
-                  {c.numero_contagem}ª contagem · {c.nome_usuario || 'operador'}
+                  {rodadaDaContagem(c)}ª contagem · {c.nome_usuario || 'operador'}
                 </Text>
                 <Text style={estilos.linhaData}>{formatarDataHora(c.contado_em)}</Text>
                 {c.localizacao ? (
@@ -235,7 +239,7 @@ export default function RevisaoContagensScreen({ navigation, route }) {
                   {itemEditando.sku} · {itemEditando.descricao_produto}
                 </Text>
                 <Text style={estilos.modalInfo}>
-                  {itemEditando.numero_contagem}ª contagem · Operador: {itemEditando.nome_usuario || '—'}
+                  {rodadaDaContagem(itemEditando)}ª contagem · Operador: {itemEditando.nome_usuario || '—'}
                 </Text>
                 {itemEditando.quantidade_original != null && (
                   <Text style={estilos.modalOriginal}>
@@ -298,7 +302,7 @@ export default function RevisaoContagensScreen({ navigation, route }) {
                     </View>
                     <Text style={estilos.ajusteDesc} numberOfLines={1}>{a.descricao}</Text>
                     <Text style={estilos.ajusteMudanca}>
-                      {a.numero_contagem}ª contagem: {a.quantidade_original} → {a.quantidade_ajustada}
+                      {a.rodada || a.numero_contagem}ª contagem: {a.quantidade_original} → {a.quantidade_ajustada}
                     </Text>
                     {a.justificativa ? (
                       <Text style={estilos.ajusteJustificativa}>"{a.justificativa}"</Text>

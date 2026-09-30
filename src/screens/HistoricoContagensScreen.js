@@ -12,6 +12,7 @@ import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarContagensDaSessao } from '../services/api';
 import Paginacao from '../components/Paginacao';
 import { formatarDataHora } from '../utils/formatadores';
+import { rodadaDaContagem, valorFinalContagens } from '../utils/contagens';
 
 
 export default function HistoricoContagensScreen({ navigation, route }) {
@@ -97,9 +98,14 @@ export default function HistoricoContagensScreen({ navigation, route }) {
   }
 
   function renderGrupo({ item: grupo }) {
-    const ordenadas = [...grupo.contagens].sort((a, b) => a.numero_contagem - b.numero_contagem);
-    const ultima = ordenadas[ordenadas.length - 1];
-    const qtdFinal = ultima?.quantidade_contada;
+    // Ordena por rodada e, dentro dela, pela ordem das bipagens (parcelas)
+    const ordenadas = [...grupo.contagens].sort((a, b) =>
+      rodadaDaContagem(a) - rodadaDaContagem(b) || a.numero_contagem - b.numero_contagem
+    );
+    // Valor final pela regra das 3 contagens (soma parcelas da mesma rodada),
+    // nao a ultima bipagem — senao uma parcela de outro local vira o "final".
+    const qtdFinal = valorFinalContagens(ordenadas);
+    const aguardandoDesempate = qtdFinal == null && ordenadas.length > 0;
 
     return (
       <View style={estilos.card}>
@@ -117,9 +123,9 @@ export default function HistoricoContagensScreen({ navigation, route }) {
         {/* Linha de cada contagem */}
         {ordenadas.map(c => (
           <View key={c.id} style={estilos.linhaContagem}>
-            <View style={[estilos.numeroBadge, { backgroundColor: corContagem(c.numero_contagem) + '22' }]}>
-              <Text style={[estilos.numeroBadgeTexto, { color: corContagem(c.numero_contagem) }]}>
-                {c.numero_contagem}ª
+            <View style={[estilos.numeroBadge, { backgroundColor: corContagem(rodadaDaContagem(c)) + '22' }]}>
+              <Text style={[estilos.numeroBadgeTexto, { color: corContagem(rodadaDaContagem(c)) }]}>
+                {rodadaDaContagem(c)}ª
               </Text>
             </View>
             <Text style={estilos.contagemQtd}>{_fmtNum(c.quantidade_contada)}</Text>
@@ -135,6 +141,12 @@ export default function HistoricoContagensScreen({ navigation, route }) {
           <View style={estilos.linhaFinal}>
             <Text style={estilos.linhaFinalLabel}>Valor final:</Text>
             <Text style={estilos.linhaFinalValor}>{_fmtNum(qtdFinal)}</Text>
+          </View>
+        )}
+        {aguardandoDesempate && (
+          <View style={estilos.linhaFinal}>
+            <Text style={estilos.linhaFinalLabel}>Valor final:</Text>
+            <Text style={estilos.linhaFinalLabel}>aguardando desempate</Text>
           </View>
         )}
       </View>
