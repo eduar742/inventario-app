@@ -491,7 +491,8 @@ export default function DivergenciasScreen({ navigation, route }) {
       const nBloq = resultado.total_bloqueadas || 0;
       if (resultado.sessao_status === 'concluida') {
         avisar('Inventario aprovado!', resultado.mensagem || 'Sessao concluida.');
-        navigation.navigate('Sessoes', { loja, filtroInicial: 'concluidas' });
+        // popTo volta a tela de Sessoes existente (navigate empilharia outra no RN7)
+        navigation.popTo('Sessoes', { loja, filtroInicial: 'concluidas' });
       } else {
         avisar(
           `${nAprov} aprovada(s) em lote`,
@@ -592,8 +593,9 @@ export default function DivergenciasScreen({ navigation, route }) {
             try {
               await concluirSessao(sessao.id);
               avisar('Sessao concluida!', 'O inventario foi finalizado com sucesso.');
-              // Navega para Sessoes mostrando diretamente a aba "Concluidas"
-              navigation.navigate('Sessoes', { loja, filtroInicial: 'concluidas' });
+              // Volta para Sessoes mostrando diretamente a aba "Concluidas"
+              // (popTo: navigate empilharia outra tela de Sessoes no RN7)
+              navigation.popTo('Sessoes', { loja, filtroInicial: 'concluidas' });
             } catch (err) {
               avisar('Erro', err.message || 'Nao foi possivel concluir');
             } finally {

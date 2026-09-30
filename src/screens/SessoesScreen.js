@@ -49,6 +49,12 @@ export default function SessoesScreen({ navigation, route }) {
     carregarDados();
   }, [filtroVisao]);
 
+  // Outra tela pode voltar para esta (popTo) pedindo uma aba especifica —
+  // ex: Divergencias apos concluir abre direto em "Concluidas".
+  useEffect(() => {
+    if (route.params?.filtroInicial) setFiltroVisao(route.params.filtroInicial);
+  }, [route.params?.filtroInicial]);
+
   // Recarrega SEMPRE que a tela recebe foco (ex: ao voltar do Scanner/Resumo)
   useFocusEffect(
     useCallback(() => {

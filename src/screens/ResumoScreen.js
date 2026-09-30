@@ -339,10 +339,14 @@ export default function ResumoScreen({ navigation, route }) {
 
         <View style={{ height: spacing.xl }} />
 
+        {/* popTo (e nao navigate): no React Navigation 7 o navigate EMPILHA
+            outra tela de Sessoes e deixa o Scanner montado por baixo, mandando
+            heartbeat de presenca — o operador continuava "na sessao" e o
+            Lider/Gestor nao conseguia liberar a 2a contagem. */}
         <Button
           titulo="Voltar para sessoes"
           variante="secondary"
-          onPress={() => navigation.navigate('Sessoes', { loja })}
+          onPress={() => navigation.popTo('Sessoes', { loja })}
         />
 
       </ScrollView>
