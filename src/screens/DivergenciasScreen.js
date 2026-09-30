@@ -809,7 +809,9 @@ function TotalizadorFinanceiro({ divergencias, totalPaginas }) {
     return colors.textSecondary;
   }
 
-  const pendentes  = divergencias.filter(d => d.status === 'pendente');
+  // Pendente = qualquer etapa ainda aberta (aguardando ADM ou aguardando Gestor),
+  // igual ao contador "Pendentes" do topo da tela
+  const pendentes  = divergencias.filter(d => d.status === 'pendente' || d.status === 'aprovada_adm');
   const aprovadas  = divergencias.filter(d => d.status === 'aprovada');
   const rejeitadas = divergencias.filter(d => d.status === 'rejeitada');
 
