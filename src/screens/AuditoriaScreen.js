@@ -130,11 +130,17 @@ function useAuditoriaData(naturezaId, grupoMaterial, lojaIds, mesReferencias) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+// Moeda com sinal ("-R$ 2,9k") — o valor divergente e liquido e pode ser
+// negativo; antes a tela prefixava "-" fixo e saia "-R$ -2969.25".
 function fmtMoeda(v) {
   if (v == null) return '—';
-  if (v >= 1000000) return `R$ ${(v / 1000000).toFixed(1)}M`;
-  if (v >= 1000)    return `R$ ${(v / 1000).toFixed(1)}k`;
-  return `R$ ${Number(v).toFixed(2)}`;
+  const n = Number(v);
+  const abs = Math.abs(n);
+  const sinal = n < 0 ? '-' : '';
+  const dec = (x, casas) => x.toFixed(casas).replace('.', ',');
+  if (abs >= 1000000) return `${sinal}R$ ${dec(abs / 1000000, 1)}M`;
+  if (abs >= 1000)    return `${sinal}R$ ${dec(abs / 1000, 1)}k`;
+  return `${sinal}R$ ${dec(abs, 2)}`;
 }
 function fmtMoedaCurto(v) {
   const abs  = Math.abs(v);
@@ -940,7 +946,7 @@ export default function AuditoriaScreen({ navigation }) {
                       </Svg>
                     ),
                     lbl: 'Valor Divergente',
-                    val: kpis.valor_total_divergente != null ? `-${fmtMoeda(kpis.valor_total_divergente)}` : '-',
+                    val: kpis.valor_total_divergente != null ? fmtMoeda(kpis.valor_total_divergente) : '-',
                     cor: kpis.valor_total_divergente != null && kpis.valor_total_divergente > 0 ? '#FF4444' : '#FFFFFF',
                   },
                   {
@@ -1222,7 +1228,7 @@ export default function AuditoriaScreen({ navigation }) {
             },
             {
               titulo: 'DIVERGENCIA TOTAL',
-              valor:  kpis.valor_total_divergente != null ? `-${fmtMoeda(kpis.valor_total_divergente)}` : '—',
+              valor:  fmtMoeda(kpis.valor_total_divergente),
               sub:    topDiv.length > 0 ? `↓ ${topDiv.length} SKUs criticos` : '↑ Sem divergencias',
               cor:    DK.nRed,
               ok:     topDiv.length === 0,
@@ -1237,7 +1243,9 @@ export default function AuditoriaScreen({ navigation }) {
               ),
             },
           ].map((k, i) => (
-            <View key={i} style={ek.kpiCard}>
+            // No celular cada KPI ocupa a linha inteira: 2 por linha sobravam
+            // ~70px pro valor e ele aparecia truncado ("99....", "-R...")
+            <View key={i} style={[ek.kpiCard, !isDesktop && { minWidth: '100%' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
                 {/* Icone circular com glow */}
                 <View style={{
@@ -1520,7 +1528,7 @@ export default function AuditoriaScreen({ navigation }) {
                       </Svg>
                     ),
                     lbl: 'Valor Divergente',
-                    val: kpis.valor_total_divergente != null ? `-${fmtMoeda(kpis.valor_total_divergente)}` : '-',
+                    val: kpis.valor_total_divergente != null ? fmtMoeda(kpis.valor_total_divergente) : '-',
                     cor: kpis.valor_total_divergente != null && kpis.valor_total_divergente > 0 ? '#FF4444' : '#FFFFFF',
                   },
                   {

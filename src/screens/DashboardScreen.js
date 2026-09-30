@@ -697,8 +697,9 @@ export default function DashboardScreen({ navigation }) {
 
         {/* Metricas: acuracidade + valor divergente */}
         <View style={[{ gap: 16, marginBottom: 24 }, isDesktop ? { flexDirection: 'row' } : { flexDirection: 'column' }]}>
-          {/* Acuracidade Media */}
-          <View style={[mt.card, { flex: 1, minWidth: 0 }]}>
+          {/* Acuracidade Media — flex:1 so lado a lado (desktop). Empilhado no
+              celular, flex:1 dividia a altura entre os cards e cortava o gauge. */}
+          <View style={[mt.card, isDesktop ? { flex: 1, minWidth: 0 } : { minWidth: 0 }]}>
             {isDesktop ? (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -725,7 +726,7 @@ export default function DashboardScreen({ navigation }) {
           </View>
 
           {/* Valor Divergente */}
-          <View style={[mt.card, { flex: 1, minWidth: 0, justifyContent: 'center' }]}>
+          <View style={[mt.card, isDesktop ? { flex: 1, minWidth: 0 } : { minWidth: 0 }, { justifyContent: 'center' }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={mt.titulo}>Valor Divergente Total</Text>
