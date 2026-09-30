@@ -1721,8 +1721,8 @@ export default function AuditoriaScreen({ navigation }) {
                         </View>
                         <Text style={ek.tabelaCel}>{op.skus_contados}</Text>
                         <Text style={ek.tabelaCel}>{op.num_leituras}</Text>
-                        <Text style={ek.tabelaCel}>{fmtHora(op.primeira_leitura)}</Text>
-                        <Text style={ek.tabelaCel}>{fmtHora(op.ultima_leitura)}</Text>
+                        <Text style={ek.tabelaCel}>{formatarHora(op.primeira_leitura)}</Text>
+                        <Text style={ek.tabelaCel}>{formatarHora(op.ultima_leitura)}</Text>
                         <Text style={ek.tabelaCel}>{fmtMin(op.minutos_ativo)}</Text>
                       </View>
                     ))
