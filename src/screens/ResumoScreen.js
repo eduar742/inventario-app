@@ -90,7 +90,11 @@ export default function ResumoScreen({ navigation, route }) {
     setProcessando(true);
     setErroGeral('');
 
-    if (!contagens || contagens.length === 0) {
+    // contagens = bipagens desta visita ao scanner (memoria). Se a pagina foi
+    // recarregada (ex: celular bloqueado), ela vem vazia, mas as bipagens ja
+    // estao no servidor — contadosServidor vem da API pelo Scanner.
+    const contadosServidor = route.params?.contadosServidor || 0;
+    if ((!contagens || contagens.length === 0) && contadosServidor === 0) {
       setErroGeral('Nenhum item para registrar. Volte e bipe os produtos antes de finalizar.');
       setProcessando(false);
       return;
@@ -99,7 +103,8 @@ export default function ResumoScreen({ navigation, route }) {
     // Cada bipagem ja foi enviada e persistida individualmente na tela de
     // Contagem (ver ContagemScreen.handleConfirmar) — aqui so falta pedir
     // ao backend o processamento da rodada.
-    setTotalSalvos(contagens.length);
+    // Prefere o numero do servidor (sobrevive a recarga da pagina)
+    setTotalSalvos(contadosServidor > 0 ? contadosServidor : contagens.length);
 
     // Solicita ao backend o processamento da rodada: calcula totais, detecta pendentes
     try {

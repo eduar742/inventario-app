@@ -1,7 +1,7 @@
 // Tela do scanner de QR Code.
 // O operador aponta a camera para o QR do produto e o sistema le automaticamente.
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,13 +16,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  AppState,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { limparCodigoQr } from '../utils/qrCode';
-import { entrarSessao, heartbeatSessao, sairSessao } from '../services/api';
+import { entrarSessao, heartbeatSessao, sairSessao, buscarSessao } from '../services/api';
 
 // Sufixos de ordinal feminino (contagem)
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
@@ -67,6 +69,7 @@ export default function ScannerScreen({ navigation, route }) {
     entrarSessao(sessao.id).catch(() => {});
     const intervalo = setInterval(() => {
       heartbeatSessao(sessao.id).catch(() => {});
+      atualizarProgresso();
     }, INTERVALO_HEARTBEAT);
     return () => {
       clearInterval(intervalo);
@@ -74,11 +77,41 @@ export default function ScannerScreen({ navigation, route }) {
     };
   }, [sessao.id]);
 
+  // Progresso vindo da API (fonte da verdade). A lista `contagens` acima vive
+  // so na memoria desta visita: se o celular bloqueia, o navegador costuma
+  // descarregar a aba e ao voltar a pagina recarrega — o contador zerava
+  // ("Bipados 1 / Faltam 101") embora tudo estivesse gravado no servidor.
+  const [progressoServidor, setProgressoServidor] = useState(null);
+
+  const atualizarProgresso = useCallback(async () => {
+    try {
+      const s = await buscarSessao(sessao.id);
+      setProgressoServidor({
+        rodada: s.rodada_atual,
+        total: s.total_produtos_rodada_atual,
+        contados: s.total_produtos_contados_rodada_atual,
+      });
+    } catch (_) {
+      // Best-effort: sem rede, mantem o ultimo valor (ou o contador local)
+    }
+  }, [sessao.id]);
+
+  // Recarrega ao entrar/voltar para a tela e quando o app volta do
+  // bloqueio de tela (no navegador, AppState segue a visibilidade da aba)
+  useFocusEffect(useCallback(() => { atualizarProgresso(); }, [atualizarProgresso]));
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', estado => {
+      if (estado === 'active') atualizarProgresso();
+    });
+    return () => sub?.remove?.();
+  }, [atualizarProgresso]);
+
   // Chamado pela tela de Contagem depois que ela ja registrou a bipagem na
-  // API — aqui so acumulamos localmente para exibir progresso e detectar
-  // itens repetidos nesta rodada (multi-localizacao).
+  // API — aqui so acumulamos localmente para detectar itens repetidos nesta
+  // rodada (multi-localizacao) e atualizamos o progresso a partir da API.
   function adicionarContagem(novaContagem) {
     setContagens(prev => [...prev, novaContagem]);
+    atualizarProgresso();
   }
 
   useEffect(() => {
@@ -102,20 +135,30 @@ export default function ScannerScreen({ navigation, route }) {
     });
   }
 
-  function handleFinalizar() {
-    navigation.navigate('Resumo', { contagens, sessao, loja, rodada });
-  }
-
   const skusUnicos = new Set(contagens.map(c => c.codigoQr)).size;
 
-  // Progresso da RODADA: quando o scanner abre com uma lista de itens
-  // (2a contagem, desempate ou "bipar itens que faltaram"), o universo e so
-  // essa lista — nao o total de SKUs da sessao (mostrava "Faltam 6" com 2 itens).
+  // Progresso da RODADA. Preferencia: o que a API calcula para a rodada atual
+  // da sessao (sobrevive a recarga da pagina e soma todos os operadores).
+  // Reserva (sem rede / rodada diferente): contador local desta visita —
+  // com lista de itens (2a contagem, desempate, "bipar itens que faltaram")
+  // o universo e so essa lista, nao o total de SKUs da sessao.
   const temListaRodada = itensPendentes.length > 0;
-  const totalRodada = temListaRodada ? itensPendentes.length : (sessao.total_produtos_loja ?? 0);
-  const bipadosRodada = temListaRodada
-    ? itensPendentes.filter(p => contagens.some(c => c.codigoQr === p.codigoQr)).length
-    : skusUnicos;
+  const usaServidor = !!progressoServidor && progressoServidor.rodada === rodada && progressoServidor.total > 0;
+  const totalRodada = usaServidor
+    ? progressoServidor.total
+    : (temListaRodada ? itensPendentes.length : (sessao.total_produtos_loja ?? 0));
+  const bipadosRodada = usaServidor
+    ? progressoServidor.contados
+    : (temListaRodada
+      ? itensPendentes.filter(p => contagens.some(c => c.codigoQr === p.codigoQr)).length
+      : skusUnicos);
+  // Mostra a barra (e o "Finalizar") se ha qualquer bipagem: desta visita ou
+  // ja registrada no servidor antes de uma recarga da pagina
+  const temBipagens = contagens.length > 0 || (usaServidor && bipadosRodada > 0);
+
+  function handleFinalizar() {
+    navigation.navigate('Resumo', { contagens, sessao, loja, rodada, contadosServidor: usaServidor ? bipadosRodada : 0 });
+  }
 
   // Calcula total ja acumulado para um QR code especifico
   function totalAcumulado(codigoQr) {
@@ -291,16 +334,14 @@ export default function ScannerScreen({ navigation, route }) {
           )}
 
           {/* Barra de progresso: Total / Contados / Faltam */}
-          {contagens.length > 0 && (
+          {temBipagens && (
             <View style={estilos.barraContagem}>
-              {/* Progresso em relacao ao total de SKUs da sessao */}
+              {/* Progresso da rodada (API quando disponivel) */}
               <View style={estilos.progressoBloco}>
                 {/* Linha de numeros */}
                 <View style={estilos.progressoNums}>
                   <View style={estilos.progressoStat}>
-                    <Text style={estilos.progressoValor}>
-                      {temListaRodada ? totalRodada : (sessao.total_produtos_loja ?? '—')}
-                    </Text>
+                    <Text style={estilos.progressoValor}>{totalRodada || '—'}</Text>
                     <Text style={estilos.progressoLabel}>Total</Text>
                   </View>
                   <View style={estilos.progressoDiv} />
