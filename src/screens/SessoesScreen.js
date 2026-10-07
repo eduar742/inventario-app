@@ -172,6 +172,13 @@ export default function SessoesScreen({ navigation, route }) {
   }
 
   function selecionarSessao(sessao) {
+    // Sessao ja na 2a/3a contagem: vai para "Itens pendentes", que abre o
+    // Scanner na rodada certa e so com os itens daquela rodada. Abrir direto
+    // na 1a contagem SOMAVA a recontagem a 1a rodada (incidente Fortaleza).
+    if ((sessao.rodada_atual || 1) > 1) {
+      navigation.navigate('PendentesOperador', { sessao, loja });
+      return;
+    }
     // rodada:1 = primeira contagem; ScannerScreen controla o avanco
     navigation.navigate('Scanner', { sessao, loja, rodada: 1, itensPendentes: [] });
   }
