@@ -343,6 +343,14 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* Alerta do motor (ex: SKU tambem tem saldo em Quarentena). So o ADM:
+            o texto traz quantidades e o Gestor aprova as cegas. */}
+        {!escondeQuantidades && !!div.observacoes && div.observacoes.startsWith('Atencao') && (
+          <View style={estilos.alertaMotorBox}>
+            <Text style={estilos.alertaMotorTxt}>⚠️ {div.observacoes}</Text>
+          </View>
+        )}
+
         {/* Ajuste de quantidade feito pelo ADM — visivel para ADM e Gestor */}
         {div.quantidade_final_original != null && (
           <View style={estilos.ajusteBox}>
@@ -1005,6 +1013,11 @@ const estilos = StyleSheet.create({
   textoDesabilitado: { color: colors.textMuted },
 
   // Ajuste de quantidade pelo ADM
+  alertaMotorBox: {
+    backgroundColor: colors.warningSoft, borderLeftWidth: 3, borderLeftColor: colors.warning,
+    borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.sm,
+  },
+  alertaMotorTxt: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 18 },
   ajusteBox: {
     backgroundColor: colors.infoSoft,
     borderRadius: radius.sm,

@@ -33,7 +33,9 @@ export function agruparPorRodada(contagens) {
  * - so a 1a rodada: o total dela
  * - 1a e 2a iguais: valor confirmado
  * - 1a e 2a diferentes: null (aguardando desempate)
- * - com 3a rodada: o total do desempate
+ * - com 3a rodada: a moda entre as 3. Se as 3 forem diferentes, o backend usa
+ *   a mais proxima do saldo do sistema — o app nao conhece o saldo (inventario
+ *   cego), entao retorna null; use desempatePelaRegraDoSistema() para o rotulo.
  */
 export function valorFinalContagens(contagens) {
   const rodadas = agruparPorRodada(contagens);
@@ -42,5 +44,16 @@ export function valorFinalContagens(contagens) {
   if (rodadas.length === 2) {
     return rodadas[0].total === rodadas[1].total ? rodadas[0].total : null;
   }
-  return rodadas[2].total;
+  const [r1, r2, r3] = rodadas.map(r => r.total);
+  if (r3 === r1 || r3 === r2) return r3;
+  if (r1 === r2) return r1;
+  return null;
+}
+
+/** true quando as 3 contagens sao todas diferentes (valor final = mais proxima do sistema). */
+export function desempatePelaRegraDoSistema(contagens) {
+  const rodadas = agruparPorRodada(contagens);
+  if (rodadas.length < 3) return false;
+  const [r1, r2, r3] = rodadas.map(r => r.total);
+  return r1 !== r2 && r1 !== r3 && r2 !== r3;
 }

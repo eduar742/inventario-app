@@ -345,6 +345,19 @@ export default function SessoesScreen({ navigation, route }) {
           </TouchableOpacity>
         )}
 
+        {/* ADM: revisar contagens e vincular itens avulsos ja durante a contagem,
+            sem esperar o encerramento */}
+        {isAdmin && item.status === 'em_andamento' && (
+          <TouchableOpacity
+            style={[estilos.botaoCardAcao, { backgroundColor: colors.primarySoft, marginTop: spacing.xs }]}
+            onPress={() => navigation.navigate('RevisaoContagens', { sessao: item, loja })}
+          >
+            <Text style={[estilos.botaoCardAcaoTexto, { color: colors.primary, fontWeight: '700' }]}>
+              Revisar contagens / itens avulsos (ADM)
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* Acompanhar ao vivo: qualquer papel nao-operador pode ver o progresso em tempo real */}
         {papel !== 'operador' && item.status === 'em_andamento' && (
           <TouchableOpacity

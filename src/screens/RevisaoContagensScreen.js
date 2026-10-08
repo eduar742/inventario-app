@@ -12,11 +12,13 @@ import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { avisar } from '../utils/alertas';
 import Button from '../components/Button';
 import { formatarDataHora } from '../utils/formatadores';
-import { rodadaDaContagem, valorFinalContagens } from '../utils/contagens';
+import { rodadaDaContagem, valorFinalContagens, desempatePelaRegraDoSistema } from '../utils/contagens';
 import {
   listarContagensDaSessao,
   ajustarContagem,
   listarAjustesSessao,
+  listarAvulsosSessao,
+  vincularAvulso,
 } from '../services/api';
 
 
@@ -37,6 +39,13 @@ export default function RevisaoContagensScreen({ navigation, route }) {
 
   // Modal de historico de ajustes ("?")
   const [modalHistorico, setModalHistorico] = useState(false);
+
+  // Itens avulsos: codigo bipado que nao bateu com nenhum produto cadastrado.
+  // O ADM vincula ao produto real e as contagens sao transferidas (sem recontar).
+  const [avulsos, setAvulsos] = useState([]);
+  const [avulsoVinculando, setAvulsoVinculando] = useState(null);
+  const [skuDestino, setSkuDestino] = useState('');
+  const [vinculando, setVinculando] = useState(false);
 
   // Registra o icone "?" no header
   useLayoutEffect(() => {
@@ -74,6 +83,35 @@ export default function RevisaoContagensScreen({ navigation, route }) {
     listarAjustesSessao(sessao.id)
       .then(aj => setAjustes(Array.isArray(aj) ? aj : []))
       .catch(() => {}); // silencioso — historico de ajustes e opcional
+    listarAvulsosSessao(sessao.id)
+      .then(av => setAvulsos(Array.isArray(av) ? av : []))
+      .catch(() => {}); // silencioso — so ADM tem acesso
+  }
+
+  function abrirVinculo(avulso) {
+    setAvulsoVinculando(avulso);
+    setSkuDestino(avulso.sugestoes?.length === 1 ? avulso.sugestoes[0].sku : '');
+  }
+
+  async function handleVincular() {
+    if (!skuDestino.trim()) {
+      avisar('Informe o SKU', 'Digite o SKU do produto cadastrado que corresponde a este item.');
+      return;
+    }
+    setVinculando(true);
+    try {
+      const r = await vincularAvulso(sessao.id, avulsoVinculando.produto_id, skuDestino.trim());
+      setAvulsoVinculando(null);
+      avisar(
+        'Item vinculado',
+        `${r.contagens_movidas} contagem(ns) transferida(s) para ${r.produto_destino.sku} — ${r.produto_destino.descricao}.`
+      );
+      await carregarTudo();
+    } catch (err) {
+      avisar('Nao foi possivel vincular', err.message || 'Tente novamente.');
+    } finally {
+      setVinculando(false);
+    }
   }
 
   async function carregarAjustes() {
@@ -147,7 +185,8 @@ export default function RevisaoContagensScreen({ navigation, route }) {
               juntas (1a + 2a + 3a) daria um total sem sentido */}
           <View style={estilos.totalChip}>
             <Text style={estilos.totalChipTxt}>
-              {valorFinalContagens(grupo.contagens) ?? 'aguard. desempate'}
+              {valorFinalContagens(grupo.contagens)
+                ?? (desempatePelaRegraDoSistema(grupo.contagens) ? 'mais prox. do sistema' : 'aguard. desempate')}
               {valorFinalContagens(grupo.contagens) != null ? ' un' : ''}
             </Text>
           </View>
@@ -218,6 +257,29 @@ export default function RevisaoContagensScreen({ navigation, route }) {
                 </Text>
               </View>
             )}
+            {avulsos.length > 0 && (
+              <View style={estilos.avulsosBox}>
+                <Text style={estilos.avulsosTitulo}>⚠️ Itens avulsos ({avulsos.length})</Text>
+                <Text style={estilos.avulsosTexto}>
+                  Codigos bipados que nao bateram com nenhum produto cadastrado. Enquanto nao forem
+                  vinculados, o produto real fica como "nao bipado" e a divergencia sai duplicada.
+                </Text>
+                {avulsos.map(a => (
+                  <View key={a.produto_id} style={estilos.avulsoLinha}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={estilos.avulsoCodigo} numberOfLines={1}>{a.codigo}</Text>
+                      <Text style={estilos.avulsoInfo}>
+                        {a.bipagens} bipagem(ns) · {a.quantidade_total} un
+                        {a.sugestoes?.length ? ` · sugestao: ${a.sugestoes[0].sku}` : ''}
+                      </Text>
+                    </View>
+                    <TouchableOpacity style={estilos.avulsoBotao} onPress={() => abrirVinculo(a)}>
+                      <Text style={estilos.avulsoBotaoTxt}>Vincular</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         }
         ListEmptyComponent={
@@ -226,6 +288,50 @@ export default function RevisaoContagensScreen({ navigation, route }) {
           </View>
         }
       />
+
+      {/* ── Modal de vinculo de item avulso ─────────────────────── */}
+      <Modal visible={!!avulsoVinculando} animationType="slide" transparent onRequestClose={() => !vinculando && setAvulsoVinculando(null)}>
+        <View style={estilos.modalOverlay}>
+          <View style={estilos.modalContainer}>
+            <Text style={estilos.modalTitulo}>Vincular item avulso</Text>
+            {avulsoVinculando && (
+              <>
+                <Text style={estilos.modalProduto}>Codigo bipado: {avulsoVinculando.codigo}</Text>
+                <Text style={estilos.modalInfo}>
+                  {avulsoVinculando.bipagens} bipagem(ns) · {avulsoVinculando.quantidade_total} un serao
+                  transferidas para o produto informado, mantendo rodada, operador e horario.
+                </Text>
+                {avulsoVinculando.sugestoes?.length > 0 && (
+                  <View style={{ marginTop: spacing.sm }}>
+                    <Text style={estilos.rotulo}>Produtos parecidos</Text>
+                    {avulsoVinculando.sugestoes.map(s => (
+                      <TouchableOpacity key={s.sku} onPress={() => setSkuDestino(s.sku)}
+                        style={[estilos.sugestao, skuDestino === s.sku && estilos.sugestaoAtiva]}>
+                        <Text style={estilos.sugestaoSku}>{s.sku}</Text>
+                        <Text style={estilos.sugestaoDesc} numberOfLines={1}>{s.descricao}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                <Text style={estilos.rotulo}>SKU do produto cadastrado *</Text>
+                <TextInput
+                  style={estilos.input}
+                  value={skuDestino}
+                  onChangeText={setSkuDestino}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  placeholder="Ex: T10000AZ038100200030"
+                  placeholderTextColor={colors.textMuted}
+                />
+              </>
+            )}
+            <View style={{ height: spacing.md }} />
+            <Button titulo="Vincular e transferir contagens" onPress={handleVincular} carregando={vinculando} desabilitado={vinculando} />
+            <View style={{ height: spacing.xs }} />
+            <Button titulo="Cancelar" variante="secondary" onPress={() => setAvulsoVinculando(null)} desabilitado={vinculando} />
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Modal de edicao de contagem ─────────────────────────── */}
       <Modal visible={modalEdicao} animationType="slide" transparent onRequestClose={() => !salvando && setModalEdicao(false)}>
@@ -347,6 +453,27 @@ const estilos = StyleSheet.create({
     borderLeftWidth: 3, borderLeftColor: colors.warning,
   },
   badgeAjustesTxt: { fontSize: fontSize.xs, color: colors.warning, fontWeight: '600' },
+  avulsosBox: {
+    marginTop: spacing.md, padding: spacing.md, borderRadius: radius.md,
+    backgroundColor: colors.warningSoft, borderLeftWidth: 4, borderLeftColor: colors.warning,
+  },
+  avulsosTitulo: { fontSize: fontSize.sm, fontWeight: '800', color: colors.warning },
+  avulsosTexto: { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 4, marginBottom: spacing.sm },
+  avulsoLinha: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.xs,
+  },
+  avulsoCodigo: { fontSize: fontSize.sm, fontWeight: '700', color: colors.text },
+  avulsoInfo: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  avulsoBotao: { backgroundColor: colors.primary, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  avulsoBotaoTxt: { color: colors.onDark, fontSize: fontSize.sm, fontWeight: '700' },
+  sugestao: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    padding: spacing.sm, marginBottom: spacing.xs,
+  },
+  sugestaoAtiva: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  sugestaoSku: { fontSize: fontSize.sm, fontWeight: '700', color: colors.text },
+  sugestaoDesc: { fontSize: fontSize.xs, color: colors.textMuted },
 
   // Card de produto
   cardProduto: {

@@ -5,7 +5,7 @@
  * de bipagens) como se fosse a rodada, entao uma parcela de outro local virava
  * "2a contagem" e o "valor final" era a ultima bipagem (ex: 2 em vez de 40).
  */
-import { rodadaDaContagem, agruparPorRodada, valorFinalContagens } from '../utils/contagens';
+import { rodadaDaContagem, agruparPorRodada, valorFinalContagens, desempatePelaRegraDoSistema } from '../utils/contagens';
 
 const c = (numero_contagem, rodada, quantidade_contada) => ({ numero_contagem, rodada, quantidade_contada });
 
@@ -43,5 +43,17 @@ describe('valorFinalContagens (espelha _calcular_status_produto do backend)', ()
   });
   it('sem contagens: null', () => {
     expect(valorFinalContagens([])).toBeNull();
+  });
+  it('3 contagens com moda: vale o valor repetido (8, 9, 8 -> 8)', () => {
+    expect(valorFinalContagens([c(1, 1, 8), c(2, 2, 9), c(3, 3, 8)])).toBe(8);
+  });
+  it('3 contagens todas diferentes: null + flag (backend usa a mais proxima do sistema)', () => {
+    const lista = [c(1, 1, 7), c(2, 2, 9), c(3, 3, 12)];
+    expect(valorFinalContagens(lista)).toBeNull();
+    expect(desempatePelaRegraDoSistema(lista)).toBe(true);
+  });
+  it('flag de desempate pela regra so vale com 3 rodadas todas diferentes', () => {
+    expect(desempatePelaRegraDoSistema([c(1, 1, 7), c(2, 2, 9)])).toBe(false);
+    expect(desempatePelaRegraDoSistema([c(1, 1, 8), c(2, 2, 9), c(3, 3, 8)])).toBe(false);
   });
 });

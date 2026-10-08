@@ -442,14 +442,16 @@ export async function baixarRelatorioConsolidado({ naturezaId, mesReferencia, me
 // ENDPOINTS DE ESTOQUE E PRODUTOS
 // ============================================================
 
+// O codigo vai codificado: etiquetas com "/", "#", "?" ou espaco quebravam a
+// URL e o produto aparecia como "nao cadastrado".
 export async function buscarEstoque(codigoQr, lojaId) {
   return await chamarAPI(
-    `/api/v1/estoque/buscar?codigo_qr=${codigoQr}&loja_id=${lojaId}`
+    `/api/v1/estoque/buscar?codigo_qr=${encodeURIComponent(codigoQr)}&loja_id=${lojaId}`
   );
 }
 
 export async function buscarProdutoPorQR(codigoQr) {
-  return await chamarAPI(`/api/v1/produtos/qr/${codigoQr}`);
+  return await chamarAPI(`/api/v1/produtos/qr/${encodeURIComponent(codigoQr)}`);
 }
 
 // ============================================================
@@ -499,6 +501,18 @@ export async function ajustarContagem(contagemId, { quantidade, justificativa })
 
 export async function listarAjustesSessao(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/ajustes`);
+}
+
+// Itens avulsos (codigo bipado que nao bateu com nenhum produto) — ADM
+export async function listarAvulsosSessao(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/avulsos`);
+}
+
+export async function vincularAvulso(sessaoId, produtoAvulsoId, skuDestino) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/avulsos/${produtoAvulsoId}/vincular`, {
+    method: 'POST',
+    body: JSON.stringify({ sku_destino: skuDestino }),
+  });
 }
 
 export async function cancelarSessao(sessaoId) {

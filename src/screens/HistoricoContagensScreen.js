@@ -12,7 +12,7 @@ import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { listarContagensDaSessao } from '../services/api';
 import Paginacao from '../components/Paginacao';
 import { formatarDataHora } from '../utils/formatadores';
-import { rodadaDaContagem, valorFinalContagens } from '../utils/contagens';
+import { rodadaDaContagem, valorFinalContagens, desempatePelaRegraDoSistema } from '../utils/contagens';
 
 
 export default function HistoricoContagensScreen({ navigation, route }) {
@@ -105,7 +105,8 @@ export default function HistoricoContagensScreen({ navigation, route }) {
     // Valor final pela regra das 3 contagens (soma parcelas da mesma rodada),
     // nao a ultima bipagem — senao uma parcela de outro local vira o "final".
     const qtdFinal = valorFinalContagens(ordenadas);
-    const aguardandoDesempate = qtdFinal == null && ordenadas.length > 0;
+    const pelaRegra = desempatePelaRegraDoSistema(ordenadas);
+    const aguardandoDesempate = qtdFinal == null && !pelaRegra && ordenadas.length > 0;
 
     return (
       <View style={estilos.card}>
@@ -147,6 +148,12 @@ export default function HistoricoContagensScreen({ navigation, route }) {
           <View style={estilos.linhaFinal}>
             <Text style={estilos.linhaFinalLabel}>Valor final:</Text>
             <Text style={estilos.linhaFinalLabel}>aguardando desempate</Text>
+          </View>
+        )}
+        {pelaRegra && (
+          <View style={estilos.linhaFinal}>
+            <Text style={estilos.linhaFinalLabel}>Valor final:</Text>
+            <Text style={estilos.linhaFinalLabel}>3 contagens diferentes — vale a mais proxima do sistema</Text>
           </View>
         )}
       </View>
