@@ -198,6 +198,12 @@ export default function CriarSessaoScreen({ navigation }) {
     }
     const nomeFinal = nome.trim() || nomeSugerido();
     if (!nomeFinal) { mostrarErro('Informe o nome da sessao'); return; }
+    // Natureza obrigatoria: sem ela o saldo soma Venda + Quarentena e a
+    // contagem gera sobra/falta falsa (sessao de Fortaleza criada sem natureza)
+    if (naturezas.length > 0 && !naturezaFiltroId) {
+      mostrarErro('Selecione a natureza do inventario (Venda ou Quarentena)');
+      return;
+    }
     if (semEstoqueParaSessao() && !confirmarSemEstoque) {
       mostrarErro('Marque a confirmacao abaixo para criar a sessao sem estoque importado');
       return;
