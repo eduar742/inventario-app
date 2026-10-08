@@ -207,7 +207,9 @@ export default function ImportacaoScreen({ navigation }) {
               </Text>
               {resultado.erros.slice(0, 10).map((e, i) => (
                 <View key={i} style={estilos.cardErro}>
-                  <Text style={estilos.erroLinha}>Linha {e.linha} — {e.campo}</Text>
+                  <Text style={estilos.erroLinha}>
+                    Linha {e.linha}{e.codigo ? ` · ${e.codigo}` : ''} — {e.campo}
+                  </Text>
                   <Text style={estilos.erroMsg}>{e.mensagem}</Text>
                 </View>
               ))}

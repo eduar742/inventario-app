@@ -12,6 +12,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { listarLojas, listarNaturezas, listarMesesImportados, listarEstoqueNaturezas, criarSessao, iniciarSessao, importarPlanilha } from '../services/api';
+import { confirmar } from '../utils/alertas';
 
 
 const TIPOS = [
@@ -218,16 +219,24 @@ export default function CriarSessaoScreen({ navigation }) {
           return;
         }
         if (resultado.linhas_erro > 0) {
-          // Na web mostra no etapaCriando; no mobile mostra Alert com confirmacao
-          if (Platform.OS === 'web') {
-            setEtapaCriando(`${resultado.linhas_sucesso} linhas importadas, ${resultado.linhas_erro} com erro. Criando sessao...`);
-            await new Promise(r => setTimeout(r, 1500));
-          } else {
-            await new Promise(resolve => Alert.alert(
-              'Importacao com erros',
-              `${resultado.linhas_sucesso} linha(s) importadas, ${resultado.linhas_erro} com erro. A sessao sera criada mesmo assim.`,
-              [{ text: 'Continuar', onPress: resolve }],
-            ));
+          // Linhas recusadas = produtos que NAO entram no estoque da sessao e
+          // virariam "item avulso" na contagem. Antes, na web, o aviso sumia em
+          // 1,5s e a sessao era criada mesmo assim (Fortaleza, out/2026).
+          // Agora para e mostra quais itens ficaram de fora.
+          const lista = (resultado.erros || []).slice(0, 10).map(e =>
+            `• Linha ${e.linha}${e.codigo ? ` (${e.codigo})` : ''}: ${e.campo} — ${e.mensagem}`
+          ).join('\n');
+          const resto = resultado.linhas_erro > 10 ? `\n...e mais ${resultado.linhas_erro - 10}.` : '';
+          const continuar = await confirmar(
+            `${resultado.linhas_erro} linha(s) NAO foram importadas`,
+            `${resultado.linhas_sucesso} linha(s) importadas com sucesso.\n\n` +
+            `Itens recusados (nao entram no estoque e apareceriam como "item avulso" na contagem):\n` +
+            `${lista}${resto}\n\n` +
+            'Confirmar = criar a sessao mesmo assim.\nCancelar = corrigir a planilha antes.'
+          );
+          if (!continuar) {
+            mostrarErro(`${resultado.linhas_erro} linha(s) nao importadas. Corrija a planilha e importe de novo (as linhas validas ja foram importadas).`);
+            return;
           }
         }
       }
