@@ -458,7 +458,7 @@ export async function buscarProdutoPorQR(codigoQr) {
 // ENDPOINT DE CONTAGEM (o mais usado!)
 // ============================================================
 
-export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada, rodada = 1, localizacao, confirmarLocalizacao, confirmarDuplicidadeOperador, observacoes }) {
+export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada, rodada = 1, localizacao, confirmarLocalizacao, confirmarDuplicidadeOperador, confirmarSomaParcial, observacoes }) {
   return await chamarAPI('/api/v1/contagens', {
     method: 'POST',
     body: JSON.stringify({
@@ -469,6 +469,9 @@ export async function registrarContagem({ sessaoId, codigoQr, quantidadeContada,
       localizacao: localizacao || null,
       confirmar_localizacao: confirmarLocalizacao || false,
       confirmar_duplicidade_operador: confirmarDuplicidadeOperador || false,
+      // Operador confirmou que e OUTRO local de um produto que ele ja contou
+      // nesta rodada (a API soma; sem confirmar, devolve 409)
+      confirmar_soma_parcial: confirmarSomaParcial || false,
       observacoes: observacoes || null,
     }),
   });

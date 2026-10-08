@@ -51,6 +51,16 @@ export default function ContagemScreen({ navigation, route }) {
   const [dupOperador, setDupOperador] = useState(null);  // detalhe do 409, ou null
   const [dupConfirmada, setDupConfirmada] = useState(false);
 
+  // O proprio operador ja contou este produto nesta rodada (mesmo em outra
+  // visita ao scanner ou outro aparelho): a API soma, entao pede confirmacao
+  // de que e OUTRO local. Em Fortaleza, recontagens da mesma pilha viraram
+  // soma e inflaram a 1a contagem.
+  const [somaPendente, setSomaPendente] = useState(null); // detalhe do 409, ou null
+
+  // Trava SINCRONA contra duplo toque: o estado `enviando` so vale apos o
+  // re-render, e dois toques rapidos gravavam a contagem duas vezes.
+  const enviandoRef = useRef(false);
+
   // Scanner de localizacao
   const [modalScanLoc, setModalScanLoc] = useState(false);
   const [permissaoCamera, solicitarPermissaoCamera] = useCameraPermissions();
@@ -119,7 +129,8 @@ export default function ContagemScreen({ navigation, route }) {
   // Scanner), pra que o painel de acompanhamento ao vivo do gestor/lider
   // reflita a contagem assim que o operador confirma, e pra nao perder o
   // lote inteiro se o app fechar antes de finalizar.
-  async function handleConfirmar() {
+  async function handleConfirmar({ confirmarSoma = false } = {}) {
+    if (enviandoRef.current) return; // duplo toque
     const qtd = parseFloat(quantidade.replace(',', '.'));
     if (isNaN(qtd) || qtd < 0) {
       avisar('Quantidade invalida', 'Digite um numero valido (ex: 60 ou 12,5)');
@@ -148,6 +159,7 @@ export default function ContagemScreen({ navigation, route }) {
       observacoes: observacoes || null,
     };
 
+    enviandoRef.current = true;
     setEnviando(true);
     try {
       await registrarContagem({
@@ -158,14 +170,21 @@ export default function ContagemScreen({ navigation, route }) {
         localizacao: item.localizacao,
         confirmarLocalizacao: item.confirmarLocalizacao,
         confirmarDuplicidadeOperador: dupConfirmada,
+        confirmarSomaParcial: confirmarSoma,
         observacoes: item.observacoes,
       });
     } catch (err) {
+      enviandoRef.current = false;
       setEnviando(false);
       // Outro operador ja contou este SKU nesta rodada — pede confirmacao
       // em vez de mostrar um erro generico (ver POST /contagens no backend).
       if (err.status === 409 && err.dados?.detail?.tipo === 'duplicidade_operador') {
         setDupOperador(err.dados.detail);
+        return;
+      }
+      // O proprio operador ja contou este produto nesta rodada — somar ou nao?
+      if (err.status === 409 && err.dados?.detail?.tipo === 'ja_contado_pelo_operador') {
+        setSomaPendente(err.dados.detail);
         return;
       }
       avisar('Erro ao registrar contagem', err.message || 'Nao foi possivel salvar esta contagem. Verifique a conexao e tente novamente.');
@@ -348,6 +367,33 @@ export default function ContagemScreen({ navigation, route }) {
             </View>
           )}
 
+          {/* Alerta: o proprio operador ja contou este produto nesta rodada */}
+          {somaPendente && (
+            <View style={estilos.cardLocDiferente}>
+              <Text style={estilos.cardLocDiferenteTitulo}>
+                ⚠️ Voce ja contou este produto nesta rodada
+              </Text>
+              <Text style={estilos.cardLocDiferenteTexto}>{somaPendente.mensagem}</Text>
+              <Text style={[estilos.cardLocDiferenteTexto, { marginTop: 4 }]}>
+                Se voce esta recontando a MESMA pilha, nao confirme: a quantidade seria somada.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+                <TouchableOpacity
+                  style={[estilos.botaoLocAcao, { flex: 1, backgroundColor: colors.backgroundSoft, borderColor: colors.border }]}
+                  onPress={() => navigation.goBack()}
+                >
+                  <Text style={[estilos.botaoLocAcaoTxt, { color: colors.textSecondary }]}>Nao, foi recontagem</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[estilos.botaoLocAcao, { flex: 1, backgroundColor: '#FEF3C7', borderColor: '#D97706' }]}
+                  onPress={() => { setSomaPendente(null); handleConfirmar({ confirmarSoma: true }); }}
+                >
+                  <Text style={[estilos.botaoLocAcaoTxt, { color: '#92400E' }]}>Sim, outro local — somar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Confirmação visual quando a duplicidade foi aceita */}
           {dupConfirmada && dupOperador && (
             <View style={estilos.locConfirmadaBox}>
@@ -372,11 +418,11 @@ export default function ContagemScreen({ navigation, route }) {
 
           <Button
             titulo={enviando ? 'Salvando...' : 'Adicionar ao inventario'}
-            onPress={handleConfirmar}
+            onPress={() => handleConfirmar()}
             carregando={enviando}
             desabilitado={
               enviando || !quantidade || (localizacaoObrigatoria && !locDigitada) ||
-              (dupOperador && !dupConfirmada)
+              (dupOperador && !dupConfirmada) || !!somaPendente
             }
           />
 

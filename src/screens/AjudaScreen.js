@@ -485,7 +485,7 @@ const SECOES = [
             legenda: 'Loja e mês selecionados',
           },
           {
-            texto: 'Escolha o Tipo (Geral, Parcial, Cíclico ou Recontagem) e a Natureza. Deixe marcado "Iniciar imediatamente" para liberar a contagem na hora. Toque em "Criar sessao".',
+            texto: 'Escolha o Tipo (Geral, Parcial, Cíclico ou Recontagem) e a Natureza (obrigatória — sem ela o saldo misturaria Venda e Quarentena). Deixe marcado "Iniciar imediatamente" para liberar a contagem na hora. Toque em "Criar sessao".',
             imagem: IMG.sessao05,
             legenda: 'Tipo, natureza e "Iniciar imediatamente"',
           },
@@ -690,8 +690,14 @@ const SECOES = [
             imagem: IMG.contSoma,
             legenda: 'Aviso de soma de parcial',
           },
-          'O sistema soma automaticamente: 120 + 45 = 165. Não é erro — é o comportamento esperado.',
+          'Ao tocar em "Adicionar ao inventario", o app pergunta "Voce ja contou este produto nesta rodada". Toque em "Sim, outro local — somar" para somar: 120 + 45 = 165.',
+          'Se você está apenas recontando a MESMA pilha, toque em "Nao, foi recontagem" — nada é somado. (Antes, recontar a mesma pilha somava a quantidade e inflava a contagem.)',
         ],
+      },
+      {
+        tipo: 'destaque',
+        variante: 'atencao',
+        texto: 'Bipar de novo um produto que você já contou na rodada SOMA as quantidades. Use isso só para pilhas em locais diferentes. Toques repetidos no botão "Adicionar" não duplicam mais a contagem.',
       },
       {
         tipo: 'botoes',
