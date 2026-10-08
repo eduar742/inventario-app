@@ -178,13 +178,10 @@ export default function SessoesScreen({ navigation, route }) {
   const [definindoEstoque, setDefinindoEstoque] = useState(null);
 
   async function handleDefinirEstoque(sessao) {
-    const ok = await confirmarAlerta(
-      'Definir estoque da sessao',
-      `Escolha a planilha com os itens de "${sessao.nome}" (modelo do sistema ou export do ERP: Item, Descricao, Und, Saldo, Preco Medio).\n\n` +
-      'A sessao passa a ter EXATAMENTE esses itens e saldos. As contagens ja feitas sao mantidas.' +
-      (sessao.status === 'aguardando_aprovacao' ? '\n\nSe nenhuma divergencia foi aprovada ainda, elas serao recalculadas.' : '')
-    );
-    if (!ok) return;
+    // O seletor de arquivo abre PRIMEIRO, direto no clique: na web o navegador
+    // bloqueia em silencio o seletor aberto depois de um window.confirm (o
+    // clique "expira"). Fortaleza: o botao nao fazia nada. A confirmacao vem
+    // depois de escolher o arquivo.
     let asset = null;
     try {
       const res = await DocumentPicker.getDocumentAsync({ type: ['*/*'], copyToCacheDirectory: true });
@@ -199,6 +196,13 @@ export default function SessoesScreen({ navigation, route }) {
       avisar('Formato invalido', 'Use arquivos .xlsx, .xls ou .csv');
       return;
     }
+    const ok = await confirmarAlerta(
+      'Definir estoque da sessao',
+      `Arquivo: ${asset.name}\nSessao: "${sessao.nome}"\n\n` +
+      'A sessao passa a ter EXATAMENTE os itens e saldos dessa planilha (modelo do sistema ou export do ERP). As contagens ja feitas sao mantidas.' +
+      (sessao.status === 'aguardando_aprovacao' ? '\n\nSe nenhuma divergencia foi aprovada ainda, elas serao recalculadas.' : '')
+    );
+    if (!ok) return;
     setDefinindoEstoque(sessao.id);
     try {
       const r = await definirEstoqueSessao(sessao.id, asset);
