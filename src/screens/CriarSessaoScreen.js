@@ -211,6 +211,8 @@ export default function CriarSessaoScreen({ navigation }) {
 
     setCriando(true);
     try {
+      // Produtos da planilha anexada: a sessao fica com o estoque so deles
+      let produtosIds = null;
       // Etapa 1: importar planilha (se arquivo selecionado)
       if (arquivo) {
         setEtapaCriando('Importando planilha de referencia...');
@@ -245,6 +247,7 @@ export default function CriarSessaoScreen({ navigation }) {
             return;
           }
         }
+        produtosIds = resultado.produtos_ids || null;
       }
 
       // Etapa 2: criar sessao
@@ -256,6 +259,7 @@ export default function CriarSessaoScreen({ navigation }) {
         mesReferencia: mesRef,
         naturezaFiltroId: naturezaFiltroId || null,
         observacoes,
+        produtosIds,
       });
 
       // Etapa 3: iniciar (opcional)

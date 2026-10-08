@@ -20,7 +20,8 @@ import {
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarSessoes, pegarUsuario, buscarPerfilAtual, cancelarSessao, encerrarSessao, gerarDivergencias, adicionarNotaAdm, reabrirSessao } from '../services/api';
+import { listarSessoes, pegarUsuario, buscarPerfilAtual, cancelarSessao, encerrarSessao, gerarDivergencias, adicionarNotaAdm, reabrirSessao, definirEstoqueSessao } from '../services/api';
+import * as DocumentPicker from 'expo-document-picker';
 import Button from '../components/Button';
 import { formatarDataHora } from '../utils/formatadores';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
@@ -168,6 +169,49 @@ export default function SessoesScreen({ navigation, route }) {
       avisar('Nao foi possivel reabrir', err.message || 'Tente novamente.');
     } finally {
       setReabrindo(false);
+    }
+  }
+
+  // ADM: define o estoque proprio da sessao a partir de uma planilha (modelo
+  // do sistema ou export do ERP). Cada sessao tem a sua "foto" do estoque —
+  // importacoes de outras sessoes do mesmo mes nao a afetam mais.
+  const [definindoEstoque, setDefinindoEstoque] = useState(null);
+
+  async function handleDefinirEstoque(sessao) {
+    const ok = await confirmarAlerta(
+      'Definir estoque da sessao',
+      `Escolha a planilha com os itens de "${sessao.nome}" (modelo do sistema ou export do ERP: Item, Descricao, Und, Saldo, Preco Medio).\n\n` +
+      'A sessao passa a ter EXATAMENTE esses itens e saldos. As contagens ja feitas sao mantidas.' +
+      (sessao.status === 'aguardando_aprovacao' ? '\n\nSe nenhuma divergencia foi aprovada ainda, elas serao recalculadas.' : '')
+    );
+    if (!ok) return;
+    let asset = null;
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: ['*/*'], copyToCacheDirectory: true });
+      if (res.canceled) return;
+      asset = res.assets[0];
+    } catch (_) {
+      avisar('Erro', 'Nao foi possivel abrir o seletor de arquivo.');
+      return;
+    }
+    const nomeArq = (asset.name || '').toLowerCase();
+    if (!nomeArq.endsWith('.xlsx') && !nomeArq.endsWith('.xls') && !nomeArq.endsWith('.csv')) {
+      avisar('Formato invalido', 'Use arquivos .xlsx, .xls ou .csv');
+      return;
+    }
+    setDefinindoEstoque(sessao.id);
+    try {
+      const r = await definirEstoqueSessao(sessao.id, asset);
+      const erros = r.linhas_erro ? `\n\n${r.linhas_erro} linha(s) com erro:\n` +
+        (r.erros || []).slice(0, 5).map(e => `• Linha ${e.linha}${e.codigo ? ` (${e.codigo})` : ''}: ${e.mensagem}`).join('\n') : '';
+      const recalc = r.divergencias_recalculadas != null
+        ? `\nDivergencias recalculadas: ${r.divergencias_recalculadas}.` : '';
+      avisar('Estoque da sessao definido', `${r.produtos} produto(s) na sessao.${recalc}${erros}`);
+      carregarDados();
+    } catch (err) {
+      avisar('Nao foi possivel definir o estoque', err.message || 'Tente novamente.');
+    } finally {
+      setDefinindoEstoque(null);
     }
   }
 
@@ -358,6 +402,19 @@ export default function SessoesScreen({ navigation, route }) {
           </TouchableOpacity>
         )}
 
+        {/* ADM: define o estoque proprio da sessao (planilha) */}
+        {isAdmin && item.status === 'em_andamento' && (
+          <TouchableOpacity
+            style={[estilos.botaoCardAcao, { backgroundColor: colors.backgroundSoft, borderWidth: 1, borderColor: colors.border, marginTop: spacing.xs }]}
+            onPress={() => handleDefinirEstoque(item)}
+            disabled={definindoEstoque === item.id}
+          >
+            {definindoEstoque === item.id
+              ? <ActivityIndicator size="small" color={colors.primary} />
+              : <Text style={[estilos.botaoCardAcaoTexto, { color: colors.textSecondary }]}>Definir estoque da sessao (ADM)</Text>}
+          </TouchableOpacity>
+        )}
+
         {/* Acompanhar ao vivo: qualquer papel nao-operador pode ver o progresso em tempo real */}
         {papel !== 'operador' && item.status === 'em_andamento' && (
           <TouchableOpacity
@@ -405,6 +462,18 @@ export default function SessoesScreen({ navigation, route }) {
                 <Text style={[estilos.botaoCardAcaoTexto, { color: colors.textSecondary }]}>
                   Reabrir sessao (ADM)
                 </Text>
+              </TouchableOpacity>
+            )}
+            {/* ADM: define o estoque proprio da sessao (planilha) */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={[estilos.botaoCardAcao, { backgroundColor: colors.backgroundSoft, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => handleDefinirEstoque(item)}
+                disabled={definindoEstoque === item.id}
+              >
+                {definindoEstoque === item.id
+                  ? <ActivityIndicator size="small" color={colors.primary} />
+                  : <Text style={[estilos.botaoCardAcaoTexto, { color: colors.textSecondary }]}>Definir estoque da sessao (ADM)</Text>}
               </TouchableOpacity>
             )}
             <View style={estilos.acoesCard}>

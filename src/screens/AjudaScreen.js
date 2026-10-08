@@ -503,6 +503,11 @@ const SECOES = [
       },
       {
         tipo: 'destaque',
+        variante: 'importante',
+        texto: 'Cada sessão tem o SEU estoque, fixado no momento em que é criada (os itens da planilha anexada, ou o estoque do mês/natureza). Importar depois a planilha de outra sessão do mesmo mês — mesmo em modo Completo — não altera sessões já criadas. Ex: Acrílico e ACM no mesmo mês ficam independentes.',
+      },
+      {
+        tipo: 'destaque',
         variante: 'atencao',
         texto: 'Se não houver estoque importado para o mês, o sistema exige marcar "Criar sem estoque importado". Sem saldo para comparar, as contagens viram divergência — evite isso em inventários reais.',
       },
@@ -534,6 +539,7 @@ const SECOES = [
           { botao: 'Revisar divergencias', quem: 'ADM, Gestor', faz: 'Abre a tela de aprovação das divergências.' },
           { botao: 'Revisar contagens (ADM)', quem: 'ADM', faz: 'Lista todas as contagens por produto e permite corrigir uma contagem com justificativa.' },
           { botao: 'Reabrir sessao (ADM)', quem: 'ADM', faz: 'Volta a sessão para EM ANDAMENTO (exige motivo).' },
+          { botao: 'Definir estoque da sessao (ADM)', quem: 'ADM', faz: 'Envia a planilha (modelo do sistema ou export do ERP) com os itens e saldos DESTA sessão. Use para corrigir uma sessão cujo estoque ficou errado. As contagens são mantidas e, se nada foi aprovado ainda, as divergências são recalculadas.' },
           { botao: 'Historico', quem: 'Todos, exceto Operador', faz: 'Todas as contagens de cada produto, rodada a rodada.' },
         ],
       },

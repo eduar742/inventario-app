@@ -257,7 +257,10 @@ export async function listarPendentes(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/pendentes`);
 }
 
-export async function criarSessao({ lojaId, nome, tipo, mesReferencia, naturezaFiltroId, observacoes }) {
+// produtosIds: itens da planilha anexada ao criar a sessao — a API tira a
+// "foto" do estoque da sessao so com eles, isolando-a de outras sessoes do
+// mesmo mes (Fortaleza: a planilha de ACM zerou a sessao de Acrilico).
+export async function criarSessao({ lojaId, nome, tipo, mesReferencia, naturezaFiltroId, observacoes, produtosIds }) {
   return await chamarAPI('/api/v1/sessoes', {
     method: 'POST',
     body: JSON.stringify({
@@ -267,8 +270,52 @@ export async function criarSessao({ lojaId, nome, tipo, mesReferencia, naturezaF
       mes_referencia: mesReferencia,
       natureza_filtro_id: naturezaFiltroId || null,
       observacoes: observacoes || null,
+      produtos_ids: produtosIds && produtosIds.length ? produtosIds : null,
     }),
   });
+}
+
+// ADM: (re)define o estoque proprio da sessao. Com arquivo (modelo do sistema
+// ou export do ERP), a sessao passa a ter exatamente aqueles itens; sem
+// arquivo, fixa o estoque atual do mes/natureza da sessao.
+export async function definirEstoqueSessao(sessaoId, arquivo = null) {
+  const url = `${API_BASE_URL}/api/v1/sessoes/${sessaoId}/foto-estoque`;
+  const token = await pegarToken();
+  const formData = new FormData();
+  if (arquivo) {
+    if (arquivo.file) {
+      formData.append('arquivo', arquivo.file, arquivo.name);
+    } else {
+      formData.append('arquivo', {
+        uri: arquivo.uri,
+        name: arquivo.name,
+        type: arquivo.mimeType || 'application/octet-stream',
+      });
+    }
+  }
+  try {
+    const resposta = await _fetchComTimeout(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const texto = await resposta.text();
+    let dados = null;
+    try { dados = texto ? JSON.parse(texto) : null; } catch (_) {}
+    if (!resposta.ok) {
+      const erro = new Error(_extrairMensagem(dados?.detail, resposta.status));
+      erro.status = resposta.status;
+      throw erro;
+    }
+    return dados;
+  } catch (err) {
+    if (err.message === 'Network request failed' || err.message === 'Failed to fetch') {
+      const erro = new Error('Sem conexao com o servidor.');
+      erro.status = 0;
+      throw erro;
+    }
+    throw err;
+  }
 }
 
 export async function iniciarSessao(sessaoId) {
