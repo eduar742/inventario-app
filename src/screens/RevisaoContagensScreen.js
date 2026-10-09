@@ -158,11 +158,20 @@ export default function RevisaoContagensScreen({ navigation, route }) {
     }
     setSalvando(true);
     try {
-      await ajustarContagem(itemEditando.id, {
+      const r = await ajustarContagem(itemEditando.id, {
         quantidade: qtd,
         justificativa: justificativa.trim(),
       });
       setModalEdicao(false);
+      // Sessao aguardando aprovacao: a API ja recalculou a divergencia do item
+      const MSG_DIVERGENCIA = {
+        atualizada: 'A divergencia deste item foi recalculada com a nova quantidade.',
+        criada: 'Com a nova quantidade o item passou a divergir: uma divergencia foi criada para aprovacao.',
+        removida: 'Com a nova quantidade o item bate com o sistema: a divergencia foi removida.',
+      };
+      if (r?.divergencia_recalculada && MSG_DIVERGENCIA[r.divergencia_recalculada]) {
+        avisar('Contagem ajustada', MSG_DIVERGENCIA[r.divergencia_recalculada]);
+      }
       await carregarTudo();
     } catch (err) {
       avisar('Erro ao salvar', err.message || 'Nao foi possivel salvar o ajuste');
