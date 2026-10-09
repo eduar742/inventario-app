@@ -19,7 +19,7 @@ import {
   AppState,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
@@ -34,6 +34,12 @@ const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
 // tela de Contagem (este componente fica montado por baixo o tempo todo).
 const INTERVALO_HEARTBEAT = 60000;
 
+// Ao voltar da tela de Contagem, a etiqueta que acabou de ser lancada costuma
+// continuar na frente da camera. Durante este tempo o MESMO codigo e ignorado
+// (outro codigo le normalmente). Depois disso, rebipar o mesmo produto (outra
+// localizacao) volta a funcionar.
+const BLOQUEIO_MESMO_CODIGO_MS = 3000;
+
 export default function ScannerScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
   // rodada: 1 = primeira contagem, 2 = recontagem, 3 = desempate
@@ -45,6 +51,14 @@ export default function ScannerScreen({ navigation, route }) {
   const [escaneado, setEscaneado] = useState(false);
   const [flash, setFlash] = useState(false);
   const ultimoCodigoRef = useRef(null);
+  // Ate quando o ultimo codigo fica bloqueado (Infinity enquanto a Contagem
+  // dele esta aberta; BLOQUEIO_MESMO_CODIGO_MS depois de voltar)
+  const bloqueioAteRef = useRef(0);
+  // A tela de Scanner continua montada (com a camera ligada) por baixo da
+  // Contagem. Sem checar o foco, a camera lia de novo a etiqueta enquanto o
+  // operador digitava a quantidade e empilhava uma 2a Contagem do mesmo item:
+  // ao "Adicionar inventario" ele caia nela e recebia "item ja coletado".
+  const focado = useIsFocused();
   const [modalVisivel, setModalVisivel] = useState(false);
   const [codigoManual, setCodigoManual] = useState('');
   const [contagens, setContagens] = useState([]);
@@ -98,7 +112,15 @@ export default function ScannerScreen({ navigation, route }) {
 
   // Recarrega ao entrar/voltar para a tela e quando o app volta do
   // bloqueio de tela (no navegador, AppState segue a visibilidade da aba)
-  useFocusEffect(useCallback(() => { atualizarProgresso(); }, [atualizarProgresso]));
+  useFocusEffect(useCallback(() => {
+    atualizarProgresso();
+    // Voltou para a camera: libera a leitura, mas segura o ultimo codigo por
+    // alguns segundos (a etiqueta ainda esta na frente da camera)
+    if (bloqueioAteRef.current === Infinity) {
+      bloqueioAteRef.current = Date.now() + BLOQUEIO_MESMO_CODIGO_MS;
+    }
+    setEscaneado(false);
+  }, [atualizarProgresso]));
   useEffect(() => {
     const sub = AppState.addEventListener('change', estado => {
       if (estado === 'active') atualizarProgresso();
@@ -170,9 +192,11 @@ export default function ScannerScreen({ navigation, route }) {
   function handleBarCodeScanned({ data }) {
     const codigo = limparCodigoQr(data);
     if (!codigo) return;
-    if (escaneado || codigo === ultimoCodigoRef.current) return;
+    if (!focado || escaneado) return;
+    if (codigo === ultimoCodigoRef.current && Date.now() < bloqueioAteRef.current) return;
     setEscaneado(true);
     ultimoCodigoRef.current = codigo;
+    bloqueioAteRef.current = Infinity; // ate voltar da Contagem (ver useFocusEffect)
 
     navigation.navigate('Contagem', {
       codigoQr: codigo,
@@ -182,12 +206,6 @@ export default function ScannerScreen({ navigation, route }) {
       onAdicionar: adicionarContagem,
       jaContadoNestaRodada: contagens.some(c => c.codigoQr === codigo),
     });
-
-    // Reseta apos um pequeno delay para permitir nova leitura ao voltar
-    setTimeout(() => {
-      setEscaneado(false);
-      ultimoCodigoRef.current = null;
-    }, 1000);
   }
 
   if (!permissao) {
@@ -245,7 +263,7 @@ export default function ScannerScreen({ navigation, route }) {
         barcodeScannerSettings={{
           barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39'],
         }}
-        onBarcodeScanned={escaneado ? undefined : handleBarCodeScanned}
+        onBarcodeScanned={focado && !escaneado ? handleBarCodeScanned : undefined}
       >
         <SafeAreaView style={estilos.cabecalho}>
           <TouchableOpacity
