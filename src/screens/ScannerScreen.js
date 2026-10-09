@@ -24,7 +24,13 @@ import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { limparCodigoQr } from '../utils/qrCode';
-import { entrarSessao, heartbeatSessao, sairSessao, buscarSessao } from '../services/api';
+import {
+  entrarSessao, heartbeatSessao, sairSessao, buscarSessao,
+  listarPendentes, listarRecontagemNecessaria,
+} from '../services/api';
+
+// Chave de comparacao de codigos (etiqueta bipada x codigo/sku do produto)
+const chaveCodigo = (c) => String(c || '').trim().toUpperCase();
 
 // Sufixos de ordinal feminino (contagem)
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
@@ -97,7 +103,38 @@ export default function ScannerScreen({ navigation, route }) {
   // ("Bipados 1 / Faltam 101") embora tudo estivesse gravado no servidor.
   const [progressoServidor, setProgressoServidor] = useState(null);
 
+  // Codigos que o SERVIDOR ainda considera pendentes nesta rodada (todos os
+  // operadores). null = ainda nao carregou / sem rede: usa so o que este
+  // celular bipou. Mesma regra da tela "Itens pendentes".
+  const [pendentesServidor, setPendentesServidor] = useState(null);
+
+  const atualizarPendentes = useCallback(async () => {
+    if (itensPendentes.length === 0) return;
+    try {
+      let itens;
+      if (rodada === 1) {
+        itens = await listarPendentes(sessao.id);
+      } else {
+        const lista = await listarRecontagemNecessaria(sessao.id);
+        itens = (lista || []).filter(item => {
+          const rodadas = new Set((item.contagens || []).map(c => c.rodada || 1));
+          // 2a contagem: so tem a 1a rodada; 3a: tem duas rodadas e falta a 3a
+          return rodada === 2 ? rodadas.size < 2 : (rodadas.size >= 2 && !rodadas.has(3));
+        });
+      }
+      const chaves = new Set();
+      for (const p of itens || []) {
+        chaves.add(chaveCodigo(p.codigo_qr));
+        chaves.add(chaveCodigo(p.sku));
+      }
+      setPendentesServidor(chaves);
+    } catch (_) {
+      // Best-effort: sem rede, mantem a ultima lista
+    }
+  }, [sessao.id, rodada, itensPendentes.length]);
+
   const atualizarProgresso = useCallback(async () => {
+    atualizarPendentes();
     try {
       const s = await buscarSessao(sessao.id);
       setProgressoServidor({
@@ -108,7 +145,7 @@ export default function ScannerScreen({ navigation, route }) {
     } catch (_) {
       // Best-effort: sem rede, mantem o ultimo valor (ou o contador local)
     }
-  }, [sessao.id]);
+  }, [sessao.id, atualizarPendentes]);
 
   // Recarrega ao entrar/voltar para a tela e quando o app volta do
   // bloqueio de tela (no navegador, AppState segue a visibilidade da aba)
@@ -158,6 +195,18 @@ export default function ScannerScreen({ navigation, route }) {
   }
 
   const skusUnicos = new Set(contagens.map(c => c.codigoQr)).size;
+
+  // Lista de pendentes da rodada: o item SAI da lista assim que a quantidade
+  // e confirmada (por este celular, na hora; por outro operador, na proxima
+  // atualizacao com o servidor — a cada bipagem, ao voltar para a camera e a
+  // cada minuto).
+  const bipadosAqui = new Set(contagens.map(c => chaveCodigo(c.codigoQr)));
+  const pendentesRestantes = itensPendentes.filter(item => {
+    const chaves = [chaveCodigo(item.codigoQr), chaveCodigo(item.sku)].filter(Boolean);
+    if (chaves.some(k => bipadosAqui.has(k))) return false;
+    if (pendentesServidor && !chaves.some(k => pendentesServidor.has(k))) return false;
+    return true;
+  });
 
   // Progresso da RODADA. Preferencia: o que a API calcula para a rodada atual
   // da sessao (sobrevive a recarga da pagina e soma todos os operadores).
@@ -324,27 +373,32 @@ export default function ScannerScreen({ navigation, route }) {
             <View style={estilos.painelPendentes}>
               <View style={estilos.painelPendentesHeader}>
                 <Text style={estilos.painelPendentesTitle}>
-                  {ORDINAL[rodada] || `${rodada}ª`} contagem — {itensPendentes.length} produto(s):
+                  {ORDINAL[rodada] || `${rodada}ª`} contagem — faltam {pendentesRestantes.length} de {itensPendentes.length}:
                 </Text>
-                <TouchableOpacity onPress={() => setModalListaPendentes(true)} style={estilos.btnVerTodos}>
-                  <Text style={estilos.btnVerTodosTxt}>Ver todos</Text>
-                </TouchableOpacity>
+                {pendentesRestantes.length > 0 && (
+                  <TouchableOpacity onPress={() => setModalListaPendentes(true)} style={estilos.btnVerTodos}>
+                    <Text style={estilos.btnVerTodosTxt}>Ver todos</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-              {itensPendentes.slice(0, 4).map((item, i) => {
-                const jaBipado = contagens.some(c => c.codigoQr === (item.codigoQr || item.sku));
-                return (
-                  <View key={i} style={estilos.painelPendentesLinha}>
-                    <View style={[estilos.bolinha, jaBipado && estilos.bolinhaVerde]} />
-                    <Text style={estilos.painelPendentesItem} numberOfLines={1}>
-                      {item.sku || item.codigoQr}{item.descricao ? ` — ${item.descricao}` : ''}
-                    </Text>
-                  </View>
-                );
-              })}
-              {itensPendentes.length > 4 && (
+              {pendentesRestantes.length === 0 && (
+                <View style={estilos.painelPendentesLinha}>
+                  <View style={[estilos.bolinha, estilos.bolinhaVerde]} />
+                  <Text style={estilos.painelPendentesItem}>Todos os itens da lista foram contados</Text>
+                </View>
+              )}
+              {pendentesRestantes.slice(0, 4).map((item, i) => (
+                <View key={item.codigoQr || item.sku || i} style={estilos.painelPendentesLinha}>
+                  <View style={estilos.bolinha} />
+                  <Text style={estilos.painelPendentesItem} numberOfLines={1}>
+                    {item.sku || item.codigoQr}{item.descricao ? ` — ${item.descricao}` : ''}
+                  </Text>
+                </View>
+              ))}
+              {pendentesRestantes.length > 4 && (
                 <TouchableOpacity onPress={() => setModalListaPendentes(true)}>
                   <Text style={[estilos.painelPendentesItem, { color: colors.warning, marginTop: 2 }]}>
-                    ...e mais {itensPendentes.length - 4} — toque para ver todos
+                    ...e mais {pendentesRestantes.length - 4} — toque para ver todos
                   </Text>
                 </TouchableOpacity>
               )}
@@ -430,24 +484,23 @@ export default function ScannerScreen({ navigation, route }) {
               {ORDINAL[rodada] || `${rodada}ª`} contagem
             </Text>
             <Text style={estilos.modalSubtitulo}>
-              {itensPendentes.length} produto(s) para recontar
+              Faltam {pendentesRestantes.length} de {itensPendentes.length} produto(s)
             </Text>
             <ScrollView style={{ marginTop: 12 }} showsVerticalScrollIndicator>
-              {itensPendentes.map((item, i) => {
+              {pendentesRestantes.length === 0 && (
+                <Text style={estilos.pendenteDesc}>Todos os itens da lista foram contados.</Text>
+              )}
+              {pendentesRestantes.map((item, i) => {
                 const codigoRef = item.codigoQr || item.sku;
-                const jaBipado = contagens.some(c => c.codigoQr === codigoRef);
                 return (
-                  <View key={i} style={estilos.pendenteLinha}>
-                    <View style={[estilos.bolinhaGrande, jaBipado && estilos.bolinhaGrandeVerde]} />
+                  <View key={codigoRef || i} style={estilos.pendenteLinha}>
+                    <View style={estilos.bolinhaGrande} />
                     <View style={{ flex: 1 }}>
                       <Text style={estilos.pendenteSku}>{item.sku || codigoRef}</Text>
                       {item.descricao ? (
                         <Text style={estilos.pendenteDesc} numberOfLines={2}>{item.descricao}</Text>
                       ) : null}
                     </View>
-                    {jaBipado && (
-                      <Text style={estilos.pendenteBipado}>Bipado</Text>
-                    )}
                   </View>
                 );
               })}

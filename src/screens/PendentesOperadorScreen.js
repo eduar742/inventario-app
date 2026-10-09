@@ -22,8 +22,8 @@ import {
 } from '../services/api';
 import { avisar } from '../utils/alertas';
 
-// Enquanto a 2a contagem estiver aguardando liberacao, atualiza o contador
-// de operadores ativos periodicamente (mesmo padrao do AcompanhamentoSessaoScreen).
+// Atualizacao periodica da lista (itens bipados por outros operadores) e do
+// contador de operadores ativos (mesmo padrao do AcompanhamentoSessaoScreen).
 const INTERVALO_POLL = 15000;
 
 export default function PendentesOperadorScreen({ navigation, route }) {
@@ -40,23 +40,17 @@ export default function PendentesOperadorScreen({ navigation, route }) {
   const [liberando, setLiberando] = useState(false);
   const timerRef = useRef(null);
 
+  // Recarrega ao abrir e, enquanto a tela estiver na frente, a cada
+  // INTERVALO_POLL: o item bipado (por qualquer operador) sai da lista sem
+  // precisar puxar para atualizar. Para ao sair da tela (ex: abrir o Scanner).
   useFocusEffect(
     useCallback(() => {
       carregar();
+      clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => carregar(true), INTERVALO_POLL);
       return () => clearInterval(timerRef.current);
     }, [])
   );
-
-  // Poll leve so enquanto ha itens aguardando 2a contagem e ela ainda nao
-  // foi liberada — e o unico cenario onde "operadores_ativos" muda sem o
-  // operador interagir com esta tela.
-  React.useEffect(() => {
-    clearInterval(timerRef.current);
-    if (aguardando2.length > 0 && !recontagemLiberada) {
-      timerRef.current = setInterval(() => carregar(true), INTERVALO_POLL);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [aguardando2.length, recontagemLiberada]);
 
   async function carregar(silencioso = false) {
     try {

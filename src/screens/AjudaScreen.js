@@ -737,7 +737,7 @@ const SECOES = [
             legenda: '"Iniciar 2ª contagem"',
           },
           {
-            texto: 'O scanner mostra a lista dos produtos a recontar ("Ver todos" abre a lista completa; os já bipados ficam com a bolinha verde). A barra do rodapé conta só os itens desta rodada. Bipe e conte cada um de novo, sem olhar a contagem anterior.',
+            texto: 'O scanner mostra a lista dos produtos a recontar ("Ver todos" abre a lista completa). Assim que você confirma a quantidade, o item sai da lista — e os recontados por outros operadores também saem, em até um minuto. A barra do rodapé conta só os itens desta rodada. Bipe e conte cada um de novo, sem olhar a contagem anterior.',
             imagem: IMG.cont13,
             legenda: 'Scanner na 2ª contagem — 1 de 2 itens bipados',
           },
