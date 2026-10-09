@@ -19,8 +19,9 @@ import {
   buscarPerfilAtual,
   buscarSessao,
   liberarRecontagem,
+  processarRodada,
 } from '../services/api';
-import { avisar } from '../utils/alertas';
+import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
 // Atualizacao periodica da lista (itens bipados por outros operadores) e do
 // contador de operadores ativos (mesmo padrao do AcompanhamentoSessaoScreen).
@@ -38,6 +39,8 @@ export default function PendentesOperadorScreen({ navigation, route }) {
   const [recontagemLiberada, setRecontagemLiberada] = useState(false);
   const [operadoresAtivos, setOperadoresAtivos] = useState(0);
   const [liberando, setLiberando] = useState(false);
+  const [rodadaAtual, setRodadaAtual] = useState(sessao.rodada_atual || 1);
+  const [encerrando, setEncerrando] = useState(false);
   const timerRef = useRef(null);
 
   // Recarrega ao abrir e, enquanto a tela estiver na frente, a cada
@@ -69,6 +72,7 @@ export default function PendentesOperadorScreen({ navigation, route }) {
       setNaoContados(pendentes || []);
       setRecontagemLiberada(!!sessaoAtualizada.recontagem_liberada);
       setOperadoresAtivos(sessaoAtualizada.operadores_ativos || 0);
+      setRodadaAtual(sessaoAtualizada.rodada_atual || 1);
 
       const bucket2 = [];
       const bucket3 = [];
@@ -112,6 +116,34 @@ export default function PendentesOperadorScreen({ navigation, route }) {
     }
   }
 
+  // Sem nada pendente (ex: sessao reaberta pelo ADM depois de tudo contado),
+  // o Lider nao tinha como encerrar: o encerramento so acontecia ao finalizar
+  // a 3a contagem no Resumo, e "Encerrar sessao" do card e so ADM/Gestor.
+  // O servidor so encerra se de fato nao houver nada pendente.
+  async function handleEncerrarContagens() {
+    const ok = await confirmarAlerta(
+      'Encerrar contagens',
+      'Nao ha itens pendentes. A sessao sera encerrada e as divergencias seguem para aprovacao do ADM e do gestor. Continuar?'
+    );
+    if (!ok) return;
+    setEncerrando(true);
+    try {
+      const r = await processarRodada(sessao.id, rodadaAtual);
+      if (r.sessao_encerrada) {
+        avisar('Sessao encerrada', 'As contagens foram encerradas e enviadas para aprovacao.');
+        navigation.popTo('Sessoes', { loja });
+      } else {
+        avisar('Ainda ha pendentes', `${(r.pendentes || []).length} item(ns) ainda precisam ser contados.`);
+        carregar();
+      }
+    } catch (err) {
+      avisar('Nao foi possivel encerrar', err.message || 'Tente novamente.');
+    } finally {
+      setEncerrando(false);
+    }
+  }
+
+  const podeEncerrarContagens = ['lider', 'gestor', 'admin'].includes(papel);
   const podeDesempatar = papel === 'lider' || papel === 'admin';
   const podeLiberarRecontagem = papel === 'lider' || papel === 'gestor';
   // Lider e exclusivo da 3a contagem (desempate) — nao conta na 1a nem na 2a.
@@ -163,6 +195,15 @@ export default function PendentesOperadorScreen({ navigation, route }) {
             <Text style={estilos.vazioTexto}>
               Todos os produtos desta sessao ja foram contados e conferidos.
             </Text>
+            {podeEncerrarContagens && (
+              <View style={{ marginTop: spacing.lg, alignSelf: 'stretch' }}>
+                <Button
+                  titulo={encerrando ? 'Encerrando...' : 'Encerrar contagens'}
+                  carregando={encerrando}
+                  onPress={handleEncerrarContagens}
+                />
+              </View>
+            )}
           </View>
         ) : (
           <>
