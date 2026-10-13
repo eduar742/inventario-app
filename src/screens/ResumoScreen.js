@@ -11,16 +11,14 @@ import {
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import CardsAcuracidadeSessao from '../components/CardsAcuracidadeSessao';
+import FinalizarRodadaCard from '../components/FinalizarRodadaCard';
 import {
-  encerrarSessao,
-  gerarDivergencias,
   processarRodada,
   pegarUsuario,
   buscarPerfilAtual,
   buscarResumoSessao,
-  liberarRecontagem,
 } from '../services/api';
-import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
+import { avisar } from '../utils/alertas';
 
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
 
@@ -34,12 +32,10 @@ export default function ResumoScreen({ navigation, route }) {
   const [papel, setPapel] = useState('operador');
   const [erroGeral, setErroGeral] = useState('');
   const [sessaoEncerrada, setSessaoEncerrada] = useState(false);
-  const [encerrando, setEncerrando] = useState(false);
   const [resumoSessao, setResumoSessao] = useState(null);
   const acuracidadeBuscadaRef = React.useRef(false);
   const [recontagemLiberada, setRecontagemLiberada] = useState(false);
-  const [operadoresAtivos, setOperadoresAtivos] = useState(0);
-  const [liberando, setLiberando] = useState(false);
+  const [desempateLiberado, setDesempateLiberado] = useState(false);
 
   useEffect(() => {
     finalizarInventario();
@@ -63,28 +59,6 @@ export default function ResumoScreen({ navigation, route }) {
       .then(r => setResumoSessao(r))
       .catch(() => {});
   }, [sessaoEncerrada, papel]);
-
-  // Encerramento forcado quando operador clica em "Finalizar agora" com pendentes
-  async function encerrarSessaoAgora() {
-    setEncerrando(true);
-    try {
-      await encerrarSessao(sessao.id, true);
-      await gerarDivergencias(sessao.id);
-      setSessaoEncerrada(true);
-    } catch (err) {
-      const msg = err.message || '';
-      // So trata como "ja encerrada" quando a mensagem e literalmente sobre o
-      // status ja ter mudado (corrida com outro fechamento) — nao confundir
-      // com o bloqueio de pendentes (que tambem usa a palavra "aguardando").
-      if (msg.includes('Status atual')) {
-        setSessaoEncerrada(true);
-      } else {
-        avisar('Nao foi possivel finalizar', msg);
-      }
-    } finally {
-      setEncerrando(false);
-    }
-  }
 
   async function finalizarInventario() {
     setProcessando(true);
@@ -110,7 +84,7 @@ export default function ResumoScreen({ navigation, route }) {
     try {
       const resultado = await processarRodada(sessao.id, rodada);
       setRecontagemLiberada(!!resultado.recontagem_liberada);
-      setOperadoresAtivos(resultado.operadores_ativos || 0);
+      setDesempateLiberado(!!resultado.desempate_liberado);
       if (resultado.sessao_encerrada) {
         setSessaoEncerrada(true);
       } else {
@@ -136,21 +110,14 @@ export default function ResumoScreen({ navigation, route }) {
   const aguardando2  = pendentes.filter(p => p.motivo === 'divergente' && p.proxima_rodada === 2);
   const aguardando3  = pendentes.filter(p => p.motivo === 'divergente' && p.proxima_rodada === 3);
   const podeDesempatar = papel === 'lider' || papel === 'admin';
-  const podeLiberarRecontagem = papel === 'lider' || papel === 'gestor';
+  // Rodadas controladas pelo Lider/Gestor/ADM (FinalizarRodadaCard)
+  const podeFinalizarRodada = ['lider', 'gestor', 'admin'].includes(papel);
+  const rodadaAberta = !recontagemLiberada ? 1 : !desempateLiberado ? 2 : 3;
+  const itensSemContagem = rodadaAberta === 1
+    ? naoContados.length
+    : rodadaAberta === 2 ? naoContados.length + aguardando2.length : pendentes.length;
   // Lider e exclusivo da 3a contagem (desempate) — nao conta na 1a nem na 2a.
   const podeContarRodada1e2 = papel !== 'lider';
-
-  async function handleLiberarRecontagem() {
-    setLiberando(true);
-    try {
-      await liberarRecontagem(sessao.id);
-      setRecontagemLiberada(true);
-    } catch (err) {
-      avisar('Nao foi possivel liberar', err.message || 'Tente novamente.');
-    } finally {
-      setLiberando(false);
-    }
-  }
 
   function iniciarContagem(rodadaAlvo, itens) {
     navigation.navigate('Scanner', {
@@ -244,7 +211,9 @@ export default function ResumoScreen({ navigation, route }) {
               </View>
             ))}
             <View style={{ height: spacing.md }} />
-            {podeContarRodada1e2 ? (
+            {recontagemLiberada ? (
+              <Text style={estilos.dica}>Serao registrados como 0 (nao encontrado) quando a contagem for finalizada.</Text>
+            ) : podeContarRodada1e2 ? (
               <Button titulo="Bipar itens que faltaram" onPress={() => iniciarContagem(1, naoContados)} />
             ) : (
               <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
@@ -265,37 +234,15 @@ export default function ResumoScreen({ navigation, route }) {
               </View>
             ))}
             <View style={{ height: spacing.md }} />
-            {recontagemLiberada ? (
-              podeContarRodada1e2 ? (
-                <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
-              ) : (
-                <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
-              )
-            ) : podeLiberarRecontagem ? (
-              <>
-                <Text style={estilos.dica}>
-                  {operadoresAtivos > 0
-                    ? `Aguardando ${operadoresAtivos} operador(es) saírem da sessão antes de liberar.`
-                    : 'Todos os operadores saíram — pronto para liberar.'}
-                </Text>
-                <View style={{ height: spacing.sm }} />
-                <Button
-                  titulo={liberando ? 'Liberando...' : 'Liberar 2ª contagem'}
-                  variante="secondary"
-                  carregando={liberando}
-                  desabilitado={operadoresAtivos > 0}
-                  onPress={handleLiberarRecontagem}
-                />
-              </>
+            {!recontagemLiberada ? (
+              <Text style={estilos.dica}>A 2ª contagem comeca quando o Lider, Gestor ou ADM finalizar a 1ª.</Text>
+            ) : podeContarRodada1e2 ? (
+              <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
             ) : (
-              <Text style={estilos.dica}>
-                Aguardando o Lider ou Gestor liberar a 2ª contagem
-                {operadoresAtivos > 0 ? ` (ainda há ${operadoresAtivos} operador(es) na sessão)` : ''}.
-              </Text>
+              <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
             )}
           </View>
         )}
-
         {/* Itens que nao convergiram entre 1a e 2a — aguardando desempate (so lider/admin) */}
         {aguardando3.length > 0 && !sessaoEncerrada && (
           <View style={estilos.secao}>
@@ -309,7 +256,9 @@ export default function ResumoScreen({ navigation, route }) {
               </View>
             ))}
             <View style={{ height: spacing.md }} />
-            {podeDesempatar ? (
+            {!desempateLiberado ? (
+              <Text style={estilos.dica}>A 3ª contagem (desempate) comeca quando o Lider, Gestor ou ADM finalizar a 2ª.</Text>
+            ) : podeDesempatar ? (
               <Button titulo="Iniciar 3ª contagem (desempate)" onPress={() => iniciarContagem(3, aguardando3)} />
             ) : (
               <Text style={estilos.dica}>
@@ -319,29 +268,16 @@ export default function ResumoScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Finalizar com pendentes: so quando restam APENAS itens nunca bipados
-            (nenhum aguardando 2a/3a contagem — essa trava e do backend, nao
-            deixa nem o ADM pular uma recontagem/desempate em andamento) e
-            somente ADM/Gestor podem decidir dar um produto como "nao encontrado". */}
-        {naoContados.length > 0 && aguardando2.length === 0 && aguardando3.length === 0 &&
-         !sessaoEncerrada && (papel === 'admin' || papel === 'gestor') && (
-          <View style={estilos.secao}>
-            <Button
-              titulo={encerrando ? 'Encerrando...' : 'Finalizar inventario agora'}
-              variante="secondary"
-              carregando={encerrando}
-              onPress={() => {
-                const msg = `Ainda ha ${naoContados.length} produto(s) nunca bipado(s).\n\nAo finalizar agora, esses itens entram como divergencia "nao bipado" para revisao. Deseja continuar?`;
-                confirmarAlerta('Finalizar inventario?', msg)
-                  .then(ok => { if (ok) encerrarSessaoAgora(); });
-              }}
-            />
-            <Text style={estilos.dica}>
-              Ao finalizar agora, os itens nunca bipados entram como divergência para revisão.
-            </Text>
-          </View>
+        {/* Controle das rodadas: Lider/Gestor/ADM finaliza a rodada aberta e
+            inicia a proxima — itens sem contagem viram 0 (nao encontrado). */}
+        {!sessaoEncerrada && !erroGeral && podeFinalizarRodada && (
+          <FinalizarRodadaCard
+            sessaoId={sessao.id}
+            rodadaAtual={rodadaAberta}
+            itensSemContagem={itensSemContagem}
+            onFinalizado={(r) => (r.sessao_encerrada ? setSessaoEncerrada(true) : navigation.popTo('Sessoes', { loja }))}
+          />
         )}
-
         <View style={{ height: spacing.xl }} />
 
         {/* popTo (e nao navigate): no React Navigation 7 o navigate EMPILHA

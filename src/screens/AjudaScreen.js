@@ -255,7 +255,7 @@ const SECOES = [
           { botao: 'Gerente', quem: 'Acompanhamento gerencial', faz: 'Enxerga as telas do sistema (Inventário, Dashboard, Consolidado, Relatório Geral, Importar, Usuários, Auditoria) sem executar ações. Não acessa Divergências.' },
           { botao: 'Auditor', quem: 'Auditoria / compliance', faz: 'Somente leitura de dashboards, relatórios e do painel de Auditoria.' },
           { botao: 'Operador', quem: 'Quem conta no depósito', faz: 'Bipa os produtos na 1ª e na 2ª contagem das lojas vinculadas ao seu perfil. Ao entrar, vai direto para a sua loja.' },
-          { botao: 'Líder', quem: 'Responsável pelo desempate', faz: 'Faz exclusivamente a 3ª contagem (desempate) e pode liberar a 2ª contagem. Não bipa na 1ª nem na 2ª rodada. Ao final vê a acuracidade da sessão.' },
+          { botao: 'Líder', quem: 'Responsável pelo desempate', faz: 'Conduz as rodadas (finaliza a 1ª e inicia a 2ª, finaliza a 2ª e inicia a 3ª) e faz exclusivamente a 3ª contagem (desempate). Não bipa na 1ª nem na 2ª rodada. Ao final vê a acuracidade da sessão.' },
         ],
       },
       {
@@ -525,7 +525,7 @@ const SECOES = [
         tipo: 'botoes',
         titulo: 'Botões do card da sessão — sessão EM ANDAMENTO:',
         itens: [
-          { botao: 'Tocar no card', quem: 'ADM, Gestor, Operador', faz: 'Abre o scanner para bipar (1ª contagem). Para o Líder, mostra que ele só faz o desempate.' },
+          { botao: 'Tocar no card', quem: 'ADM, Gestor, Operador', faz: 'Abre o scanner para bipar (1ª contagem). Para o Líder, abre direto "Itens pendentes", onde ele controla as rodadas.' },
           { botao: 'Ver itens pendentes', quem: 'ADM, Gestor, Operador, Líder', faz: 'Lista o que falta bipar e o que aguarda 2ª/3ª contagem.' },
           { botao: 'Acompanhar ao vivo', quem: 'Todos, exceto Operador', faz: 'Progresso e feed das últimas bipagens, atualizado a cada 15 s.' },
           { botao: 'Encerrar sessao', quem: 'ADM, Gestor', faz: 'Pede confirmação, encerra a contagem e gera as divergências. Operadores não poderão mais bipar.' },
@@ -577,7 +577,7 @@ const SECOES = [
         itens: [
           'Normalmente a sessão encerra sozinha quando a última rodada termina e todos os produtos esperados foram bipados.',
           'ADM ou Gestor podem encerrar manualmente pelo botão "Encerrar sessao" (com confirmação).',
-          'Se só restarem produtos nunca bipados, ADM ou Gestor veem "Finalizar inventario agora" no Resumo — esses itens viram divergência "não bipado".',
+          'Líder, Gestor ou ADM encerram a contagem pelo botão "Finalizar 3ª contagem e encerrar" em "Ver itens pendentes" (ou antes, se não sobrar nada para recontar).',
           {
             texto: 'Após o encerramento a sessão fica AGUARD. APROVACAO, com os botões de revisão.',
             imagem: IMG.sessaoAguardando,
@@ -588,7 +588,7 @@ const SECOES = [
       {
         tipo: 'destaque',
         variante: 'importante',
-        texto: 'Trava contra encerramento prematuro: se algum produto estiver aguardando 2ª ou 3ª contagem, o sistema NÃO deixa encerrar a sessão — nem pelo ADM. Termine essa contagem primeiro; um encerramento no meio do desempate geraria divergências erradas.',
+        texto: 'Trava contra encerramento prematuro: pelo botão "Encerrar sessao", o sistema NÃO deixa encerrar com produto aguardando 2ª ou 3ª contagem — nem pelo ADM. O caminho é finalizar as rodadas em "Ver itens pendentes": itens sem contagem entram como 0 (não encontrado) e seguem a regra das 3 contagens.',
       },
       {
         tipo: 'passos',
@@ -683,7 +683,7 @@ const SECOES = [
             imagem: IMG.cont09,
             legenda: 'Resumo da 1ª contagem',
           },
-          'Toque em "Voltar para sessoes" (ou "Voltar" no scanner) ao terminar — isso avisa o sistema que você saiu, o que permite liberar a 2ª contagem.',
+          'Toque em "Voltar para sessoes" (ou "Voltar" no scanner) ao terminar — isso avisa o sistema que você saiu, o que permite ao Líder finalizar a rodada.',
         ],
       },
       {
@@ -716,14 +716,17 @@ const SECOES = [
       },
       {
         tipo: 'passos',
-        titulo: 'Liberar a 2ª contagem (Líder ou Gestor):',
+        titulo: 'Finalizar a rodada e iniciar a próxima (Líder, Gestor ou ADM):',
         itens: [
-          'A 2ª contagem não começa sozinha: depois da 1ª rodada, o Líder ou o Gestor precisa liberá-la.',
-          'Só dá para liberar quando todos os operadores saíram do scanner. Enquanto houver alguém bipando, o botão fica desabilitado com o aviso "Aguardando X operador(es) saírem da sessão".',
+          'As rodadas não avançam sozinhas: o Líder (ou Gestor/ADM) decide quando a rodada termina, no quadro "Controle da contagem" no topo de "Ver itens pendentes".',
+          'O botão muda conforme a rodada: "Finalizar 1ª contagem e iniciar a 2ª", "Finalizar 2ª contagem e iniciar a 3ª" e "Finalizar 3ª contagem e encerrar".',
+          'Itens que ninguém bipou na rodada entram como 0 (não encontrado) — é assim que se resolve um item que está na planilha mas não existe no físico. O 0 da 1ª diverge do sistema e vai para a 2ª, onde outro operador procura de novo; se a 2ª também der 0, fica confirmado como falta.',
+          'Todos os operadores precisam ter saído do scanner. Se alguém ainda estiver nele, o sistema mostra o nome de quem falta sair.',
+          'A 3ª contagem (desempate) só começa depois que a 2ª for finalizada. Se não sobrar nada para recontar, a sessão já é encerrada.',
           {
-            texto: 'Em "Ver itens pendentes", toque em "Liberar 2ª contagem".',
+            texto: 'O quadro fica no topo de "Ver itens pendentes" (a imagem mostra a versão anterior, com o botão "Liberar 2ª contagem").',
             imagem: IMG.cont10,
-            legenda: 'Pronto para liberar',
+            legenda: 'Ver itens pendentes — visão do Líder',
           },
         ],
       },
@@ -732,7 +735,7 @@ const SECOES = [
         titulo: '2ª contagem (recontagem):',
         itens: [
           {
-            texto: 'Depois de liberada, o operador abre "Ver itens pendentes" e toca em "Iniciar 2ª contagem".',
+            texto: 'Depois que o Líder finaliza a 1ª, o operador abre "Ver itens pendentes" e toca em "Iniciar 2ª contagem".',
             imagem: IMG.cont12,
             legenda: '"Iniciar 2ª contagem"',
           },
@@ -742,7 +745,7 @@ const SECOES = [
             legenda: 'Scanner na 2ª contagem — 1 de 2 itens bipados',
           },
           {
-            texto: 'Toque em "Finalizar 2ª". Se a 2ª bateu com a 1ª, o valor está confirmado. Se não bateu, o item vai para o desempate.',
+            texto: 'Toque em "Finalizar 2ª". Se a 2ª bateu com a 1ª, o valor está confirmado. Se não bateu, o item vai para o desempate — que começa quando o Líder finalizar a 2ª.',
             imagem: IMG.cont14,
             legenda: 'Resumo da 2ª contagem',
           },
@@ -753,11 +756,11 @@ const SECOES = [
         titulo: '3ª contagem — desempate (Líder):',
         itens: [
           {
-            texto: 'O Líder abre "Ver itens pendentes" e toca em "Iniciar 3ª contagem (desempate)". Para os outros perfis aparece "Apenas um usuario com papel Lider pode fazer o desempate".',
+            texto: 'Depois de finalizar a 2ª, o Líder toca em "Iniciar 3ª contagem (desempate)" em "Ver itens pendentes". Para os outros perfis aparece "Apenas um usuario com papel Lider pode fazer o desempate".',
             imagem: IMG.cont15,
             legenda: 'Pendentes — visão do Líder',
           },
-          'Bipe e conte o item, depois toque em "Finalizar 3ª".',
+          'Bipe e conte o item, depois toque em "Finalizar 3ª". Por fim, "Finalizar 3ª contagem e encerrar" fecha a sessão (item sem desempate entra como 0).',
           {
             texto: 'Quando não resta nada pendente, a sessão encerra e o Resumo mostra a acuracidade, o valor divergente e as divergências para aprovação.',
             imagem: IMG.cont17,
@@ -777,7 +780,7 @@ const SECOES = [
           'Em Sessões, toque em "Ver itens pendentes" no card da sessão.',
           'A tela separa: "Itens que faltou bipar" (vermelho), "Aguardando 2ª contagem" (laranja) e "Aguardando 3ª contagem — desempate" (azul).',
           'Cada grupo tem o botão que abre o scanner já na rodada certa ("Bipar itens que faltaram", "Iniciar 2ª contagem", "Iniciar 3ª contagem").',
-          'A lista se atualiza sozinha a cada 15 segundos enquanto a 2ª contagem aguarda liberação.',
+          'A lista se atualiza sozinha a cada 15 segundos enquanto a tela estiver aberta.',
         ],
       },
     ],
@@ -1153,8 +1156,8 @@ const SECOES = [
         itens: [
           { botao: 'Não consigo entrar', quem: 'Login', faz: 'Confira e-mail e senha. Após 5 erros o acesso fica bloqueado por 15 minutos. Se esqueceu a senha, peça ao gestor/ADM para redefinir.' },
           { botao: 'Não aparece nenhuma sessão', quem: 'Operador', faz: 'O ADM ainda não criou/iniciou a sessão da sua loja, ou você não está vinculado à loja. Fale com o ADM.' },
-          { botao: '"Liberar 2ª contagem" está cinza', quem: 'Líder / Gestor', faz: 'Ainda há operador com o scanner aberto. Peça para tocarem em "Voltar". Se alguém fechou o app sem voltar, a presença expira sozinha em cerca de 6 minutos.' },
-          { botao: 'Não consigo encerrar a sessão', quem: 'ADM / Gestor', faz: 'Há produtos aguardando 2ª ou 3ª contagem. Termine essas contagens primeiro (trava de segurança).' },
+          { botao: '"Não foi possível finalizar": operador com a sessão aberta', quem: 'Líder / Gestor / ADM', faz: 'Ainda há operador com o scanner aberto (o aviso mostra o nome). Peça para tocarem em "Voltar". Se alguém fechou o app sem voltar, a presença expira sozinha em cerca de 6 minutos.' },
+          { botao: 'Não consigo encerrar a sessão', quem: 'Líder / Gestor / ADM', faz: 'Há produtos aguardando 2ª ou 3ª contagem. Finalize as rodadas em "Ver itens pendentes": o que não for contado entra como 0 (não encontrado).' },
           { botao: 'O botão "Adicionar" não habilita', quem: 'Operador', faz: 'Falta a quantidade ou a localização (obrigatória em algumas lojas).' },
           { botao: 'Produto nao cadastrado', quem: 'Operador', faz: 'Conte e registre normalmente; avise o ADM para cadastrar o produto.' },
           { botao: 'Encerrei a sessão sem querer', quem: 'ADM', faz: 'Use "Reabrir sessao (ADM)" — nenhuma contagem é perdida.' },

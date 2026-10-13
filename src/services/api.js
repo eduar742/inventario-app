@@ -601,6 +601,13 @@ export async function liberarRecontagem(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/liberar-recontagem`, { method: 'POST' });
 }
 
+// Lider/Gestor/ADM finaliza a rodada aberta e inicia a proxima (1a -> 2a ->
+// 3a -> encerra). Itens sem contagem na rodada recebem 0 ("nao encontrado").
+// Retorna {rodada_finalizada, itens_zerados, proxima_rodada, sessao_encerrada}.
+export async function finalizarRodada(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/finalizar-rodada`, { method: 'POST' });
+}
+
 // Distribuicao de SKUs por natureza para uma loja/mes — usado na criacao de sessao
 export async function listarEstoqueNaturezas(lojaId, mesReferencia) {
   return await chamarAPI(

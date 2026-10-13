@@ -1,7 +1,8 @@
 // Tela de pendentes de uma sessao em andamento, para o operador (ou lider).
 // Mostra separadamente: itens que faltou bipar, itens aguardando 2a contagem
 // e itens aguardando desempate (3a contagem, exige papel lider/admin) — cada
-// grupo com um botao que ja abre o Scanner na rodada certa.
+// grupo com um botao que ja abre o Scanner na rodada certa. Lider/Gestor/ADM
+// veem no topo o controle das rodadas (finalizar a atual e iniciar a proxima).
 
 import React, { useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -18,10 +19,9 @@ import {
   pegarUsuario,
   buscarPerfilAtual,
   buscarSessao,
-  liberarRecontagem,
-  processarRodada,
 } from '../services/api';
-import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
+import { avisar } from '../utils/alertas';
+import FinalizarRodadaCard from '../components/FinalizarRodadaCard';
 
 // Atualizacao periodica da lista (itens bipados por outros operadores) e do
 // contador de operadores ativos (mesmo padrao do AcompanhamentoSessaoScreen).
@@ -37,10 +37,9 @@ export default function PendentesOperadorScreen({ navigation, route }) {
   const [aguardando3, setAguardando3] = useState([]);
   const [papel, setPapel] = useState('operador');
   const [recontagemLiberada, setRecontagemLiberada] = useState(false);
+  const [desempateLiberado, setDesempateLiberado] = useState(false);
   const [operadoresAtivos, setOperadoresAtivos] = useState(0);
-  const [liberando, setLiberando] = useState(false);
   const [rodadaAtual, setRodadaAtual] = useState(sessao.rodada_atual || 1);
-  const [encerrando, setEncerrando] = useState(false);
   const timerRef = useRef(null);
 
   // Recarrega ao abrir e, enquanto a tela estiver na frente, a cada
@@ -69,8 +68,15 @@ export default function PendentesOperadorScreen({ navigation, route }) {
         buscarSessao(sessao.id),
       ]);
 
+      if (sessaoAtualizada.status !== 'em_andamento') {
+        // Encerrada (por quem finalizou a 3a, ou pelo ADM/Gestor)
+        navigation.popTo('Sessoes', { loja });
+        return;
+      }
+
       setNaoContados(pendentes || []);
       setRecontagemLiberada(!!sessaoAtualizada.recontagem_liberada);
+      setDesempateLiberado(!!sessaoAtualizada.desempate_liberado);
       setOperadoresAtivos(sessaoAtualizada.operadores_ativos || 0);
       setRodadaAtual(sessaoAtualizada.rodada_atual || 1);
 
@@ -104,51 +110,17 @@ export default function PendentesOperadorScreen({ navigation, route }) {
     });
   }
 
-  async function handleLiberarRecontagem() {
-    setLiberando(true);
-    try {
-      await liberarRecontagem(sessao.id);
-      setRecontagemLiberada(true);
-    } catch (err) {
-      avisar('Nao foi possivel liberar', err.message || 'Tente novamente.');
-    } finally {
-      setLiberando(false);
-    }
-  }
-
-  // Sem nada pendente (ex: sessao reaberta pelo ADM depois de tudo contado),
-  // o Lider nao tinha como encerrar: o encerramento so acontecia ao finalizar
-  // a 3a contagem no Resumo, e "Encerrar sessao" do card e so ADM/Gestor.
-  // O servidor so encerra se de fato nao houver nada pendente.
-  async function handleEncerrarContagens() {
-    const ok = await confirmarAlerta(
-      'Encerrar contagens',
-      'Nao ha itens pendentes. A sessao sera encerrada e as divergencias seguem para aprovacao do ADM e do gestor. Continuar?'
-    );
-    if (!ok) return;
-    setEncerrando(true);
-    try {
-      const r = await processarRodada(sessao.id, rodadaAtual);
-      if (r.sessao_encerrada) {
-        avisar('Sessao encerrada', 'As contagens foram encerradas e enviadas para aprovacao.');
-        navigation.popTo('Sessoes', { loja });
-      } else {
-        avisar('Ainda ha pendentes', `${(r.pendentes || []).length} item(ns) ainda precisam ser contados.`);
-        carregar();
-      }
-    } catch (err) {
-      avisar('Nao foi possivel encerrar', err.message || 'Tente novamente.');
-    } finally {
-      setEncerrando(false);
-    }
-  }
-
-  const podeEncerrarContagens = ['lider', 'gestor', 'admin'].includes(papel);
+  // Rodadas controladas pelo Lider/Gestor/ADM (FinalizarRodadaCard): a 2a so
+  // comeca quando a 1a e finalizada, e a 3a quando a 2a e finalizada.
+  const podeFinalizarRodada = ['lider', 'gestor', 'admin'].includes(papel);
   const podeDesempatar = papel === 'lider' || papel === 'admin';
-  const podeLiberarRecontagem = papel === 'lider' || papel === 'gestor';
   // Lider e exclusivo da 3a contagem (desempate) — nao conta na 1a nem na 2a.
   const podeContarRodada1e2 = papel !== 'lider';
   const totalPendentes = naoContados.length + aguardando2.length + aguardando3.length;
+  // Itens que vao receber 0 se a rodada aberta for finalizada agora
+  const itensSemContagem = rodadaAtual === 1
+    ? naoContados.length
+    : rodadaAtual === 2 ? naoContados.length + aguardando2.length : totalPendentes;
 
   function Secao({ titulo, itens, corBorda, acao }) {
     if (itens.length === 0) return null;
@@ -166,6 +138,8 @@ export default function PendentesOperadorScreen({ navigation, route }) {
       </View>
     );
   }
+
+  const dica = (texto) => <Text style={estilos.dica}>{texto}</Text>;
 
   if (carregando) {
     return (
@@ -189,21 +163,27 @@ export default function PendentesOperadorScreen({ navigation, route }) {
           />
         }
       >
+        {podeFinalizarRodada && (
+          <FinalizarRodadaCard
+            sessaoId={sessao.id}
+            rodadaAtual={rodadaAtual}
+            itensSemContagem={itensSemContagem}
+            onFinalizado={(r) => (r.sessao_encerrada ? navigation.popTo('Sessoes', { loja }) : carregar())}
+          />
+        )}
+        {podeFinalizarRodada && operadoresAtivos > 0 && (
+          <Text style={[estilos.dica, { marginTop: -spacing.md, marginBottom: spacing.lg }]}>
+            {operadoresAtivos} operador(es) ainda com o Scanner aberto.
+          </Text>
+        )}
+
         {totalPendentes === 0 ? (
           <View style={estilos.vazio}>
             <Text style={estilos.vazioTitulo}>Nada pendente por aqui</Text>
             <Text style={estilos.vazioTexto}>
-              Todos os produtos desta sessao ja foram contados e conferidos.
+              Todos os produtos desta rodada ja foram contados.
+              {podeFinalizarRodada ? ' Use o botao acima para finalizar a contagem.' : ''}
             </Text>
-            {podeEncerrarContagens && (
-              <View style={{ marginTop: spacing.lg, alignSelf: 'stretch' }}>
-                <Button
-                  titulo={encerrando ? 'Encerrando...' : 'Encerrar contagens'}
-                  carregando={encerrando}
-                  onPress={handleEncerrarContagens}
-                />
-              </View>
-            )}
           </View>
         ) : (
           <>
@@ -211,9 +191,12 @@ export default function PendentesOperadorScreen({ navigation, route }) {
               titulo="Itens que faltou bipar"
               itens={naoContados}
               corBorda={colors.danger}
-              acao={podeContarRodada1e2
-                ? <Button titulo="Bipar itens que faltaram" onPress={() => iniciarContagem(1, naoContados)} />
-                : <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
+              acao={
+                recontagemLiberada
+                  ? dica('Serao registrados como 0 (nao encontrado) quando a contagem for finalizada.')
+                  : podeContarRodada1e2
+                    ? <Button titulo="Bipar itens que faltaram" onPress={() => iniciarContagem(1, naoContados)} />
+                    : dica('Papel Líder realiza apenas a 3ª contagem (desempate). Se o item nao existir no fisico, finalize a 1ª contagem: ele entra como 0.')
               }
             />
             <Secao
@@ -221,43 +204,23 @@ export default function PendentesOperadorScreen({ navigation, route }) {
               itens={aguardando2}
               corBorda={colors.warning}
               acao={
-                recontagemLiberada ? (
-                  podeContarRodada1e2 ? (
-                    <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
-                  ) : (
-                    <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
-                  )
-                ) : podeLiberarRecontagem ? (
-                  <>
-                    <Text style={estilos.dica}>
-                      {operadoresAtivos > 0
-                        ? `Aguardando ${operadoresAtivos} operador(es) saírem da sessão antes de liberar.`
-                        : 'Todos os operadores saíram — pronto para liberar.'}
-                    </Text>
-                    <View style={{ height: spacing.sm }} />
-                    <Button
-                      titulo={liberando ? 'Liberando...' : 'Liberar 2ª contagem'}
-                      variante="secondary"
-                      carregando={liberando}
-                      desabilitado={operadoresAtivos > 0}
-                      onPress={handleLiberarRecontagem}
-                    />
-                  </>
-                ) : (
-                  <Text style={estilos.dica}>
-                    Aguardando o Lider ou Gestor liberar a 2ª contagem
-                    {operadoresAtivos > 0 ? ` (ainda há ${operadoresAtivos} operador(es) na sessão)` : ''}.
-                  </Text>
-                )
+                !recontagemLiberada
+                  ? dica('A 2ª contagem comeca quando o Lider, Gestor ou ADM finalizar a 1ª.')
+                  : podeContarRodada1e2
+                    ? <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
+                    : dica('Papel Líder realiza apenas a 3ª contagem (desempate).')
               }
             />
             <Secao
               titulo="Aguardando 3ª contagem — desempate"
               itens={aguardando3}
               corBorda={colors.info}
-              acao={podeDesempatar
-                ? <Button titulo="Iniciar 3ª contagem (desempate)" onPress={() => iniciarContagem(3, aguardando3)} />
-                : <Text style={estilos.dica}>Apenas um usuario com papel Lider pode fazer o desempate.</Text>
+              acao={
+                !desempateLiberado
+                  ? dica('A 3ª contagem (desempate) comeca quando o Lider, Gestor ou ADM finalizar a 2ª.')
+                  : podeDesempatar
+                    ? <Button titulo="Iniciar 3ª contagem (desempate)" onPress={() => iniciarContagem(3, aguardando3)} />
+                    : dica('Apenas um usuario com papel Lider pode fazer o desempate.')
               }
             />
           </>
@@ -266,7 +229,6 @@ export default function PendentesOperadorScreen({ navigation, route }) {
     </SafeAreaView>
   );
 }
-
 const estilos = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundSoft },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },

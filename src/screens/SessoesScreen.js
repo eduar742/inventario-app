@@ -278,14 +278,14 @@ export default function SessoesScreen({ navigation, route }) {
         style={estilos.card}
         onPress={() => {
           if (podeContar) { selecionarSessao(item); return; }
+          // Lider nao conta na 1a/2a: o card leva direto a "Itens pendentes",
+          // onde ele controla as rodadas e faz o desempate (antes mostrava
+          // so um aviso de acesso restrito, que confundia).
           if (item.status === 'em_andamento' && podeEscrever && papel === 'lider') {
-            avisar(
-              'Acesso restrito',
-              'O papel Líder realiza apenas a 3ª contagem (desempate). Use "Ver itens pendentes" quando houver itens aguardando desempate.',
-            );
+            navigation.navigate('PendentesOperador', { sessao: item, loja });
           }
         }}
-        activeOpacity={podeContar ? 0.7 : 1}
+        activeOpacity={podeContar || (item.status === 'em_andamento' && papel === 'lider') ? 0.7 : 1}
         disabled={estaCancelando || estaEncerrando}
       >
         <View style={estilos.cardTopo}>
