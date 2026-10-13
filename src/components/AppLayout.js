@@ -27,8 +27,9 @@ import LogoBold from './LogoBold';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { pegarUsuario, logout, buscarPendentesAprovacao } from '../services/api';
 
-// Papeis que acompanham sessoes aguardando aprovacao (badge no menu)
-const PAPEIS_APROVACAO = ['admin', 'gestor', 'gerente'];
+// Papeis que acompanham sessoes aguardando aprovacao (badge no menu). O Lider
+// aprova a 1a etapa das divergencias desde 13/10/2026.
+const PAPEIS_APROVACAO = ['admin', 'gestor', 'gerente', 'lider'];
 
 // ── Constantes de layout ─────────────────────────────────────────────────────
 const SIDEBAR_W           = 210;

@@ -481,8 +481,8 @@ export default function SessoesScreen({ navigation, route }) {
               </TouchableOpacity>
             )}
             <View style={estilos.acoesCard}>
-              {/* Divergencias: acesso restrito a ADM e Gestor da loja */}
-              {(isAdmin || papel === 'gestor') && (
+              {/* Divergencias: Lider, ADM e Gestor da loja (aprovacao em 3 etapas) */}
+              {(isAdmin || papel === 'gestor' || papel === 'lider') && (
                 <TouchableOpacity
                   style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft, flex: 2 }]}
                   onPress={() => navigation.navigate('Divergencias', { sessao: item, loja })}
@@ -511,8 +511,8 @@ export default function SessoesScreen({ navigation, route }) {
               >
                 <Text style={[estilos.botaoCardAcaoTexto, { color: colors.primary }]}>Acuracidade da Sessao</Text>
               </TouchableOpacity>
-              {/* Divergencias: acesso restrito a ADM e Gestor da loja */}
-              {(isAdmin || papel === 'gestor') && (
+              {/* Divergencias: Lider, ADM e Gestor da loja (aprovacao em 3 etapas) */}
+              {(isAdmin || papel === 'gestor' || papel === 'lider') && (
                 <TouchableOpacity
                   style={[estilos.botaoCardAcao, { backgroundColor: colors.warningSoft }]}
                   onPress={() => navigation.navigate('Divergencias', { sessao: item, loja })}

@@ -1,5 +1,6 @@
 // Tela de divergencias de uma sessao concluida.
-// ADM e Gestor podem aprovar ou rejeitar cada divergencia.
+// Aprovacao em 3 etapas (13/10/2026): Lider da loja -> ADM -> Gestor da loja.
+// Cada um aprova ou rejeita na sua etapa.
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -14,17 +15,27 @@ import Paginacao from '../components/Paginacao';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
 const STATUS_COR = {
-  pendente:     { bg: colors.warningSoft, txt: colors.warning },
-  aprovada_adm: { bg: colors.infoSoft,    txt: colors.info    },
+  pendente:       { bg: colors.warningSoft, txt: colors.warning },
+  aprovada_lider: { bg: colors.infoSoft,    txt: colors.info    },
+  aprovada_adm:   { bg: colors.infoSoft,    txt: colors.info    },
   aprovada:     { bg: colors.successSoft, txt: colors.success },
   rejeitada:    { bg: colors.dangerSoft,  txt: colors.danger  },
 };
 
 const STATUS_ROTULO = {
-  pendente:     'PENDENTE',
-  aprovada_adm: 'AGUARDANDO GESTOR',
+  pendente:       'AGUARDANDO LÍDER',
+  aprovada_lider: 'AGUARDANDO ADM',
+  aprovada_adm:   'AGUARDANDO GESTOR',
   aprovada:     'APROVADA',
   rejeitada:    'REJEITADA',
+};
+
+// Aprovacao em 3 etapas: quem aprova e quem rejeita em cada status aberto
+const ETAPAS_ABERTAS = ['pendente', 'aprovada_lider', 'aprovada_adm'];
+const ETAPA = {
+  pendente:       { quem: 'Líder', aprova: ['lider'],           rejeita: ['lider', 'admin'],  botao: 'Aprovar (Líder)' },
+  aprovada_lider: { quem: 'ADM',   aprova: ['admin'],           rejeita: ['admin'],           botao: 'Aprovar (ADM)' },
+  aprovada_adm:   { quem: 'Gestor', aprova: ['gestor', 'admin'], rejeita: ['gestor', 'admin'], botao: 'Aprovar definitivamente' },
 };
 
 export default function DivergenciasScreen({ navigation, route }) {
@@ -34,17 +45,17 @@ export default function DivergenciasScreen({ navigation, route }) {
   // e retornaria erro se chamadas de novo.
   const sessaoConcluida = sessao.status === 'concluida';
 
-  // Acesso a tela: somente ADM e Gestor da loja
+  // Acesso a tela: Lider, ADM e Gestor da loja (as tres etapas da aprovacao)
   const [papelUsuario, setPapelUsuario] = useState(null);
-  const acessoPermitido = papelUsuario === 'admin' || papelUsuario === 'gestor';
+  const acessoPermitido = ['admin', 'gestor', 'lider'].includes(papelUsuario);
   // Papeis leitura-somente nao podem aprovar/rejeitar divergencias (defesa extra —
-  // a navegacao ja restringe quem chega nesta tela a ADM/Gestor)
+  // a navegacao ja restringe quem chega nesta tela)
   const isReadOnly = !acessoPermitido;
   // Desde 13/10/2026 (decisao da diretoria) o Gestor da loja ve na aprovacao a
-  // diferenca real: quantidades (sistema, contado, diferenca) E valores. Antes
-  // via so o impacto financeiro. O inventario cego continua valendo para quem
-  // conta (operador/lider), que nao acessa esta tela.
-  const mostraFinanceiro = papelUsuario === 'gestor';
+  // diferenca real: quantidades (sistema, contado, diferenca) E valores. O Lider,
+  // que aprova a 1a etapa, ve o mesmo — a contagem ja terminou, entao o
+  // inventario cego (que vale durante a contagem) nao e afetado.
+  const mostraFinanceiro = papelUsuario === 'gestor' || papelUsuario === 'lider';
 
   const [divergencias, setDivergencias] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -79,8 +90,8 @@ export default function DivergenciasScreen({ navigation, route }) {
         papel = u?.papel || null;
       } catch (_) {}
       setPapelUsuario(papel);
-      if (papel !== 'admin' && papel !== 'gestor') {
-        avisar('Acesso restrito', 'Apenas ADM e Gestor da loja podem acessar as divergencias.');
+      if (!['admin', 'gestor', 'lider'].includes(papel)) {
+        avisar('Acesso restrito', 'Apenas Lider, ADM e Gestor da loja podem acessar as divergencias.');
         navigation.goBack();
         return;
       }
@@ -367,7 +378,7 @@ export default function DivergenciasScreen({ navigation, route }) {
         )}
 
         {/* Custo unitario — ADM informa, gestor ve antes de aprovar */}
-        {['pendente', 'aprovada_adm'].includes(div.status) && (
+        {['pendente', 'aprovada_lider', 'aprovada_adm'].includes(div.status) && (
           <View style={estilos.custoRow}>
             <View style={{ flex: 1 }}>
               {div.custo_unitario_definido ? (
@@ -394,8 +405,9 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* ADM pode corrigir a quantidade final antes da 1a etapa de aprovacao */}
-        {div.status === 'pendente' && papelUsuario === 'admin' && (
+        {/* ADM pode corrigir a quantidade final ate a etapa dele (antes ou depois
+            do Lider); depois do ajuste segue para o Gestor */}
+        {['pendente', 'aprovada_lider'].includes(div.status) && papelUsuario === 'admin' && (
           <TouchableOpacity
             style={estilos.botaoAjustarQtd}
             onPress={() => abrirModalAjuste(div)}
@@ -404,32 +416,33 @@ export default function DivergenciasScreen({ navigation, route }) {
           </TouchableOpacity>
         )}
 
-        {/* Botoes de acao — respeitam a etapa (1a: ADM, 2a: Gestor apos ADM) */}
-        {['pendente', 'aprovada_adm'].includes(div.status) && !isReadOnly && (() => {
-          const aguardandoAdm = div.status === 'pendente' && papelUsuario !== 'admin';
-          const podeAgir = (div.status === 'pendente' && papelUsuario === 'admin')
-            || (div.status === 'aprovada_adm' && (papelUsuario === 'admin' || papelUsuario === 'gestor'));
+        {/* Botoes de acao — respeitam a etapa (1a: Lider, 2a: ADM, 3a: Gestor) */}
+        {ETAPAS_ABERTAS.includes(div.status) && !isReadOnly && (() => {
+          const podeAprovar = (ETAPA[div.status].aprova || []).includes(papelUsuario);
+          const podeRejeitar = (ETAPA[div.status].rejeita || []).includes(papelUsuario);
+          // Custo so e exigido a partir da etapa do ADM (quem informa o custo)
+          const exigeCusto = div.status !== 'pendente' && !div.custo_unitario_definido;
 
-          if (aguardandoAdm) {
-            return (
-              <View style={estilos.avisoEtapa}>
-                <Text style={estilos.avisoEtapaTexto}>Aguardando aprovação do ADM</Text>
-              </View>
-            );
-          }
-          if (!podeAgir) return null;
+          const aviso = !podeAprovar && (
+            <View style={estilos.avisoEtapa}>
+              <Text style={estilos.avisoEtapaTexto}>Aguardando aprovação do {ETAPA[div.status].quem}</Text>
+            </View>
+          );
+          if (!podeAprovar && !podeRejeitar) return aviso;
 
           return (
+            <View>
+            {aviso}
             <View style={estilos.acoes}>
               {emProcessamento ? (
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : (
                 <>
-                  <TouchableOpacity
+                  {podeAprovar && <TouchableOpacity
                     style={[estilos.botaoAcao, estilos.botaoAprovar,
-                      !div.custo_unitario_definido && estilos.botaoDesabilitado]}
+                      exigeCusto && estilos.botaoDesabilitado]}
                     onPress={() => {
-                      if (!div.custo_unitario_definido) {
+                      if (exigeCusto) {
                         avisar(
                           'Custo nao informado',
                           papelUsuario === 'admin'
@@ -442,18 +455,19 @@ export default function DivergenciasScreen({ navigation, route }) {
                     }}
                   >
                     <Text style={[estilos.botaoAprovarTexto,
-                      !div.custo_unitario_definido && estilos.textoDesabilitado]}>
-                      {div.status === 'pendente' ? 'Aprovar (ADM)' : 'Aprovar definitivamente'}
+                      exigeCusto && estilos.textoDesabilitado]}>
+                      {ETAPA[div.status].botao}
                     </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
+                  </TouchableOpacity>}
+                  {podeRejeitar && <TouchableOpacity
                     style={[estilos.botaoAcao, estilos.botaoRejeitar]}
                     onPress={() => handleRejeitar(div)}
                   >
                     <Text style={estilos.botaoRejeitarTexto}>Rejeitar</Text>
-                  </TouchableOpacity>
+                  </TouchableOpacity>}
                 </>
               )}
+            </View>
             </View>
           );
         })()}
@@ -463,13 +477,16 @@ export default function DivergenciasScreen({ navigation, route }) {
 
   const [concluindo, setConcluindo] = useState(false);
   const [aprovandoTudo, setAprovandoTudo] = useState(false);
-  // "Pendentes" = ainda nao resolvidas em nenhuma das duas etapas (ADM ou Gestor)
-  const pendentes  = divergencias.filter(d => d.status === 'pendente' || d.status === 'aprovada_adm').length;
+  // "Pendentes" = ainda nao resolvidas em nenhuma das tres etapas
+  const pendentes  = divergencias.filter(d => ETAPAS_ABERTAS.includes(d.status)).length;
   const aprovadas  = divergencias.filter(d => d.status === 'aprovada').length;
   const rejeitadas = divergencias.filter(d => d.status === 'rejeitada').length;
 
-  // Etapa em lote: ADM aprova 'pendente'; Gestor so aprova o que o ADM ja aprovou ('aprovada_adm')
-  const statusAlvoLote = papelUsuario === 'admin' ? 'pendente' : 'aprovada_adm';
+  // Etapa em lote: cada papel aprova so a propria etapa
+  const statusAlvoLote = { lider: 'pendente', admin: 'aprovada_lider', gestor: 'aprovada_adm' }[papelUsuario];
+  const ETAPA_LOTE = {
+    lider: '1ª etapa — Líder', admin: '2ª etapa — ADM', gestor: '3ª etapa — Gestor',
+  }[papelUsuario] || '';
   const itensDaEtapa = divergencias.filter(d => d.status === statusAlvoLote);
   const bloqueadasLote = itensDaEtapa.filter(d => d.bloqueado_lote);
   const aprovaveisPorLote = itensDaEtapa.filter(d => !d.bloqueado_lote);
@@ -482,7 +499,7 @@ export default function DivergenciasScreen({ navigation, route }) {
       ? `R$ ${(divergencias[0].limite_valor_brl || 500).toLocaleString('pt-BR', {minimumFractionDigits:2})} ou ${divergencias[0].limite_diferenca_pct || 10}% de diferença`
       : 'limites configurados';
 
-    const etapaTexto = papelUsuario === 'admin' ? '(1ª etapa — ADM)' : '(2ª etapa — Gestor)';
+    const etapaTexto = `(${ETAPA_LOTE})`;
     let msg = `Aprovar em lote ${etapaTexto} ${nAprov} divergencia(s)?`;
     if (nBloq > 0) {
       msg += `\n\n⚠️ ${nBloq} divergencia(s) NÃO serão incluídas por excederem ${limite}.\nElas exigem aprovação individual.`;
@@ -540,7 +557,7 @@ export default function DivergenciasScreen({ navigation, route }) {
         <TotalizadorFinanceiro divergencias={divergencias} totalPaginas={totalPaginas} />
       )}
 
-      {/* M5: Botao de aprovacao em lote — ADM aprova 'pendente', Gestor aprova 'aprovada_adm' */}
+      {/* M5: Botao de aprovacao em lote — Lider, ADM e Gestor, cada um na sua etapa */}
       {divergencias.length > 0 && itensDaEtapa.length > 0 && !isReadOnly && !sessaoConcluida && (
         <View>
           {bloqueadasLote.length > 0 && (
@@ -560,9 +577,7 @@ export default function DivergenciasScreen({ navigation, route }) {
               : <Text style={estilos.botaoAprovarTudoTexto}>
                   {bloqueadasLote.length > 0
                     ? `Aprovar em lote (${aprovaveisPorLote.length} de ${itensDaEtapa.length})`
-                    : papelUsuario === 'admin'
-                      ? `Aprovar (ADM) — 1ª etapa (${itensDaEtapa.length})`
-                      : `Aprovar (Gestor) — 2ª etapa (${itensDaEtapa.length})`
+                    : `Aprovar em lote — ${ETAPA_LOTE} (${itensDaEtapa.length})`
                   }
                 </Text>
             }
@@ -592,7 +607,7 @@ export default function DivergenciasScreen({ navigation, route }) {
 
       {/* Concluir sessao — aparece quando nao ha pendentes e a sessao ainda nao foi concluida
           (backend so aceita /concluir com status 'aguardando_aprovacao') */}
-      {pendentes === 0 && !isReadOnly && !sessaoConcluida && (
+      {pendentes === 0 && !isReadOnly && !sessaoConcluida && papelUsuario !== 'lider' && (
         <TouchableOpacity
           style={estilos.botaoConcluir}
           onPress={async () => {
@@ -818,9 +833,9 @@ function TotalizadorFinanceiro({ divergencias, totalPaginas }) {
     return colors.textSecondary;
   }
 
-  // Pendente = qualquer etapa ainda aberta (aguardando ADM ou aguardando Gestor),
+  // Pendente = qualquer etapa ainda aberta (aguardando Lider, ADM ou Gestor),
   // igual ao contador "Pendentes" do topo da tela
-  const pendentes  = divergencias.filter(d => d.status === 'pendente' || d.status === 'aprovada_adm');
+  const pendentes  = divergencias.filter(d => ETAPAS_ABERTAS.includes(d.status));
   const aprovadas  = divergencias.filter(d => d.status === 'aprovada');
   const rejeitadas = divergencias.filter(d => d.status === 'rejeitada');
 

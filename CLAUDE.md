@@ -118,6 +118,13 @@ aprovacao em lote (`POST /sessoes/{id}/aprovar-inventario`) segue a mesma logica
 ADM aprova em lote a 1a etapa, gestor aprova em lote a 2a — a sessao so conclui
 quando nada resta pendente em nenhuma das duas.
 
+**Atualizacao 2026-10-13 — tres etapas:** a pedido do cliente, o **Lider da loja**
+aprova primeiro (precaucao): `pendente` (aguarda Lider) -> `aprovada_lider`
+(aguarda ADM) -> `aprovada_adm` (aguarda Gestor) -> `aprovada`. A etapa do Lider e
+obrigatoria (nem o ADM pula); Lider pode rejeitar; ajuste do ADM depois do Lider
+segue para o Gestor sem voltar ao Lider; Lider ve quantidades e valores. Migration
+`021_aprovacao_lider.py` (colunas `aprovado_lider_por_id/em`).
+
 **Migration:** `018_aprovacao_duas_etapas.py` adiciona colunas em `divergencias`
 (`aprovado_adm_por_id`, `aprovado_adm_em`, `quantidade_final_original`, `ajustado_em`,
 `ajustado_por_id`, `justificativa_ajuste`). E idempotente (usa inspector antes de
