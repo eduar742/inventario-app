@@ -229,14 +229,14 @@ const SECOES = [
         linhas: [
           ['Bipar na 1ª e 2ª contagem', '✓', '✓', '✗', '✗', '✓', '✗'],
           ['Fazer a 3ª contagem (desempate)', '✓', '✗', '✗', '✗', '✗', '✓'],
-          ['Liberar a 2ª contagem', '✗', '✓', '✗', '✗', '✗', '✓'],
+          ['Finalizar a rodada e iniciar a próxima', '✓', '✓', '✗', '✗', '✗', '✓'],
           ['Criar sessão', '✓', '✗', '✗', '✗', '✗', '✗'],
           ['Encerrar sessão', '✓', '✓', '✗', '✗', '✗', '✗'],
           ['Reabrir / cancelar / excluir sessão', '✓', '✗', '✗', '✗', '✗', '✗'],
           ['Acompanhar sessão ao vivo', '✓', '✓', '✓', '✓', '✗', '✓'],
           ['Revisar e aprovar divergências', '✓', '✓', '✗', '✗', '✗', '✗'],
           ['Ajustar quantidade / custo na divergência', '✓', '✗', '✗', '✗', '✗', '✗'],
-          ['Ver quantidades brutas nas divergências', '✓', '✗', '✗', '✗', '✗', '✗'],
+          ['Ver quantidades e valores nas divergências', '✓', '✓', '✗', '✗', '✗', '✗'],
           ['Dashboard e Consolidado', '✓', '✓', '✓', '✓', '✗', '✗'],
           ['Relatório Geral (todas as lojas)', '✓', '✗', '✓', '✓', '✗', '✗'],
           ['Exportar relatório da sessão', '✓', '✓', '✓', '✓', '✗', '✓'],
@@ -251,7 +251,7 @@ const SECOES = [
         titulo: 'Resumo de cada perfil:',
         itens: [
           { botao: 'ADM', quem: 'Administrador do sistema', faz: 'Faz tudo: importa planilhas, cria e gerencia sessões, ajusta e aprova divergências (1ª etapa), cadastra usuários e exporta o audit log.' },
-          { botao: 'Gestor', quem: 'Responsável pela loja', faz: 'Conta produtos, libera a 2ª contagem, encerra sessões e dá a aprovação final (2ª etapa) das divergências da SUA loja. Na aprovação vê apenas o impacto financeiro (R$), não as quantidades.' },
+          { botao: 'Gestor', quem: 'Responsável pela loja', faz: 'Conta produtos, finaliza as rodadas, encerra sessões e dá a aprovação final (2ª etapa) das divergências da SUA loja. Na aprovação vê a diferença real: quantidades (Sistema / Contado / Diferença) e o impacto financeiro (R$).' },
           { botao: 'Gerente', quem: 'Acompanhamento gerencial', faz: 'Enxerga as telas do sistema (Inventário, Dashboard, Consolidado, Relatório Geral, Importar, Usuários, Auditoria) sem executar ações. Não acessa Divergências.' },
           { botao: 'Auditor', quem: 'Auditoria / compliance', faz: 'Somente leitura de dashboards, relatórios e do painel de Auditoria.' },
           { botao: 'Operador', quem: 'Quem conta no depósito', faz: 'Bipa os produtos na 1ª e na 2ª contagem das lojas vinculadas ao seu perfil. Ao entrar, vai direto para a sua loja.' },
@@ -261,7 +261,7 @@ const SECOES = [
       {
         tipo: 'destaque',
         variante: 'importante',
-        texto: 'Inventário cego: o Operador nunca vê o saldo do sistema antes de contar. Na aprovação, só o ADM vê as quantidades brutas (Sistema / Contado / Diferença); o Gestor vê apenas o impacto financeiro. Isso evita que a contagem seja "ajustada" para bater.',
+        texto: 'Inventário cego: quem conta (Operador e Líder) nunca vê o saldo do sistema nem a contagem de outra pessoa. Isso evita que a contagem seja "ajustada" para bater. Na aprovação, ADM e Gestor veem a diferença real — quantidades (Sistema / Contado / Diferença) e valores.',
       },
     ],
   },
@@ -850,7 +850,7 @@ const SECOES = [
             legenda: 'Gestor aguardando o ADM',
           },
           {
-            texto: 'Depois da etapa 1, o Gestor vê o "Resultado Financeiro" e o impacto em R$ de cada item (verde = ganho, vermelho = perda) e toca em "Aprovar definitivamente" ou "Rejeitar".',
+            texto: 'Depois da etapa 1, o Gestor vê o "Resultado Financeiro" e, em cada item, as quantidades (Sistema / Contado / Diferença) e o impacto em R$ (verde = ganho, vermelho = perda), e toca em "Aprovar definitivamente" ou "Rejeitar".',
             imagem: IMG.div12,
             legenda: 'Divergências — visão do Gestor',
           },

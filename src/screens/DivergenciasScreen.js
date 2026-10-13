@@ -40,9 +40,11 @@ export default function DivergenciasScreen({ navigation, route }) {
   // Papeis leitura-somente nao podem aprovar/rejeitar divergencias (defesa extra —
   // a navegacao ja restringe quem chega nesta tela a ADM/Gestor)
   const isReadOnly = !acessoPermitido;
-  // Somente ADM ve quantidades brutas (saldo sistema, contado, diferenca em unidades)
-  // Gestor ve apenas impacto financeiro durante aprovacao — diferencas ficam nos relatorios
-  const escondeQuantidades = papelUsuario !== 'admin';
+  // Desde 13/10/2026 (decisao da diretoria) o Gestor da loja ve na aprovacao a
+  // diferenca real: quantidades (sistema, contado, diferenca) E valores. Antes
+  // via so o impacto financeiro. O inventario cego continua valendo para quem
+  // conta (operador/lider), que nao acessa esta tela.
+  const mostraFinanceiro = papelUsuario === 'gestor';
 
   const [divergencias, setDivergencias] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -213,15 +215,13 @@ export default function DivergenciasScreen({ navigation, route }) {
   }
 
   function _fmtAjuste(div) {
-    if (!escondeQuantidades) {
-      return `${_fmtNum(div.diferenca)} ${div.unidade_medida || ''}`;
-    }
-    if (div.valor_ajuste != null) {
+    const qtd = `${_fmtNum(div.diferenca)} ${div.unidade_medida || ''}`.trim();
+    if (mostraFinanceiro && div.valor_ajuste != null) {
       const sinal = div.valor_ajuste >= 0 ? '+' : '-';
       const abs = Math.abs(div.valor_ajuste).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return `${sinal}R$ ${abs}`;
+      return `${qtd} (${sinal}R$ ${abs})`;
     }
-    return 'ajuste';
+    return qtd;
   }
 
   function handleAprovar(div) {
@@ -265,7 +265,7 @@ export default function DivergenciasScreen({ navigation, route }) {
             <Text style={estilos.sku}>{div.sku}</Text>
             {div.bloqueado_lote && (
               <Text style={estilos.motivoBloqueio}>
-                {escondeQuantidades ? 'Requer aprovacao individual' : div.motivo_bloqueio}
+                {div.motivo_bloqueio}
               </Text>
             )}
           </View>
@@ -276,24 +276,8 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* Numeros — admin ve Sistema/Contado/Diferenca; gestor/gerente/auditor veem somente impacto financeiro */}
-        {escondeQuantidades ? (
-          // Gestor nao ve quantidades, saldos nem contagens — apenas o ajuste financeiro
-          <View style={estilos.ajusteFinRow}>
-            <Text style={estilos.ajusteFinLabel}>Impacto financeiro</Text>
-            <Text style={[estilos.ajusteFinValor, {
-              color: div.valor_ajuste == null ? colors.textSecondary
-                     : div.valor_ajuste > 0   ? colors.success
-                     : div.valor_ajuste < 0   ? colors.danger
-                     : colors.text,
-            }]}>
-              {div.valor_ajuste != null
-                ? (div.valor_ajuste >= 0 ? '+' : '-') + 'R$ ' +
-                  Math.abs(div.valor_ajuste).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                : 'Sem custo cadastrado'}
-            </Text>
-          </View>
-        ) : (
+        {/* Numeros — ADM e Gestor veem Sistema/Contado/Diferenca */}
+        {(
           <View style={estilos.numerosRow}>
             <View style={estilos.numero}>
               <Text style={estilos.numeroValor}>{_fmtNum(div.quantidade_sistema)}</Text>
@@ -316,8 +300,26 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Parcelas por localização — apenas ADM ve (evita expor quantidades contadas) */}
-        {!escondeQuantidades && div.parcelas && div.parcelas.length > 1 && (
+        {/* Gestor: alem das quantidades, o valor do ajuste em R$ */}
+        {mostraFinanceiro && (
+          <View style={estilos.ajusteFinRow}>
+            <Text style={estilos.ajusteFinLabel}>Impacto financeiro</Text>
+            <Text style={[estilos.ajusteFinValor, {
+              color: div.valor_ajuste == null ? colors.textSecondary
+                     : div.valor_ajuste > 0   ? colors.success
+                     : div.valor_ajuste < 0   ? colors.danger
+                     : colors.text,
+            }]}>
+              {div.valor_ajuste != null
+                ? (div.valor_ajuste >= 0 ? '+' : '-') + 'R$ ' +
+                  Math.abs(div.valor_ajuste).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : 'Sem custo cadastrado'}
+            </Text>
+          </View>
+        )}
+
+        {/* Parcelas por localização */}
+        {div.parcelas && div.parcelas.length > 1 && (
           <View style={estilos.parcelasBox}>
             <Text style={estilos.parcelasTitulo}>Parcelas por localização:</Text>
             <View style={estilos.parcelasLinha}>
@@ -343,9 +345,8 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Alerta do motor (ex: SKU tambem tem saldo em Quarentena). So o ADM:
-            o texto traz quantidades e o Gestor aprova as cegas. */}
-        {!escondeQuantidades && !!div.observacoes && div.observacoes.startsWith('Atencao') && (
+        {/* Alerta do motor (ex: SKU tambem tem saldo em Quarentena) */}
+        {!!div.observacoes && div.observacoes.startsWith('Atencao') && (
           <View style={estilos.alertaMotorBox}>
             <Text style={estilos.alertaMotorTxt}>⚠️ {div.observacoes}</Text>
           </View>
@@ -355,12 +356,10 @@ export default function DivergenciasScreen({ navigation, route }) {
         {div.quantidade_final_original != null && (
           <View style={estilos.ajusteBox}>
             <Text style={estilos.ajusteTitulo}>Quantidade ajustada pelo ADM</Text>
-            {!escondeQuantidades && (
-              <Text style={estilos.ajusteValores}>
-                {parseFloat(div.quantidade_final_original).toFixed(0)} → {parseFloat(div.quantidade_final).toFixed(0)} {div.unidade_medida || ''}
-                {div.ajustado_por_nome ? ` · ${div.ajustado_por_nome}` : ''}
-              </Text>
-            )}
+            <Text style={estilos.ajusteValores}>
+              {parseFloat(div.quantidade_final_original).toFixed(0)} → {parseFloat(div.quantidade_final).toFixed(0)} {div.unidade_medida || ''}
+              {div.ajustado_por_nome ? ` · ${div.ajustado_por_nome}` : ''}
+            </Text>
             {!!div.justificativa_ajuste && (
               <Text style={estilos.ajusteJustificativa}>"{div.justificativa_ajuste}"</Text>
             )}
@@ -536,8 +535,8 @@ export default function DivergenciasScreen({ navigation, route }) {
         <ResumoItem valor={rejeitadas}          rotulo="Rejeitadas" cor={colors.danger} />
       </View>
 
-      {/* Totalizador financeiro — visivel somente para gestor/gerente/auditor */}
-      {escondeQuantidades && divergencias.length > 0 && (
+      {/* Totalizador financeiro — Gestor */}
+      {mostraFinanceiro && divergencias.length > 0 && (
         <TotalizadorFinanceiro divergencias={divergencias} totalPaginas={totalPaginas} />
       )}
 
@@ -802,7 +801,7 @@ function ResumoItem({ valor, rotulo, cor }) {
   );
 }
 
-// Totalizador financeiro — somente para gestor/gerente/auditor (escondeQuantidades)
+// Totalizador financeiro — Gestor (mostraFinanceiro)
 function TotalizadorFinanceiro({ divergencias, totalPaginas }) {
   function calcTotal(itens) {
     return itens.reduce((sum, d) => sum + (parseFloat(d.valor_ajuste) || 0), 0);

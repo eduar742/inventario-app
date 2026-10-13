@@ -520,15 +520,14 @@ export default function SessoesScreen({ navigation, route }) {
                   <Text style={[estilos.botaoCardAcaoTexto, { color: colors.warning }]}>Divergencias</Text>
                 </TouchableOpacity>
               )}
-              {/* Historico exibe contagens — gestor nao tem acesso a quantidades */}
-              {papel !== 'gestor' && (
-                <TouchableOpacity
-                  style={[estilos.botaoCardAcao, { backgroundColor: colors.infoSoft }]}
-                  onPress={() => navigation.navigate('HistoricoContagens', { sessao: item, loja })}
-                >
-                  <Text style={[estilos.botaoCardAcaoTexto, { color: colors.info }]}>Historico</Text>
-                </TouchableOpacity>
-              )}
+              {/* Historico exibe contagens — desde 13/10/2026 o Gestor tambem ve
+                  quantidades (decisao da diretoria) */}
+              <TouchableOpacity
+                style={[estilos.botaoCardAcao, { backgroundColor: colors.infoSoft }]}
+                onPress={() => navigation.navigate('HistoricoContagens', { sessao: item, loja })}
+              >
+                <Text style={[estilos.botaoCardAcaoTexto, { color: colors.info }]}>Historico</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[estilos.botaoCardAcao, { backgroundColor: colors.successSoft }]}
                 onPress={() => navigation.navigate('ExportarRelatorio', { sessao: item, loja })}

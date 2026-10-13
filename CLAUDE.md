@@ -65,6 +65,11 @@ Quando uma contagem diverge do sistema, o fluxo e:
 
 **Onde foi implementado:** `src/screens/ContagemScreen.js` no app mobile.
 
+**Atualizacao 2026-10-13 (decisao da diretoria):** o cego vale para quem CONTA
+(operador e lider) — a API tambem nao envia a eles saldo nem contagens de outros.
+O **Gestor da loja**, na aprovacao de divergencias, ve a diferenca real:
+quantidades (Sistema / Contado / Diferenca) e valores em R$. Nao reverter.
+
 ### Decisao 3: Contagens Parciais com Soma (ROADMAP - nao implementado ainda)
 
 **Cenario:** mesmo SKU pode estar em multiplas localizacoes do deposito (sem WMS).
