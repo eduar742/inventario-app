@@ -306,7 +306,9 @@ export default function DivergenciasScreen({ navigation, route }) {
         {div.oculto_recontagem && (
           <View style={estilos.avisoEtapa}>
             <Text style={estilos.avisoEtapaTexto}>
-              Quantidades ocultas: voce fara a 4ª contagem deste item.
+              {div.contado_4a
+                ? '✓ Contado na 4ª contagem (quantidade oculta). Finalize quando todos estiverem contados.'
+                : 'Quantidades ocultas: voce fara a 4ª contagem deste item.'}
             </Text>
           </View>
         )}
@@ -527,9 +529,17 @@ export default function DivergenciasScreen({ navigation, route }) {
   }
 
   function handleFinalizarRecontagem() {
+    const semBipagem = emRecontagem.filter(d => !d.contado_4a).length;
     confirmarAlerta(
-      'Finalizar 4ª contagem',
-      'Vale a 4ª contagem de cada item; o que nao foi bipado entra como 0 (nao encontrado). Os itens voltam para a aprovacao do ADM. Continuar?',
+      'Finalizar 4ª contagem (todos os itens)',
+      (semBipagem > 0
+        ? `ATENCAO: ${semBipagem} de ${emRecontagem.length} item(ns) ainda NAO foram bipados e entrarao como 0 (nao encontrado).
+
+`
+        : `Todos os ${emRecontagem.length} item(ns) foram bipados.
+
+`) +
+      'Vale a 4ª contagem de cada item e eles voltam para a aprovacao do ADM. Continuar?',
     ).then(async ok => {
       if (!ok) return;
       setFinalizandoRecontagem(true);
@@ -636,7 +646,9 @@ export default function DivergenciasScreen({ navigation, route }) {
             >
               {finalizandoRecontagem
                 ? <ActivityIndicator size="small" color={colors.primary} />
-                : <Text style={estilos.botaoAjustarQtdTexto}>Finalizar 4ª contagem</Text>}
+                : <Text style={estilos.botaoAjustarQtdTexto}>
+                    Finalizar 4ª contagem — todos ({emRecontagem.filter(d => d.contado_4a).length} de {emRecontagem.length} contados)
+                  </Text>}
             </TouchableOpacity>
           )}
         </View>

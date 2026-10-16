@@ -24,6 +24,7 @@ import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { limparCodigoQr } from '../utils/qrCode';
+import { confirmar as confirmarAlerta } from '../utils/alertas';
 import {
   entrarSessao, heartbeatSessao, sairSessao, buscarSessao,
   listarPendentes, listarRecontagemNecessaria,
@@ -229,8 +230,27 @@ export default function ScannerScreen({ navigation, route }) {
   // ja registrada no servidor antes de uma recarga da pagina
   const temBipagens = contagens.length > 0 || (usaServidor && bipadosRodada > 0);
 
-  function handleFinalizar() {
+  function irParaResumo() {
     navigation.navigate('Resumo', { contagens, sessao, loja, rodada, contadosServidor: usaServidor ? bipadosRodada : 0 });
+  }
+
+  function handleFinalizar() {
+    // 4a contagem: "Finalizar" fecha a recontagem de TODOS os itens (o que nao
+    // foi bipado vira 0). Em L03 (16/10/2026) a Lider tocou depois do 1o item,
+    // achando que confirmava so aquele produto, e o resto entrou como 0.
+    if (rodada === 4) {
+      const faltam = pendentesRestantes.length;
+      const msg = faltam > 0
+        ? `ATENCAO: ainda faltam ${faltam} item(ns) sem bipagem.
+
+Ao finalizar, a 4a contagem fecha para TODOS os itens e os que nao foram bipados entram como 0 (nao encontrado).
+
+Para continuar contando, toque em Cancelar e bipe o proximo item.`
+        : 'Todos os itens foram bipados. Finalizar a 4a contagem e enviar para o ADM?';
+      confirmarAlerta('Finalizar 4a contagem (todos os itens)', msg).then(ok => { if (ok) irParaResumo(); });
+      return;
+    }
+    irParaResumo();
   }
 
   // Calcula total ja acumulado para um QR code especifico
@@ -456,7 +476,7 @@ export default function ScannerScreen({ navigation, route }) {
 
               <TouchableOpacity style={estilos.botaoFinalizar} onPress={handleFinalizar}>
                 <Text style={estilos.botaoFinalizarTexto}>
-                  Finalizar {ORDINAL[rodada] || `${rodada}ª`}
+                  {rodada === 4 ? 'Finalizar 4ª (todos os itens)' : `Finalizar ${ORDINAL[rodada] || `${rodada}ª`}`}
                 </Text>
               </TouchableOpacity>
             </View>
