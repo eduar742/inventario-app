@@ -60,7 +60,7 @@ export default function FinalizarRodadaCard({ sessaoId, rodadaAtual, itensSemCon
       <Text style={estilos.texto}>
         {ORDINAL[rodada]} contagem em andamento.
         {itensSemContagem > 0
-          ? ` ${itensSemContagem} item(ns) ainda sem contagem nesta rodada.`
+          ? ` ${itensSemContagem} item(ns) ainda sem contagem nesta rodada. Se nao ha mais nada para bipar, pode finalizar: eles entram como 0 (nao encontrado).`
           : ' Todos os itens desta rodada ja foram contados.'}
       </Text>
       <Button

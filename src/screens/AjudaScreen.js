@@ -722,6 +722,7 @@ const SECOES = [
           'O botão muda conforme a rodada: "Finalizar 1ª contagem e iniciar a 2ª", "Finalizar 2ª contagem e iniciar a 3ª" e "Finalizar 3ª contagem e encerrar".',
           'Itens que ninguém bipou na rodada entram como 0 (não encontrado) — é assim que se resolve um item que está na planilha mas não existe no físico. O 0 da 1ª diverge do sistema e vai para a 2ª, onde outro operador procura de novo; se a 2ª também der 0, fica confirmado como falta.',
           'Todos os operadores precisam ter saído do scanner. Se alguém ainda estiver nele, o sistema mostra o nome de quem falta sair.',
+          'Sem mais nada para bipar e ainda com pendências? No próprio scanner, Líder, Gestor ou ADM tocam em "Nao ha mais nada para bipar — finalizar": a rodada (ou a 4ª contagem) fecha ali mesmo e os itens restantes entram como 0 (não encontrado).',
           'A 3ª contagem (desempate) só começa depois que a 2ª for finalizada. Se não sobrar nada para recontar, a sessão já é encerrada.',
           {
             texto: 'O quadro fica no topo de "Ver itens pendentes" (a imagem mostra a versão anterior, com o botão "Liberar 2ª contagem").',

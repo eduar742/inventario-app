@@ -17,6 +17,7 @@ import {
   Platform,
   ScrollView,
   AppState,
+  ActivityIndicator,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -24,10 +25,11 @@ import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import Button from '../components/Button';
 import { limparCodigoQr } from '../utils/qrCode';
-import { confirmar as confirmarAlerta } from '../utils/alertas';
+import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 import {
   entrarSessao, heartbeatSessao, sairSessao, buscarSessao,
   listarPendentes, listarRecontagemNecessaria,
+  pegarUsuario, finalizarRodada, finalizarRecontagem,
 } from '../services/api';
 
 // Chave de comparacao de codigos (etiqueta bipada x codigo/sku do produto)
@@ -56,6 +58,9 @@ export default function ScannerScreen({ navigation, route }) {
 
   const [permissao, solicitarPermissao] = useCameraPermissions();
   const [escaneado, setEscaneado] = useState(false);
+  const [papel, setPapel] = useState(null);
+  const [fechando, setFechando] = useState(false);
+  useEffect(() => { pegarUsuario().then(u => setPapel(u?.papel || null)).catch(() => {}); }, []);
   const [flash, setFlash] = useState(false);
   const ultimoCodigoRef = useRef(null);
   // Ate quando o ultimo codigo fica bloqueado (Infinity enquanto a Contagem
@@ -245,12 +250,61 @@ export default function ScannerScreen({ navigation, route }) {
 
 Ao finalizar, a 4a contagem fecha para TODOS os itens e os que nao foram bipados entram como 0 (nao encontrado).
 
-Para continuar contando, toque em Cancelar e bipe o proximo item.`
+Se ainda vai bipar, toque em Cancelar. Se nao ha mais nada para bipar, confirme.`
         : 'Todos os itens foram bipados. Finalizar a 4a contagem e enviar para o ADM?';
+      // (sem nada mais para bipar, use "Nao ha mais nada para bipar")
       confirmarAlerta('Finalizar 4a contagem (todos os itens)', msg).then(ok => { if (ok) irParaResumo(); });
       return;
     }
     irParaResumo();
+  }
+
+  // "Nao ha mais nada para bipar": Lider/Gestor/ADM fecham a rodada (ou a 4a
+  // contagem) daqui mesmo, sem precisar de bipagem — o que sobrou entra como
+  // 0 "nao encontrado" (pedido do cliente, 16/10/2026). Antes o botao de
+  // finalizar so aparecia depois da 1a bipagem.
+  const podeFecharSemBipar = rodada === 4
+    ? papel === 'lider' || papel === 'admin'
+    : ['lider', 'gestor', 'admin'].includes(papel);
+  const faltamNaRodada = temListaRodada
+    ? pendentesRestantes.length
+    : Math.max(totalRodada - bipadosRodada, 0);
+
+  function handleNadaMaisParaBipar() {
+    const titulo = rodada === 4
+      ? 'Finalizar 4a contagem'
+      : rodada >= 3 ? 'Finalizar 3a contagem e encerrar' : `Finalizar ${ORDINAL[rodada]} contagem`;
+    const msg =
+      `Nao ha mais nada para bipar?\n\nOs ${faltamNaRodada} item(ns) restante(s) entram como 0 (nao encontrado)` +
+      (rodada === 4
+        ? ' e os itens voltam para a aprovacao do ADM.'
+        : rodada >= 3
+          ? ' e a sessao e encerrada (divergencias seguem para aprovacao).'
+          : ` e a ${ORDINAL[rodada + 1]} contagem comeca.`) +
+      '\n\nTodos os outros operadores precisam ter saido do Scanner.';
+    confirmarAlerta(titulo, msg).then(async ok => {
+      if (!ok) return;
+      setFechando(true);
+      try {
+        if (rodada === 4) {
+          const r = await finalizarRecontagem(sessao.id);
+          avisar('4a contagem finalizada', r.mensagem || 'Itens enviados para o ADM.');
+          navigation.popTo('Divergencias', { sessao, loja });
+        } else {
+          const r = await finalizarRodada(sessao.id);
+          const zerados = r.itens_zerados ? ` ${r.itens_zerados} item(ns) registrados como 0.` : '';
+          avisar(
+            r.sessao_encerrada ? 'Sessao encerrada' : `${ORDINAL[r.proxima_rodada]} contagem iniciada`,
+            (r.sessao_encerrada ? 'Contagens finalizadas e enviadas para aprovacao.' : `${r.itens_proxima_rodada} item(ns) para a proxima contagem.`) + zerados,
+          );
+          navigation.popTo('Sessoes', { loja });
+        }
+      } catch (err) {
+        avisar('Nao foi possivel finalizar', err.message || 'Tente novamente.');
+      } finally {
+        setFechando(false);
+      }
+    });
   }
 
   // Calcula total ja acumulado para um QR code especifico
@@ -480,6 +534,19 @@ Para continuar contando, toque em Cancelar e bipe o proximo item.`
                 </Text>
               </TouchableOpacity>
             </View>
+          )}
+          {podeFecharSemBipar && faltamNaRodada > 0 && (
+            <TouchableOpacity
+              style={estilos.botaoNadaMais}
+              onPress={handleNadaMaisParaBipar}
+              disabled={fechando}
+            >
+              {fechando
+                ? <ActivityIndicator size="small" color={colors.white} />
+                : <Text style={estilos.botaoNadaMaisTexto}>
+                    Nao ha mais nada para bipar — finalizar ({faltamNaRodada} restante{faltamNaRodada > 1 ? 's' : ''} = 0)
+                  </Text>}
+            </TouchableOpacity>
           )}
           <TouchableOpacity
             style={estilos.botaoManual}
@@ -910,6 +977,22 @@ const estilos = StyleSheet.create({
   botaoManual: {
     padding: 16,
     alignItems: 'center',
+  },
+  botaoNadaMais: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.white,
+    alignItems: 'center',
+  },
+  botaoNadaMaisTexto: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   botaoManualTexto: {
     color: colors.white,
