@@ -14,13 +14,14 @@ import CardsAcuracidadeSessao from '../components/CardsAcuracidadeSessao';
 import FinalizarRodadaCard from '../components/FinalizarRodadaCard';
 import {
   processarRodada,
+  finalizarRecontagem,
   pegarUsuario,
   buscarPerfilAtual,
   buscarResumoSessao,
 } from '../services/api';
 import { avisar } from '../utils/alertas';
 
-const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
+const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª', 4: '4ª' };
 
 export default function ResumoScreen({ navigation, route }) {
   const { contagens, sessao, loja } = route.params;
@@ -79,6 +80,20 @@ export default function ResumoScreen({ navigation, route }) {
     // ao backend o processamento da rodada.
     // Prefere o numero do servidor (sobrevive a recarga da pagina)
     setTotalSalvos(contadosServidor > 0 ? contadosServidor : contagens.length);
+
+    // 4a contagem (itens rejeitados na aprovacao, feita pelo Lider): finaliza
+    // a recontagem e volta para a tela de Divergencias
+    if (rodada === 4) {
+      try {
+        const r = await finalizarRecontagem(sessao.id);
+        avisar('4ª contagem finalizada', r.mensagem || 'Itens enviados para a aprovacao do ADM.');
+        navigation.popTo('Divergencias', { sessao, loja });
+      } catch (err) {
+        setErroGeral(err.message || 'Nao foi possivel finalizar a 4ª contagem.');
+      }
+      setProcessando(false);
+      return;
+    }
 
     // Solicita ao backend o processamento da rodada: calcula totais, detecta pendentes
     try {

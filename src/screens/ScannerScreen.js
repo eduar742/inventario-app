@@ -33,7 +33,7 @@ import {
 const chaveCodigo = (c) => String(c || '').trim().toUpperCase();
 
 // Sufixos de ordinal feminino (contagem)
-const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
+const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª', 4: '4ª' };
 
 // Intervalo do heartbeat de presenca — por tempo, nao por acao do operador,
 // entao continua rodando igual mesmo se ele demorar preenchendo um item na
@@ -109,7 +109,9 @@ export default function ScannerScreen({ navigation, route }) {
   const [pendentesServidor, setPendentesServidor] = useState(null);
 
   const atualizarPendentes = useCallback(async () => {
-    if (itensPendentes.length === 0) return;
+    // 4a contagem (itens rejeitados na aprovacao): a lista vem da tela de
+    // Divergencias e sai item a item pelo que este celular bipou
+    if (itensPendentes.length === 0 || rodada >= 4) return;
     try {
       let itens;
       if (rodada === 1) {

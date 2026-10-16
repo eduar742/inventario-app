@@ -2,7 +2,8 @@
 // Aprovacao em 3 etapas (13/10/2026): Lider da loja -> ADM -> Gestor da loja.
 // Cada um aprova ou rejeita na sua etapa.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, FlatList, SafeAreaView,
   ActivityIndicator, RefreshControl, TouchableOpacity,
@@ -10,7 +11,7 @@ import {
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia, atualizarInfoProduto, ajustarDivergencia } from '../services/api';
+import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia, atualizarInfoProduto, ajustarDivergencia, finalizarRecontagem } from '../services/api';
 import Paginacao from '../components/Paginacao';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
@@ -18,6 +19,7 @@ const STATUS_COR = {
   pendente:       { bg: colors.warningSoft, txt: colors.warning },
   aprovada_lider: { bg: colors.infoSoft,    txt: colors.info    },
   aprovada_adm:   { bg: colors.infoSoft,    txt: colors.info    },
+  recontagem:     { bg: colors.warningSoft, txt: colors.warning },
   aprovada:     { bg: colors.successSoft, txt: colors.success },
   rejeitada:    { bg: colors.dangerSoft,  txt: colors.danger  },
 };
@@ -26,12 +28,16 @@ const STATUS_ROTULO = {
   pendente:       'AGUARDANDO LÍDER',
   aprovada_lider: 'AGUARDANDO ADM',
   aprovada_adm:   'AGUARDANDO GESTOR',
+  recontagem:     'AGUARDANDO 4ª CONTAGEM',
   aprovada:     'APROVADA',
   rejeitada:    'REJEITADA',
 };
 
 // Aprovacao em 3 etapas: quem aprova e quem rejeita em cada status aberto
 const ETAPAS_ABERTAS = ['pendente', 'aprovada_lider', 'aprovada_adm'];
+// Item rejeitado aguardando a 4a contagem do Lider (16/10/2026) — tambem
+// conta como pendente (a sessao nao conclui enquanto houver)
+const AINDA_ABERTAS = [...ETAPAS_ABERTAS, 'recontagem'];
 const ETAPA = {
   pendente:       { quem: 'Líder', aprova: ['lider'],           rejeita: ['lider', 'admin'],  botao: 'Aprovar (Líder)' },
   aprovada_lider: { quem: 'ADM',   aprova: ['admin'],           rejeita: ['admin'],           botao: 'Aprovar (ADM)' },
@@ -99,6 +105,13 @@ export default function DivergenciasScreen({ navigation, route }) {
     }
     carregarPapel();
   }, []);
+
+  // Recarrega ao voltar (ex: do Scanner da 4a contagem — popTo nao remonta)
+  const jaFocouRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (jaFocouRef.current) carregar();
+    jaFocouRef.current = true;
+  }, []));
 
   async function carregar(p = pagina) {
     try {
@@ -245,7 +258,9 @@ export default function DivergenciasScreen({ navigation, route }) {
   function handleRejeitar(div) {
     confirmarAlerta(
       'Rejeitar divergencia',
-      `Rejeitar ajuste para "${div.descricao_produto}"? O saldo do sistema sera mantido.`,
+      div.recontagem_em
+        ? `Rejeitar "${div.descricao_produto}" de forma DEFINITIVA? A 4a contagem ja foi feita; o saldo do sistema sera mantido.`
+        : `Rejeitar "${div.descricao_produto}"? O item volta para uma 4a contagem, feita pelo Lider, e depois retorna para aprovacao.`,
     ).then(ok => { if (ok) executarRejeitar(div); });
   }
 
@@ -287,8 +302,22 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* Numeros — ADM e Gestor veem Sistema/Contado/Diferenca */}
-        {(
+        {/* Item em 4a contagem: o Lider vai recontar, entao nao ve os numeros */}
+        {div.oculto_recontagem && (
+          <View style={estilos.avisoEtapa}>
+            <Text style={estilos.avisoEtapaTexto}>
+              Quantidades ocultas: voce fara a 4ª contagem deste item.
+            </Text>
+          </View>
+        )}
+        {div.status === 'recontagem' && !div.oculto_recontagem && (
+          <View style={estilos.avisoEtapa}>
+            <Text style={estilos.avisoEtapaTexto}>Rejeitada — aguardando a 4ª contagem do Líder.</Text>
+          </View>
+        )}
+
+        {/* Numeros — Lider, ADM e Gestor veem Sistema/Contado/Diferenca */}
+        {!div.oculto_recontagem && (
           <View style={estilos.numerosRow}>
             <View style={estilos.numero}>
               <Text style={estilos.numeroValor}>{_fmtNum(div.quantidade_sistema)}</Text>
@@ -311,8 +340,8 @@ export default function DivergenciasScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Gestor: alem das quantidades, o valor do ajuste em R$ */}
-        {mostraFinanceiro && (
+        {/* Gestor/Lider: alem das quantidades, o valor do ajuste em R$ */}
+        {mostraFinanceiro && !div.oculto_recontagem && (
           <View style={estilos.ajusteFinRow}>
             <Text style={estilos.ajusteFinLabel}>Impacto financeiro</Text>
             <Text style={[estilos.ajusteFinValor, {
@@ -478,7 +507,43 @@ export default function DivergenciasScreen({ navigation, route }) {
   const [concluindo, setConcluindo] = useState(false);
   const [aprovandoTudo, setAprovandoTudo] = useState(false);
   // "Pendentes" = ainda nao resolvidas em nenhuma das tres etapas
-  const pendentes  = divergencias.filter(d => ETAPAS_ABERTAS.includes(d.status)).length;
+  const pendentes  = divergencias.filter(d => AINDA_ABERTAS.includes(d.status)).length;
+  // Itens rejeitados aguardando a 4a contagem (o Lider reconta pelo Scanner)
+  const emRecontagem = divergencias.filter(d => d.status === 'recontagem');
+  const [finalizandoRecontagem, setFinalizandoRecontagem] = useState(false);
+
+  function iniciarRecontagem() {
+    navigation.navigate('Scanner', {
+      sessao,
+      loja,
+      rodada: 4,
+      itensPendentes: emRecontagem.map(d => ({
+        codigoQr: d.codigo_qr,
+        sku: d.sku,
+        descricao: d.descricao_produto,
+        unidadeMedida: d.unidade_medida,
+      })),
+    });
+  }
+
+  function handleFinalizarRecontagem() {
+    confirmarAlerta(
+      'Finalizar 4ª contagem',
+      'Vale a 4ª contagem de cada item; o que nao foi bipado entra como 0 (nao encontrado). Os itens voltam para a aprovacao do ADM. Continuar?',
+    ).then(async ok => {
+      if (!ok) return;
+      setFinalizandoRecontagem(true);
+      try {
+        const r = await finalizarRecontagem(sessao.id);
+        avisar('4ª contagem finalizada', r.mensagem || 'Itens enviados para o ADM.');
+        carregar(pagina);
+      } catch (err) {
+        avisar('Nao foi possivel finalizar', err.message || 'Tente novamente.');
+      } finally {
+        setFinalizandoRecontagem(false);
+      }
+    });
+  }
   const aprovadas  = divergencias.filter(d => d.status === 'aprovada').length;
   const rejeitadas = divergencias.filter(d => d.status === 'rejeitada').length;
 
@@ -551,6 +616,31 @@ export default function DivergenciasScreen({ navigation, route }) {
         <ResumoItem valor={aprovadas}           rotulo="Aprovadas" cor={colors.success} />
         <ResumoItem valor={rejeitadas}          rotulo="Rejeitadas" cor={colors.danger} />
       </View>
+
+      {/* 4a contagem: itens rejeitados aguardando o Lider recontar */}
+      {emRecontagem.length > 0 && !sessaoConcluida && (
+        <View style={estilos.alertaLote}>
+          <Text style={estilos.alertaLoteTxt}>
+            {emRecontagem.length} item(ns) rejeitado(s) aguardando a 4ª contagem do Líder.
+          </Text>
+          {papelUsuario === 'lider' && (
+            <TouchableOpacity style={[estilos.botaoAprovarTudo, { marginTop: spacing.sm }]} onPress={iniciarRecontagem}>
+              <Text style={estilos.botaoAprovarTudoTexto}>Fazer 4ª contagem ({emRecontagem.length})</Text>
+            </TouchableOpacity>
+          )}
+          {(papelUsuario === 'lider' || papelUsuario === 'admin') && (
+            <TouchableOpacity
+              style={[estilos.botaoAjustarQtd, { marginTop: spacing.sm, alignSelf: 'stretch', alignItems: 'center' }]}
+              onPress={handleFinalizarRecontagem}
+              disabled={finalizandoRecontagem}
+            >
+              {finalizandoRecontagem
+                ? <ActivityIndicator size="small" color={colors.primary} />
+                : <Text style={estilos.botaoAjustarQtdTexto}>Finalizar 4ª contagem</Text>}
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* Totalizador financeiro — Gestor */}
       {mostraFinanceiro && divergencias.length > 0 && (
@@ -835,7 +925,7 @@ function TotalizadorFinanceiro({ divergencias, totalPaginas }) {
 
   // Pendente = qualquer etapa ainda aberta (aguardando Lider, ADM ou Gestor),
   // igual ao contador "Pendentes" do topo da tela
-  const pendentes  = divergencias.filter(d => ETAPAS_ABERTAS.includes(d.status));
+  const pendentes  = divergencias.filter(d => AINDA_ABERTAS.includes(d.status));
   const aprovadas  = divergencias.filter(d => d.status === 'aprovada');
   const rejeitadas = divergencias.filter(d => d.status === 'rejeitada');
 

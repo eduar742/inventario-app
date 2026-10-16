@@ -125,6 +125,13 @@ obrigatoria (nem o ADM pula); Lider pode rejeitar; ajuste do ADM depois do Lider
 segue para o Gestor sem voltar ao Lider; Lider ve quantidades e valores. Migration
 `021_aprovacao_lider.py` (colunas `aprovado_lider_por_id/em`).
 
+**Atualizacao 2026-10-16 — 4a contagem:** rejeitar (qualquer etapa) NAO encerra o
+item: vai para `recontagem`; o **Lider** reconta (rodada 4, sessao ainda
+`aguardando_aprovacao`, quantidades ocultas para ele), **vale a 4a contagem** e o
+item volta para o ADM (`aprovada_lider`). Uma 2a rejeicao, depois da 4a, e
+definitiva (`rejeitada`, saldo mantido). Endpoint `POST /sessoes/{id}/finalizar-recontagem`;
+migration `022_recontagem_rejeitada.py` (`recontagem_em/por_id`).
+
 **Migration:** `018_aprovacao_duas_etapas.py` adiciona colunas em `divergencias`
 (`aprovado_adm_por_id`, `aprovado_adm_em`, `quantidade_final_original`, `ajustado_em`,
 `ajustado_por_id`, `justificativa_ajuste`). E idempotente (usa inspector antes de

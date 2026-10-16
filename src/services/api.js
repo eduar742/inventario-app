@@ -608,6 +608,12 @@ export async function finalizarRodada(sessaoId) {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/finalizar-rodada`, { method: 'POST' });
 }
 
+// Lider finaliza a 4a contagem dos itens rejeitados na aprovacao: vale a 4a,
+// item sem bipagem vira 0 e os itens voltam para o ADM.
+export async function finalizarRecontagem(sessaoId) {
+  return await chamarAPI(`/api/v1/sessoes/${sessaoId}/finalizar-recontagem`, { method: 'POST' });
+}
+
 // Distribuicao de SKUs por natureza para uma loja/mes — usado na criacao de sessao
 export async function listarEstoqueNaturezas(lojaId, mesReferencia) {
   return await chamarAPI(
