@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia, atualizarInfoProduto, ajustarDivergencia, finalizarRecontagem } from '../services/api';
+import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia, atualizarInfoProduto, ajustarDivergencia, corrigirDivergenciaAprovada, finalizarRecontagem } from '../services/api';
 import Paginacao from '../components/Paginacao';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
@@ -224,9 +224,23 @@ export default function DivergenciasScreen({ navigation, route }) {
       avisar('Justificativa obrigatoria', 'Descreva o motivo do ajuste (minimo 5 caracteres).');
       return;
     }
+    // Divergencia ja aprovada: correcao pos-aprovacao (o mesmo modal, outra rota)
+    const posAprovacao = modalAjuste.status === 'aprovada';
+    if (posAprovacao) {
+      const ok = await confirmarAlerta(
+        'Corrigir divergencia aprovada',
+        `Alterar "${modalAjuste.descricao_produto || modalAjuste.sku}" de ` +
+        `${parseFloat(modalAjuste.quantidade_final)} para ${quantidade}?\n\n` +
+        'A aprovacao e mantida e a correcao entra no resumo, no dashboard e nos relatorios. ' +
+        'O estoque NAO e alterado: se o ajuste anterior ja foi lancado no ERP, corrija la tambem.',
+      );
+      if (!ok) return;
+    }
     setSalvandoAjuste(true);
     try {
-      const atualizado = await ajustarDivergencia(modalAjuste.id, quantidade, justificativaAjusteInput.trim());
+      const atualizado = posAprovacao
+        ? await corrigirDivergenciaAprovada(modalAjuste.id, quantidade, justificativaAjusteInput.trim())
+        : await ajustarDivergencia(modalAjuste.id, quantidade, justificativaAjusteInput.trim());
       setDivergencias(prev =>
         prev.map(d => d.id === modalAjuste.id ? { ...d, ...atualizado } : d)
       );
@@ -444,6 +458,17 @@ export default function DivergenciasScreen({ navigation, route }) {
             onPress={() => abrirModalAjuste(div)}
           >
             <Text style={estilos.botaoAjustarQtdTexto}>Alterar quantidade (ADM)</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Depois da aprovacao final: ADM corrige erro (ex: 4a contagem
+            finalizada sem bipar = 0 automatico), com justificativa */}
+        {div.status === 'aprovada' && papelUsuario === 'admin' && (
+          <TouchableOpacity
+            style={estilos.botaoAjustarQtd}
+            onPress={() => abrirModalAjuste(div)}
+          >
+            <Text style={estilos.botaoAjustarQtdTexto}>Corrigir quantidade aprovada (ADM)</Text>
           </TouchableOpacity>
         )}
 
@@ -829,7 +854,9 @@ export default function DivergenciasScreen({ navigation, route }) {
           style={estilos.modalOverlay}
         >
           <View style={estilos.modalBox}>
-            <Text style={estilos.modalTitulo}>Alterar quantidade contada</Text>
+            <Text style={estilos.modalTitulo}>
+              {modalAjuste?.status === 'aprovada' ? 'Corrigir divergencia aprovada' : 'Alterar quantidade contada'}
+            </Text>
             <Text style={estilos.modalSku}>{modalAjuste?.descricao_produto || modalAjuste?.sku}</Text>
 
             <Text style={[estilos.modalSecaoLabel, { marginTop: spacing.sm }]}>QUANTIDADE FINAL</Text>
@@ -842,7 +869,7 @@ export default function DivergenciasScreen({ navigation, route }) {
               selectTextOnFocus
             />
             <Text style={estilos.modalDica}>
-              Valor contado pelos operadores: {modalAjuste ? parseFloat(modalAjuste.quantidade_final).toFixed(0) : ''} {modalAjuste?.unidade_medida || ''}
+              {modalAjuste?.status === 'aprovada' ? 'Valor aprovado' : 'Valor contado pelos operadores'}: {modalAjuste ? parseFloat(modalAjuste.quantidade_final).toFixed(0) : ''} {modalAjuste?.unidade_medida || ''}
             </Text>
 
             <Text style={estilos.modalSecaoLabel}>JUSTIFICATIVA (OBRIGATORIA)</Text>

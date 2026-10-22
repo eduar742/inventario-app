@@ -383,6 +383,15 @@ export async function ajustarDivergencia(divergenciaId, quantidadeFinal, justifi
   });
 }
 
+// ADM corrige a quantidade final de uma divergencia JA APROVADA
+// (justificativa obrigatoria). Reflete em resumo, dashboard e relatorios.
+export async function corrigirDivergenciaAprovada(divergenciaId, quantidadeFinal, justificativa) {
+  return await chamarAPI(`/api/v1/divergencias/${divergenciaId}/corrigir-aprovada`, {
+    method: 'PATCH',
+    body: JSON.stringify({ quantidade_final: quantidadeFinal, justificativa }),
+  });
+}
+
 export async function atualizarInfoProduto(produtoId, dados) {
   return await chamarAPI(`/api/v1/produtos/${produtoId}`, {
     method: 'PATCH',
