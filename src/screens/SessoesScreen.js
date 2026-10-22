@@ -26,6 +26,17 @@ import Button from '../components/Button';
 import { formatarDataHora } from '../utils/formatadores';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
+// Ultimos n meses em YYYY-MM (filtro de mes das concluidas)
+function mesesRecentes(n = 12) {
+  const arr = [];
+  const hoje = new Date();
+  for (let i = 0; i < n; i++) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    arr.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return arr;
+}
+
 export default function SessoesScreen({ navigation, route }) {
   const { loja } = route.params;
   // filtroInicial permite que outra tela defina a aba inicial (ex: DivergenciasScreen apos aprovar)
@@ -39,6 +50,8 @@ export default function SessoesScreen({ navigation, route }) {
   const [cancelando, setCancelando] = useState(null);
   const [encerrando, setEncerrando] = useState(null);
   const [filtroVisao, setFiltroVisao] = useState(filtroInicial);
+  // Concluidas: mes do inventario (mes de referencia); null = todos os meses
+  const [filtroMes, setFiltroMes] = useState(null);
   const [modalNota, setModalNota] = useState(null); // sessao selecionada para nota
   const [novaNotaInput, setNovaNotaInput] = useState('');
   const [salvandoNota, setSalvandoNota] = useState(false);
@@ -48,7 +61,7 @@ export default function SessoesScreen({ navigation, route }) {
 
   useEffect(() => {
     carregarDados();
-  }, [filtroVisao]);
+  }, [filtroVisao, filtroMes]);
 
   // Outra tela pode voltar para esta (popTo) pedindo uma aba especifica —
   // ex: Divergencias apos concluir abre direto em "Concluidas".
@@ -60,7 +73,7 @@ export default function SessoesScreen({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       carregarDados();
-    }, [filtroVisao])
+    }, [filtroVisao, filtroMes])
   );
 
   async function carregarDados() {
@@ -74,7 +87,9 @@ export default function SessoesScreen({ navigation, route }) {
 
     try {
       if (filtroVisao === 'concluidas') {
-        const dados = await listarSessoes({ loja_id: loja.id, status: 'concluida' }, 1, 100);
+        const filtros = { loja_id: loja.id, status: 'concluida' };
+        if (filtroMes) filtros.mes_referencia = filtroMes;
+        const dados = await listarSessoes(filtros, 1, 100);
         setSessoes(dados.items || []);
       } else {
         // ativas: em_andamento + aguardando_aprovacao
@@ -577,7 +592,9 @@ export default function SessoesScreen({ navigation, route }) {
         </Text>
         <Text style={estilos.vazioSubtitulo}>
           {filtroVisao === 'concluidas'
-            ? 'Ainda nao ha sessoes concluidas para esta loja.'
+            ? (filtroMes
+              ? `Nenhuma sessao concluida com inventario em ${filtroMes}.`
+              : 'Ainda nao ha sessoes concluidas para esta loja.')
             : 'O gestor precisa criar e iniciar uma sessao de inventario para esta loja.'}
         </Text>
       </View>
@@ -642,6 +659,28 @@ export default function SessoesScreen({ navigation, route }) {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Concluidas: filtro pelo mes do inventario */}
+        {filtroVisao === 'concluidas' && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={estilos.mesesScroll}
+            contentContainerStyle={{ gap: spacing.xs }}
+          >
+            {[null, ...mesesRecentes()].map(m => (
+              <TouchableOpacity
+                key={m || 'todos'}
+                style={[estilos.chip, filtroMes === m && estilos.chipAzul]}
+                onPress={() => setFiltroMes(m)}
+              >
+                <Text style={[estilos.chipTexto, filtroMes === m && { color: colors.primary }]}>
+                  {m || 'Todos os meses'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
       </View>
 
       <FlatList
@@ -844,6 +883,9 @@ const estilos = StyleSheet.create({
   },
   chipTextoAtivo: {
     color: colors.success,
+  },
+  mesesScroll: {
+    marginTop: spacing.sm,
   },
   lista: {
     padding: spacing.lg,
