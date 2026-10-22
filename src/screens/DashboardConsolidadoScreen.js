@@ -19,7 +19,7 @@ const COL_LABEL     = 168;
 const COL_CONSOL    = 130;
 const COL_LOJA      = 118;
 const ROW_H         = 34;
-const HEADER_H      = 52;
+const HEADER_H      = 64;  // cabe o botao Real / Apos rejeicao
 const SECTION_H     = 28;
 
 // ── Cores ──────────────────────────────────────────────────────────
@@ -100,6 +100,42 @@ const SECOES = [
   },
 ];
 
+// ── Consolidado montado no app ─────────────────────────────────────
+// Mesmas formulas de GET /dashboard/consolidado. Usado quando alguma loja
+// esta na visao "apos rejeicao" — o consolidado soma a visao de cada loja.
+function _consolidarLojas(lista) {
+  const s = { vt: 0, vs: 0, vf: 0, ut: 0, us: 0, uf: 0, it: 0, ip: 0, ineg: 0 };
+  const num = x => parseFloat(x) || 0;
+  lista.forEach(l => {
+    if (!l.sessao_nome) return;
+    const v = l.valor || {}, u = l.unidades || {}, i = l.itens || {};
+    s.vt += num(v.total_estoque); s.vs += num(v.acerto_positivo); s.vf += num(v.acerto_negativo);
+    s.ut += num(u.total_sistema); s.us += num(u.acerto_positivo); s.uf += num(u.acerto_negativo);
+    s.it += num(i.total);         s.ip += num(i.acerto_positivo); s.ineg += num(i.acerto_negativo);
+  });
+  const r2 = x => Math.round(x * 100) / 100;
+  const acur = (liq, tot) => (tot <= 0 ? 100 : r2((1 - Math.abs(liq) / tot) * 100));
+  const pct = (liq, tot) => (tot <= 0 ? 0 : r2(Math.abs(liq) / tot * 100));
+  const vLiq = s.vs - s.vf;
+  const uLiq = s.us - s.uf;
+  const iDif = s.ip + s.ineg;  // SKUs com diferenca (pos + neg)
+  const iOk = Math.max(0, s.it - iDif);
+  return {
+    valor: {
+      total_estoque: r2(s.vt), acerto_positivo: r2(s.vs), acerto_negativo: r2(s.vf),
+      ajuste_liquido: r2(vLiq), diferenca_pct: pct(vLiq, s.vt), acuracidade: acur(vLiq, s.vt),
+    },
+    unidades: {
+      total_sistema: s.ut, acerto_positivo: s.us, acerto_negativo: s.uf,
+      ajuste_liquido: uLiq, diferenca_pct: pct(uLiq, s.ut), acuracidade: acur(uLiq, s.ut),
+    },
+    itens: {
+      total: s.it, acerto_positivo: s.ip, acerto_negativo: s.ineg,
+      diferenca_itens: iDif, diferenca_pct: pct(iDif, s.it), acuracidade: r2(iOk / Math.max(s.it, 1) * 100),
+    },
+  };
+}
+
 // ── Ultimo mes disponivel em formato YYYY-MM ───────────────────────
 function _mesesRecentes(n = 12) {
   const arr = [];
@@ -137,6 +173,8 @@ export default function DashboardConsolidadoScreen({ navigation }) {
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // loja_id -> true quando a coluna mostra a visao "apos rejeicao do Gestor"
+  const [aposRejeicao, setAposRejeicao] = useState({});
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
@@ -151,13 +189,30 @@ export default function DashboardConsolidadoScreen({ navigation }) {
   }, [mes, naturezaId]);
 
   useEffect(() => { carregar(); }, [carregar]);
+  // Outro mes/natureza = outras sessoes: volta todas as lojas para "Real"
+  useEffect(() => { setAposRejeicao({}); }, [mes, naturezaId]);
 
   const lojas = dados?.lojas || [];
-  const consol = dados?.consolidado;
   const gruposContados = dados?.grupos_contados || [];
 
+  // Loja na visao "apos rejeicao": troca valor/unidades/itens pelos recalculados
+  function visaoDaLoja(loja) {
+    if (aposRejeicao[loja.loja_id] && loja.apos_rejeicao) {
+      return { ...loja, ...loja.apos_rejeicao };
+    }
+    return loja;
+  }
+
+  function alternarVisao(lojaId) {
+    setAposRejeicao(prev => ({ ...prev, [lojaId]: !prev[lojaId] }));
+  }
+
   // Todas as lojas aparecem — sem sessao exibe zeros (nao filtra)
-  const lojasColunas = lojas;
+  const lojasColunas = lojas.map(visaoDaLoja);
+  const algumaAposRejeicao = lojas.some(l => aposRejeicao[l.loja_id] && l.apos_rejeicao);
+  const totalRejeitadas = lojas.reduce((t, l) => t + (l.rejeitadas_gestor || 0), 0);
+  // Sem nenhuma loja alternada, vale o consolidado calculado pela API
+  const consol = algumaAposRejeicao ? _consolidarLojas(lojasColunas) : dados?.consolidado;
 
   // Retorna o valor do campo, ou 0 quando a loja nao fez inventario
   function getVal(obj, campo, key) {
@@ -257,6 +312,11 @@ export default function DashboardConsolidadoScreen({ navigation }) {
                 }]}>
                   <Text style={[est.headerLojaTxt, { color: '#FEF3C7' }]}>Consolidado</Text>
                   <Text style={[est.headerLojaSubTxt, { color: '#FDE68A' }]}>Todas as lojas</Text>
+                  {algumaAposRejeicao && (
+                    <Text style={[est.headerLojaSubTxt, { color: '#FDE68A', fontSize: 8 }]}>
+                      c/ visão após rejeição
+                    </Text>
+                  )}
                 </View>
                 {/* Todas as lojas — com ou sem sessao */}
                 {lojasColunas.map((loja, li) => {
@@ -277,6 +337,24 @@ export default function DashboardConsolidadoScreen({ navigation }) {
                         <Text style={[est.headerLojaSubTxt, { color: '#94A3B8', fontSize: 8 }]}>
                           sem dados
                         </Text>
+                      )}
+                      {/* Coluna soma todas as sessoes concluidas do mes */}
+                      {loja.qtd_sessoes > 1 && (
+                        <Text style={[est.headerLojaSubTxt, { fontSize: 8 }]}>
+                          {loja.qtd_sessoes} sessões
+                        </Text>
+                      )}
+                      {/* So aparece na loja com rejeicao do Gestor */}
+                      {temDados && loja.apos_rejeicao && (
+                        <TouchableOpacity
+                          style={[est.btnVisao, aposRejeicao[loja.loja_id] && est.btnVisaoAtivo]}
+                          onPress={() => alternarVisao(loja.loja_id)}
+                        >
+                          <Text style={[est.btnVisaoTxt, aposRejeicao[loja.loja_id] && est.btnVisaoTxtAtivo]}
+                            numberOfLines={1}>
+                            {aposRejeicao[loja.loja_id] ? 'Após rejeição' : 'Real'} ⇄
+                          </Text>
+                        </TouchableOpacity>
                       )}
                     </View>
                   );
@@ -345,6 +423,17 @@ export default function DashboardConsolidadoScreen({ navigation }) {
                 </View>
               ))}
 
+              {/* Legenda do botao Real / Apos rejeicao */}
+              {totalRejeitadas > 0 && (
+                <View style={est.semSessaoBox}>
+                  <Text style={est.semSessaoTxt}>
+                    {totalRejeitadas} item(ns) rejeitado(s) pelo Gestor. "Real" mostra todas as
+                    diferenças; "Após rejeição" conta esses itens como OK (saldo do sistema mantido).
+                    Toque no botão da loja para alternar.
+                  </Text>
+                </View>
+              )}
+
               {/* Legenda: lojas cinzas = sem inventario neste periodo */}
               {lojas.some(l => !l.sessao_nome) && (
                 <View style={est.semSessaoBox}>
@@ -401,6 +490,17 @@ const est = StyleSheet.create({
   },
   headerLojaTxt:    { color: '#FFFFFF', fontSize: 12, fontWeight: '800', textAlign: 'center' },
   headerLojaSubTxt: { color: 'rgba(255,255,255,0.7)', fontSize: 9, textAlign: 'center', marginTop: 2 },
+
+  // Botao Real / Apos rejeicao (cabecalho da loja)
+  btnVisao: {
+    marginTop: 4,
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: radius.full,
+    borderWidth: 1, borderColor: colors.warningSoft,
+  },
+  btnVisaoAtivo:    { backgroundColor: colors.warningSoft, borderColor: colors.warning },
+  btnVisaoTxt:      { fontSize: 9, fontWeight: '700', color: colors.warningSoft },
+  btnVisaoTxtAtivo: { color: colors.warning },
 
   // Titulo de secao
   secaoTituloBox: {
