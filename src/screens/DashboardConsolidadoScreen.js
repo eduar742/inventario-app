@@ -263,7 +263,8 @@ export default function DashboardConsolidadoScreen({ navigation }) {
         {/* Cabeçalho da competência + grupos contados — tudo em uma linha */}
         <View style={est.headerCompetencia}>
           <Text style={est.headerEmpresaTxt}>Inventário</Text>
-          <Text style={est.headerMesTxt}>  Competência: {mes || '—'}</Text>
+          {/* Mes em que o inventario foi feito (encerramento da sessao) */}
+          <Text style={est.headerMesTxt}>  Mês do inventário: {mes || '—'}</Text>
           {gruposContados.length > 0 && (
             <Text style={est.headerGrupos}>
               {'  ·  '}Grupos contados nas lojas: {gruposContados.join(', ')}
