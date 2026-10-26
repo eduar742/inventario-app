@@ -232,7 +232,7 @@ const SECOES = [
           ['Finalizar a rodada e iniciar a próxima', '✓', '✓', '✗', '✗', '✗', '✓'],
           ['Criar sessão', '✓', '✗', '✗', '✗', '✗', '✗'],
           ['Encerrar sessão', '✓', '✓', '✗', '✗', '✗', '✗'],
-          ['Reabrir / cancelar / excluir sessão', '✓', '✗', '✗', '✗', '✗', '✗'],
+          ['Reabrir / cancelar sessão', '✓', '✗', '✗', '✗', '✗', '✗'],
           ['Acompanhar sessão ao vivo', '✓', '✓', '✓', '✓', '✗', '✓'],
           ['Revisar e aprovar divergências', '✓', '✓', '✗', '✗', '✗', '✓'],
           ['Ajustar quantidade / custo na divergência', '✓', '✗', '✗', '✗', '✗', '✗'],
@@ -323,6 +323,7 @@ const SECOES = [
         titulo: 'Botões desta tela:',
         itens: [
           { botao: '+ Novo usuario', quem: 'ADM', faz: 'Abre o formulário de cadastro.' },
+          { botao: 'Desbloquear login', quem: 'ADM', faz: 'Libera na hora quem ficou bloqueado por errar a senha 5 vezes (sem esperar os 15 minutos).' },
           { botao: 'Excluir usuário', quem: 'ADM', faz: 'Exclui definitivamente após confirmação. Usuários que já registraram contagens, sessões ou importações não podem ser excluídos (para manter a auditoria) — inative-os em vez disso.' },
           { botao: 'Salvar / Cancelar', quem: 'ADM', faz: 'Grava ou descarta as alterações do formulário.' },
         ],
@@ -529,7 +530,7 @@ const SECOES = [
           { botao: 'Ver itens pendentes', quem: 'ADM, Gestor, Operador, Líder', faz: 'Lista o que falta bipar e o que aguarda 2ª/3ª contagem.' },
           { botao: 'Acompanhar ao vivo', quem: 'Todos, exceto Operador', faz: 'Progresso e feed das últimas bipagens, atualizado a cada 15 s.' },
           { botao: 'Encerrar sessao', quem: 'ADM, Gestor', faz: 'Pede confirmação, encerra a contagem e gera as divergências. Operadores não poderão mais bipar.' },
-          { botao: 'Cancelar sessao', quem: 'ADM', faz: 'Cancela a sessão após confirmação. Não pode ser desfeito.' },
+          { botao: 'Cancelar sessao', quem: 'ADM (qualquer sessão) / Gestor (em andamento, da sua loja)', faz: 'Pede o motivo e cancela a sessão. Ela sai da lista e dos indicadores, mas nada é apagado: contagens, divergências e histórico ficam guardados, com o motivo e quem cancelou.' },
         ],
       },
       {

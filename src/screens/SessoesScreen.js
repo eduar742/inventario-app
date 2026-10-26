@@ -134,18 +134,25 @@ export default function SessoesScreen({ navigation, route }) {
     await carregarDados();
   }
 
+  // Cancelar pede o motivo e NAO apaga nada (desde 26/10/2026): a sessao sai
+  // da lista, mas contagens, divergencias e historico ficam guardados
+  const [modalCancelar, setModalCancelar] = useState(null);
+  const [motivoCancelar, setMotivoCancelar] = useState('');
+
   function handleCancelar(sessao) {
-    confirmarAlerta(
-      'Cancelar sessao',
-      `Deseja cancelar "${sessao.nome}"?\n\nEsta acao nao pode ser desfeita.`,
-    ).then(ok => { if (ok) confirmarCancelamento(sessao); });
+    setMotivoCancelar('');
+    setModalCancelar(sessao);
   }
 
-  async function confirmarCancelamento(sessao) {
+  async function confirmarCancelamento() {
+    const sessao = modalCancelar;
+    if (!sessao || motivoCancelar.trim().length < 5) return;
     setCancelando(sessao.id);
     try {
-      await cancelarSessao(sessao.id);
+      await cancelarSessao(sessao.id, motivoCancelar.trim());
       setSessoes(prev => prev.filter(s => s.id !== sessao.id));
+      setModalCancelar(null);
+      avisar('Sessao cancelada', 'Os dados (contagens, divergencias e historico) foram preservados.');
     } catch (err) {
       avisar('Erro', err.message || 'Nao foi possivel cancelar a sessao');
     } finally {
@@ -754,6 +761,57 @@ export default function SessoesScreen({ navigation, route }) {
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Text style={[estilos.modalBotaoTexto, { color: '#fff' }]}>Salvar nota</Text>
                 }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal de cancelamento: motivo obrigatorio, dados preservados */}
+      <Modal
+        visible={!!modalCancelar}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalCancelar(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={estilos.modalOverlay}
+        >
+          <View style={estilos.modalBox}>
+            <Text style={estilos.modalTitulo}>Cancelar sessao</Text>
+            {modalCancelar && (
+              <Text style={estilos.modalSessaoNome} numberOfLines={2}>{modalCancelar.nome}</Text>
+            )}
+            <Text style={estilos.semNotas}>
+              A sessao sai da lista e dos indicadores, mas as contagens, divergencias e o historico ficam guardados. O motivo e o seu nome ficam registrados.
+            </Text>
+            <Text style={estilos.modalLabel}>Motivo (obrigatorio):</Text>
+            <TextInput
+              style={estilos.modalInput}
+              value={motivoCancelar}
+              onChangeText={setMotivoCancelar}
+              placeholder="Ex: sessao criada com a natureza errada"
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              numberOfLines={3}
+              maxLength={1000}
+            />
+            <View style={estilos.modalAcoes}>
+              <TouchableOpacity
+                style={[estilos.modalBotao, { backgroundColor: colors.backgroundSoft, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => setModalCancelar(null)}
+              >
+                <Text style={[estilos.modalBotaoTexto, { color: colors.textSecondary }]}>Voltar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[estilos.modalBotao, { backgroundColor: colors.danger, opacity: (motivoCancelar.trim().length < 5 || cancelando) ? 0.5 : 1 }]}
+                onPress={confirmarCancelamento}
+                disabled={motivoCancelar.trim().length < 5 || !!cancelando}
+              >
+                {cancelando
+                  ? <ActivityIndicator size="small" color={colors.white} />
+                  : <Text style={[estilos.modalBotaoTexto, { color: colors.white }]}>Cancelar sessao</Text>}
               </TouchableOpacity>
             </View>
           </View>

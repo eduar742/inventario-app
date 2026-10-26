@@ -580,10 +580,18 @@ export async function vincularAvulso(sessaoId, produtoAvulsoId, skuDestino) {
   });
 }
 
-export async function cancelarSessao(sessaoId) {
+// Cancela a sessao SEM apagar dados (contagens, divergencias e historico ficam
+// guardados); o motivo e quem cancelou vao para as notas da sessao
+export async function cancelarSessao(sessaoId, motivo = '') {
   return await chamarAPI(`/api/v1/sessoes/${sessaoId}/cancelar`, {
     method: 'PATCH',
+    body: JSON.stringify({ motivo: motivo || null }),
   });
+}
+
+// ADM libera o login de um usuario bloqueado por tentativas erradas
+export async function desbloquearUsuario(usuarioId) {
+  return await chamarAPI(`/api/v1/usuarios/${usuarioId}/desbloquear`, { method: 'POST' });
 }
 
 // ============================================================

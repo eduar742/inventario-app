@@ -13,7 +13,7 @@ import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { avisar, confirmar } from '../utils/alertas';
 import Button from '../components/Button';
 import {
-  listarUsuarios, criarUsuarioAPI, atualizarUsuario, excluirUsuario,
+  listarUsuarios, criarUsuarioAPI, atualizarUsuario, excluirUsuario, desbloquearUsuario,
   listarLojas, pegarUsuario, buscarPerfilAtual,
 } from '../services/api';
 
@@ -132,6 +132,26 @@ export default function GestoresScreen({ navigation }) {
     ).then(ok => { if (ok) confirmarExclusao(usuario); });
   }
 
+  // ADM libera o login de quem ficou bloqueado por senha errada (sem esperar 15 min)
+  const [desbloqueandoId, setDesbloqueandoId] = useState(null);
+
+  async function handleDesbloquear(usuario) {
+    setDesbloqueandoId(usuario.id);
+    try {
+      const r = await desbloquearUsuario(usuario.id);
+      avisar(
+        'Login liberado',
+        r.estava_bloqueado
+          ? `${usuario.nome} ja pode entrar de novo.`
+          : `${usuario.nome} nao estava bloqueado.`,
+      );
+    } catch (err) {
+      avisar('Nao foi possivel desbloquear', err.message || 'Tente novamente');
+    } finally {
+      setDesbloqueandoId(null);
+    }
+  }
+
   async function confirmarExclusao(usuario) {
     setExcluindoId(usuario.id);
     try {
@@ -199,6 +219,17 @@ export default function GestoresScreen({ navigation }) {
             {conteudo}
           </TouchableOpacity>
         ) : conteudo}
+        {isAdmin && (
+          <TouchableOpacity
+            style={estilos.botaoExcluir}
+            onPress={() => handleDesbloquear(item)}
+            disabled={desbloqueandoId === item.id}
+          >
+            {desbloqueandoId === item.id
+              ? <ActivityIndicator size="small" color={colors.primary} />
+              : <Text style={[estilos.botaoExcluirTexto, { color: colors.primary }]}>Desbloquear login</Text>}
+          </TouchableOpacity>
+        )}
         {isAdmin && (
           <TouchableOpacity
             style={estilos.botaoExcluir}
