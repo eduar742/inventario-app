@@ -7,11 +7,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, FlatList, SafeAreaView,
   ActivityIndicator, RefreshControl, TouchableOpacity,
-  Modal, TextInput, KeyboardAvoidingView, Platform,
+  Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 
 import { colors, spacing, fontSize, radius } from '../theme/colors';
-import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia, atualizarInfoProduto, ajustarDivergencia, corrigirDivergenciaAprovada, finalizarRecontagem } from '../services/api';
+import { listarDivergencias, aprovarDivergencia, rejeitarDivergencia, concluirSessao, aprovarInventario, pegarUsuario, buscarPerfilAtual, definirCustoDivergencia, atualizarInfoProduto, ajustarDivergencia, corrigirDivergenciaAprovada, finalizarRecontagem, buscarHistoricoDivergencia } from '../services/api';
 import Paginacao from '../components/Paginacao';
 import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
@@ -38,6 +38,28 @@ const ETAPAS_ABERTAS = ['pendente', 'aprovada_lider', 'aprovada_adm'];
 // Item rejeitado aguardando a 4a contagem do Lider (16/10/2026) — tambem
 // conta como pendente (a sessao nao conclui enquanto houver)
 const AINDA_ABERTAS = [...ETAPAS_ABERTAS, 'recontagem'];
+
+// Historico da divergencia: rotulo de cada acao registrada
+const ACAO_ROTULO = {
+  aprovada: 'Aprovou',
+  aprovada_lote: 'Aprovou em lote',
+  rejeitada_recontagem: 'Rejeitou (abre a 4ª contagem)',
+  rejeitada_definitiva: 'Rejeitou (definitivo)',
+  recontagem_finalizada: 'Finalizou a 4ª contagem',
+  ajuste_adm: 'Ajustou a quantidade',
+  correcao_pos_aprovacao: 'Corrigiu apos aprovacao',
+  correcao_contagem: 'Corrigiu a contagem',
+  criada_por_correcao_contagem: 'Divergencia criada pela correcao da contagem',
+  removida_por_correcao_contagem: 'Divergencia removida pela correcao da contagem',
+  custo_definido: 'Definiu o custo',
+};
+
+// A API devolve datas em UTC sem fuso: acrescenta o "Z" antes de converter
+function formatarQuando(iso) {
+  if (!iso) return '';
+  const d = new Date(/[zZ]$|[+-]\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`);
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 const ETAPA = {
   pendente:       { quem: 'Líder', aprova: ['lider'],           rejeita: ['lider', 'admin'],  botao: 'Aprovar (Líder)' },
   aprovada_lider: { quem: 'ADM',   aprova: ['admin'],           rejeita: ['admin'],           botao: 'Aprovar (ADM)' },
@@ -82,6 +104,26 @@ export default function DivergenciasScreen({ navigation, route }) {
 
   // Modal de ajuste de quantidade pelo ADM (justificativa obrigatoria)
   const [modalAjuste, setModalAjuste] = useState(null);
+
+  // Historico da divergencia (linha do tempo das decisoes)
+  const [modalHistorico, setModalHistorico] = useState(null);
+  const [historicoItens, setHistoricoItens] = useState([]);
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false);
+
+  async function abrirHistorico(div) {
+    setModalHistorico(div);
+    setHistoricoItens([]);
+    setCarregandoHistorico(true);
+    try {
+      const r = await buscarHistoricoDivergencia(div.id);
+      setHistoricoItens(r.eventos || []);
+    } catch (err) {
+      avisar('Erro', err.message || 'Nao foi possivel carregar o historico');
+      setModalHistorico(null);
+    } finally {
+      setCarregandoHistorico(false);
+    }
+  }
   const [quantidadeAjusteInput, setQuantidadeAjusteInput] = useState('');
   const [justificativaAjusteInput, setJustificativaAjusteInput] = useState('');
   const [salvandoAjuste, setSalvandoAjuste] = useState(false);
@@ -373,6 +415,24 @@ export default function DivergenciasScreen({ navigation, route }) {
             </Text>
           </View>
         )}
+
+        {/* Transparencia: contagens de cada rodada e de onde saiu o valor final */}
+        {!div.oculto_recontagem && (div.criterio_final || div.contagens_por_rodada) && (
+          <View style={estilos.criterioBox}>
+            {div.contagens_por_rodada && Object.keys(div.contagens_por_rodada).length > 0 && (
+              <Text style={estilos.criterioTexto}>
+                Contagens: {Object.entries(div.contagens_por_rodada)
+                  .map(([r, q]) => `${r}ª ${parseFloat(q).toString()}`).join(' · ')}
+              </Text>
+            )}
+            {!!div.criterio_final && (
+              <Text style={estilos.criterioTexto}>Criterio: {div.criterio_final}</Text>
+            )}
+          </View>
+        )}
+        <TouchableOpacity onPress={() => abrirHistorico(div)} style={estilos.botaoHistorico}>
+          <Text style={estilos.botaoHistoricoTexto}>Ver historico</Text>
+        </TouchableOpacity>
 
         {/* Parcelas por localização */}
         {div.parcelas && div.parcelas.length > 1 && (
@@ -842,6 +902,53 @@ export default function DivergenciasScreen({ navigation, route }) {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Historico da divergencia: linha do tempo das decisoes */}
+      <Modal
+        visible={!!modalHistorico}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalHistorico(null)}
+      >
+        <View style={estilos.modalOverlay}>
+          <View style={[estilos.modalBox, { maxHeight: '85%' }]}>
+            <Text style={estilos.modalTitulo}>Historico</Text>
+            <Text style={estilos.modalSku}>{modalHistorico?.descricao_produto || modalHistorico?.sku}</Text>
+            {carregandoHistorico ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : historicoItens.length === 0 ? (
+              <Text style={estilos.modalDica}>Nenhuma decisao registrada ainda.</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 420 }}>
+                {historicoItens.map((e, i) => (
+                  <View key={i} style={estilos.historicoItem}>
+                    <Text style={estilos.historicoAcao}>
+                      {ACAO_ROTULO[e.acao] || e.acao}{e.usuario ? ` — ${e.usuario}` : ''}
+                    </Text>
+                    <Text style={estilos.historicoMeta}>
+                      {formatarQuando(e.quando)}
+                      {e.status_depois ? ` · ${STATUS_ROTULO[e.status_depois] || e.status_depois}` : ''}
+                    </Text>
+                    {e.quantidade_final != null && (
+                      <Text style={estilos.historicoMeta}>
+                        Quantidade {e.quantidade_final} · diferenca {e.diferenca > 0 ? '+' : ''}{e.diferenca}
+                        {e.valor != null ? ` · ${e.valor >= 0 ? '+' : '-'}R$ ${Math.abs(e.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+                      </Text>
+                    )}
+                    {!!e.motivo && <Text style={estilos.historicoMotivo}>"{e.motivo}"</Text>}
+                    {e.origem === 'registro_anterior' && (
+                      <Text style={estilos.historicoMeta}>registro anterior ao historico detalhado</Text>
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            <TouchableOpacity style={[estilos.botaoAjustarQtd, { alignSelf: 'stretch', alignItems: 'center', marginTop: spacing.md }]} onPress={() => setModalHistorico(null)}>
+              <Text style={estilos.botaoAjustarQtdTexto}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de ajuste de quantidade — apenas ADM, justificativa obrigatoria */}
       <Modal
         visible={!!modalAjuste}
@@ -1187,6 +1294,21 @@ const estilos = StyleSheet.create({
     paddingTop: spacing.sm, alignItems: 'center',
   },
   avisoEtapaTexto: { fontSize: fontSize.sm, color: colors.textMuted, fontStyle: 'italic' },
+  // Transparencia do criterio e historico
+  criterioBox: {
+    backgroundColor: colors.backgroundSoft, borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, marginTop: spacing.xs, gap: 2,
+  },
+  criterioTexto: { fontSize: fontSize.xs, color: colors.textSecondary },
+  botaoHistorico: { alignSelf: 'flex-start', paddingVertical: spacing.xs },
+  botaoHistoricoTexto: { fontSize: fontSize.xs, color: colors.primary, fontWeight: '600' },
+  historicoItem: {
+    borderLeftWidth: 2, borderLeftColor: colors.border,
+    paddingLeft: spacing.sm, paddingVertical: spacing.xs, marginBottom: spacing.xs,
+  },
+  historicoAcao: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
+  historicoMeta: { fontSize: fontSize.xs, color: colors.textSecondary },
+  historicoMotivo: { fontSize: fontSize.xs, color: colors.text, fontStyle: 'italic' },
   // Modal de custo
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',

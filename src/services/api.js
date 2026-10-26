@@ -376,6 +376,12 @@ export async function definirCustoDivergencia(divergenciaId, custoUnitario) {
 
 // ADM ajusta a quantidade final da divergencia (justificativa obrigatoria).
 // Permitido somente enquanto a divergencia estiver 'pendente'.
+// Linha do tempo das decisoes da divergencia (quem, quando, status, quantidade,
+// valor e motivo de cada aprovacao, rejeicao, ajuste e 4a contagem)
+export async function buscarHistoricoDivergencia(divergenciaId) {
+  return await chamarAPI(`/api/v1/divergencias/${divergenciaId}/historico`);
+}
+
 export async function ajustarDivergencia(divergenciaId, quantidadeFinal, justificativa) {
   return await chamarAPI(`/api/v1/divergencias/${divergenciaId}/ajustar`, {
     method: 'PATCH',
