@@ -54,6 +54,10 @@ Quando uma contagem diverge do sistema, o fluxo e:
 3. **2a contagem igual a 1a** -> valor confirmado (mesmo divergindo do sistema)
 4. **2a contagem diferente da 1a** -> sistema solicita 3a contagem (desempate)
 5. **3a contagem** -> valor final e a moda entre as 3 (ou a mais proxima do sistema)
+   - Empate de distancia: vale a 3a; empate entre 1a e 2a: vale a 1a. Regra confirmada pelo
+     usuario em 2026-10-26 apos auditoria. NAO mudar: relatorios recalculam a partir das
+     contagens e uma regra nova alteraria inventarios ja fechados (se um dia mudar, so
+     para sessoes criadas a partir de uma data).
 
 ### Decisao 2: Inventario CEGO (implementado)
 
