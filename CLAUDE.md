@@ -132,6 +132,13 @@ item volta para o ADM (`aprovada_lider`). Uma 2a rejeicao, depois da 4a, e
 definitiva (`rejeitada`, saldo mantido). Endpoint `POST /sessoes/{id}/finalizar-recontagem`;
 migration `022_recontagem_rejeitada.py` (`recontagem_em/por_id`).
 
+**Atualizacao 2026-10-26 — historico e criterio:** cada decisao sobre uma divergencia
+(aprovacao, rejeicao, ajuste, correcao, custo, 4a contagem) grava um registro em
+`divergencia_eventos` (quem, quando, status antes/depois, quantidade, diferenca, valor,
+motivo) — `GET /divergencias/{id}/historico`. A divergencia traz `contagens_por_rodada` e
+`criterio_final` (so exibicao, mesma regra do motor). A tabela NAO tem FKs de proposito:
+as rotinas que apagam divergencias continuam funcionando. Migration `023`.
+
 **Migration:** `018_aprovacao_duas_etapas.py` adiciona colunas em `divergencias`
 (`aprovado_adm_por_id`, `aprovado_adm_em`, `quantidade_final_original`, `ajustado_em`,
 `ajustado_por_id`, `justificativa_ajuste`). E idempotente (usa inspector antes de
