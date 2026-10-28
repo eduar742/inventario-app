@@ -2,7 +2,7 @@
 // Usado pelo ADM/gestor para ver o progresso e as contagens chegando em tempo real,
 // sem precisar entrar na tela de contagem do operador.
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, SafeAreaView,
   ActivityIndicator, RefreshControl, TextInput,
@@ -11,9 +11,11 @@ import {
 import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { buscarSessao, listarContagensDaSessao } from '../services/api';
 import { avisar } from '../utils/alertas';
+import { useAtualizacaoPeriodica } from '../hooks/useAtualizacaoPeriodica';
 import { formatarDataHora, formatarHora } from '../utils/formatadores';
 
-const INTERVALO = 15000;
+// 60s: o painel do lider fica aberto a sessao inteira (ver useAtualizacaoPeriodica)
+const INTERVALO = 60000;
 const FEED_TAMANHO = 100;
 
 const ROTULO_RODADA = {
@@ -31,7 +33,6 @@ export default function AcompanhamentoSessaoScreen({ route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [ultimaAtu, setUltimaAtu] = useState(null);
   const [busca, setBusca] = useState('');
-  const timerRef = useRef(null);
 
   const emAndamento = sessaoInfo?.status === 'em_andamento';
 
@@ -58,15 +59,9 @@ export default function AcompanhamentoSessaoScreen({ route }) {
     carregar();
   }, [carregar]);
 
-  // Polling automatico enquanto a sessao estiver em andamento
-  useEffect(() => {
-    if (!emAndamento) {
-      clearInterval(timerRef.current);
-      return;
-    }
-    timerRef.current = setInterval(() => carregar(true), INTERVALO);
-    return () => clearInterval(timerRef.current);
-  }, [emAndamento, carregar]);
+  // Polling automatico enquanto a sessao estiver em andamento (pausa com a
+  // tela fora de foco ou o app/aba em segundo plano)
+  useAtualizacaoPeriodica(() => carregar(true), INTERVALO, { habilitado: emAndamento });
 
   function corContagem(n) {
     return n === 1 ? colors.info : n === 2 ? colors.warning : colors.danger;

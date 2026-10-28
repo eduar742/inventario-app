@@ -3,7 +3,7 @@
 //   Valor/Unidades: verde >= 99%, amarelo >= 98%, vermelho < 98%
 //   SKU (itens):    verde >= 90%, amarelo >= 80%, vermelho < 80%
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, SafeAreaView,
   TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView,
@@ -13,8 +13,10 @@ import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { buscarDashboardLojas, buscarDashboardHistorico, pegarUsuario } from '../services/api';
 import NaturezaFiltro from '../components/NaturezaFiltro';
 import GrupoMaterialFiltro from '../components/GrupoMaterialFiltro';
+import { useAtualizacaoPeriodica } from '../hooks/useAtualizacaoPeriodica';
 
-const INTERVALO = 30000;
+// 2 min e so com a tela visivel: cada carga agrega todas as lojas
+const INTERVALO = 120000;
 
 // ── Formatacao numerica segura (sem toLocaleString) ────────────────────────
 function _mil(s) { return s.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
@@ -107,7 +109,6 @@ export default function DashboardLojasScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [naturezaId, setNaturezaId] = useState(null);
   const [grupoMaterial, setGrupoMaterial] = useState(null);
-  const timer = useRef(null);
 
   const carregar = useCallback(async (s = false) => {
     if (!s) setCarregando(true);
@@ -126,9 +127,8 @@ export default function DashboardLojasScreen({ navigation }) {
 
   useEffect(() => {
     carregar();
-    timer.current = setInterval(() => carregar(true), INTERVALO);
-    return () => clearInterval(timer.current);
   }, [carregar]);
+  useAtualizacaoPeriodica(() => carregar(true), INTERVALO);
 
   function renderLoja({ item: l }) {
     const cor = corValorUnid(l.acuracidade);
@@ -193,7 +193,6 @@ export function DashboardHistoricoScreen({ navigation, route }) {
   const [sessaoIdx, setSessaoIdx] = useState(null);
   const [naturezaId, setNaturezaId] = useState(null);
   const [grupoMaterial, setGrupoMaterial] = useState(null);
-  const timer = useRef(null);
 
   const carregar = useCallback(async (s = false) => {
     if (!s) setCarregando(true);
@@ -205,9 +204,8 @@ export function DashboardHistoricoScreen({ navigation, route }) {
   useEffect(() => {
     setSessaoIdx(null);
     carregar();
-    timer.current = setInterval(() => carregar(true), INTERVALO);
-    return () => clearInterval(timer.current);
   }, [carregar]);
+  useAtualizacaoPeriodica(() => carregar(true), INTERVALO);
 
   if (carregando && !historico)
     return <SafeAreaView style={estilos.centro}><ActivityIndicator size="large" color={colors.primary} /></SafeAreaView>;

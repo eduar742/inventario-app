@@ -4,7 +4,7 @@
 // grupo com um botao que ja abre o Scanner na rodada certa. Lider/Gestor/ADM
 // veem no topo o controle das rodadas (finalizar a atual e iniciar a proxima).
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
@@ -22,10 +22,11 @@ import {
 } from '../services/api';
 import { avisar } from '../utils/alertas';
 import FinalizarRodadaCard from '../components/FinalizarRodadaCard';
+import { useAtualizacaoPeriodica } from '../hooks/useAtualizacaoPeriodica';
 
 // Atualizacao periodica da lista (itens bipados por outros operadores) e do
 // contador de operadores ativos (mesmo padrao do AcompanhamentoSessaoScreen).
-const INTERVALO_POLL = 15000;
+const INTERVALO_POLL = 30000;
 
 export default function PendentesOperadorScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
@@ -40,19 +41,18 @@ export default function PendentesOperadorScreen({ navigation, route }) {
   const [desempateLiberado, setDesempateLiberado] = useState(false);
   const [operadoresAtivos, setOperadoresAtivos] = useState(0);
   const [rodadaAtual, setRodadaAtual] = useState(sessao.rodada_atual || 1);
-  const timerRef = useRef(null);
 
   // Recarrega ao abrir e, enquanto a tela estiver na frente, a cada
   // INTERVALO_POLL: o item bipado (por qualquer operador) sai da lista sem
-  // precisar puxar para atualizar. Para ao sair da tela (ex: abrir o Scanner).
+  // precisar puxar para atualizar. Para ao sair da tela (ex: abrir o Scanner)
+  // e com o app/aba em segundo plano.
   useFocusEffect(
     useCallback(() => {
       carregar();
-      clearInterval(timerRef.current);
-      timerRef.current = setInterval(() => carregar(true), INTERVALO_POLL);
-      return () => clearInterval(timerRef.current);
     }, [])
   );
+  // atualizarAoRetomar=false: o useFocusEffect acima ja recarrega ao voltar
+  useAtualizacaoPeriodica(() => carregar(true), INTERVALO_POLL, { atualizarAoRetomar: false });
 
   async function carregar(silencioso = false) {
     try {

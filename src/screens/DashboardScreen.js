@@ -1,7 +1,7 @@
 // Dashboard principal — redesenhado para layout sidebar + area principal.
 // Charts com react-native-svg (ja instalado). Toda logica de dados preservada.
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, ActivityIndicator, RefreshControl,
@@ -16,8 +16,10 @@ import { colors, spacing, fontSize, radius } from '../theme/colors';
 import { buscarDashboardGeral, buscarSkusProblematicos, pegarUsuario } from '../services/api';
 import NaturezaFiltro from '../components/NaturezaFiltro';
 import GrupoMaterialFiltro from '../components/GrupoMaterialFiltro';
+import { useAtualizacaoPeriodica } from '../hooks/useAtualizacaoPeriodica';
 
-const INTERVALO = 30000;
+// 2 min e so com a tela visivel: cada carga agrega a rede inteira
+const INTERVALO = 120000;
 const P_ICO = { fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -572,7 +574,6 @@ export default function DashboardScreen({ navigation }) {
   const [grupoMaterial,  setGrupoMaterial]  = useState(null);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [skusProblematicos, setSkusProblematicos] = useState([]);
-  const timerRef = useRef(null);
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
@@ -595,9 +596,8 @@ export default function DashboardScreen({ navigation }) {
 
   useEffect(() => {
     carregar();
-    timerRef.current = setInterval(() => carregar(true), INTERVALO);
-    return () => clearInterval(timerRef.current);
   }, [carregar]);
+  useAtualizacaoPeriodica(() => carregar(true), INTERVALO);
 
   useEffect(() => {
     pegarUsuario().then(u => setPapel(u?.papel || null)).catch(() => {});

@@ -18,6 +18,7 @@ import NaturezaFiltro from '../components/NaturezaFiltro';
 import GrupoMaterialFiltro from '../components/GrupoMaterialFiltro';
 import { spacing, fontSize } from '../theme/colors';
 import { formatarHora, formatarAgora } from '../utils/formatadores';
+import { useAtualizacaoPeriodica } from '../hooks/useAtualizacaoPeriodica';
 import {
   buscarDashboardGeral,
   exportarAuditLog,
@@ -123,9 +124,8 @@ function useAuditoriaData(naturezaId, grupoMaterial, lojaIds, mesReferencias) {
   }, [naturezaId, grupoMaterial, lojaKey, mesKey]);
   useEffect(() => {
     carregar();
-    const t = setInterval(carregar, 5 * 60 * 1000);
-    return () => clearInterval(t);
   }, [carregar]);
+  useAtualizacaoPeriodica(carregar, 5 * 60 * 1000);
   return { ...estado, recarregar: carregar };
 }
 
