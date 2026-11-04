@@ -245,6 +245,69 @@ export default function GestoresScreen({ navigation }) {
     );
   }
 
+  // ── Agrupamento por loja ───────────────────────────────────────────
+  // Cada loja vira um cartao; tocar abre os integrantes. Quem esta em varias
+  // lojas aparece em cada uma; ADM e quem tem todas as lojas ficam num grupo
+  // proprio (senao repetiria em todas); sem loja vinculada fica no fim.
+  const [gruposAbertos, setGruposAbertos] = useState([]);
+
+  function alternarGrupo(chave) {
+    setGruposAbertos(prev =>
+      prev.includes(chave) ? prev.filter(x => x !== chave) : [...prev, chave]
+    );
+  }
+
+  function montarGrupos() {
+    const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+    const grupos = [...lojas]
+      .sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }))
+      .map(l => ({ chave: l.id, codigo: l.codigo, nome: l.nome, cidade: l.cidade, membros: [] }));
+    const porId = Object.fromEntries(grupos.map(g => [g.chave, g]));
+    const todas = { chave: '_todas', codigo: 'ADM', nome: 'Acesso a todas as lojas', membros: [] };
+    const semLoja = { chave: '_sem', codigo: '?', nome: 'Sem loja vinculada', membros: [] };
+
+    usuarios.forEach(u => {
+      const ids = (u.lojas_ids || (u.loja_id ? [u.loja_id] : [])).filter(id => porId[id]);
+      if (u.papel === 'admin' || (lojas.length > 1 && ids.length === lojas.length)) todas.membros.push(u);
+      else if (ids.length === 0) semLoja.membros.push(u);
+      else ids.forEach(id => porId[id].membros.push(u));
+    });
+
+    return [todas, ...grupos, semLoja]
+      .filter(g => g.membros.length > 0 || porId[g.chave])
+      .map(g => ({ ...g, membros: g.membros.sort(porNome) }));
+  }
+
+  function renderGrupo({ item: grupo }) {
+    const aberto = gruposAbertos.includes(grupo.chave);
+    const total = grupo.membros.length;
+    return (
+      <View style={estilos.grupo}>
+        <TouchableOpacity style={estilos.grupoTopo} onPress={() => alternarGrupo(grupo.chave)} activeOpacity={0.7}>
+          <View style={estilos.grupoIcone}>
+            <Text style={estilos.grupoIconeTxt} numberOfLines={1}>{grupo.codigo}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={estilos.grupoNome} numberOfLines={1}>{grupo.nome}</Text>
+            <Text style={estilos.grupoSub}>
+              {grupo.cidade ? `${grupo.cidade} · ` : ''}{total} usuario{total !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          <Text style={estilos.grupoSeta}>{aberto ? '▾' : '▸'}</Text>
+        </TouchableOpacity>
+        {aberto && (
+          <View style={estilos.grupoMembros}>
+            {total === 0
+              ? <Text style={estilos.vazio}>Nenhum usuario vinculado</Text>
+              : grupo.membros.map(u => (
+                <React.Fragment key={u.id}>{renderUsuario({ item: u })}</React.Fragment>
+              ))}
+          </View>
+        )}
+      </View>
+    );
+  }
+
   if (carregando) {
     return (
       <AppLayout navigation={navigation} telaAtual="Gestores" titulo="Usuários" scrollavel={false}>
@@ -258,9 +321,9 @@ export default function GestoresScreen({ navigation }) {
   return (
     <AppLayout navigation={navigation} telaAtual="Gestores" titulo="Usuários" scrollavel={false} semPadding>
       <FlatList
-        data={usuarios}
-        renderItem={renderUsuario}
-        keyExtractor={u => u.id}
+        data={montarGrupos()}
+        renderItem={renderGrupo}
+        keyExtractor={g => g.chave}
         contentContainerStyle={estilos.lista}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); carregar(); }} colors={[colors.primary]} tintColor={colors.primary} />}
         ListHeaderComponent={
@@ -476,6 +539,16 @@ const estilos = StyleSheet.create({
   badge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
   badgeTexto: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   vazio: { textAlign: 'center', color: colors.textMuted, padding: spacing.xl },
+
+  // Grupo por loja (cartao que abre os integrantes)
+  grupo: { backgroundColor: colors.background, borderRadius: radius.md, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  grupoTopo: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
+  grupoIcone: { width: 48, height: 48, borderRadius: radius.full, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  grupoIconeTxt: { color: colors.primary, fontWeight: '800', fontSize: fontSize.sm },
+  grupoNome: { fontSize: fontSize.md, fontWeight: '700', color: colors.text },
+  grupoSub: { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+  grupoSeta: { fontSize: 20, color: colors.primary },
+  grupoMembros: { padding: spacing.sm, backgroundColor: colors.backgroundSoft, borderTopWidth: 1, borderTopColor: colors.border },
   avisoLeitura: { backgroundColor: colors.infoSoft, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
   avisoLeituraTexto: { color: colors.info, fontSize: fontSize.sm, fontWeight: '500' },
   botaoExcluir: { marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, alignItems: 'center' },
