@@ -260,7 +260,7 @@ export async function listarPendentes(sessaoId) {
 // produtosIds: itens da planilha anexada ao criar a sessao — a API tira a
 // "foto" do estoque da sessao so com eles, isolando-a de outras sessoes do
 // mesmo mes (Fortaleza: a planilha de ACM zerou a sessao de Acrilico).
-export async function criarSessao({ lojaId, nome, tipo, mesReferencia, naturezaFiltroId, observacoes, produtosIds }) {
+export async function criarSessao({ lojaId, nome, tipo, mesReferencia, naturezaFiltroId, observacoes, produtosIds, maxContagens }) {
   return await chamarAPI('/api/v1/sessoes', {
     method: 'POST',
     body: JSON.stringify({
@@ -271,6 +271,7 @@ export async function criarSessao({ lojaId, nome, tipo, mesReferencia, naturezaF
       natureza_filtro_id: naturezaFiltroId || null,
       observacoes: observacoes || null,
       produtos_ids: produtosIds && produtosIds.length ? produtosIds : null,
+      max_contagens: maxContagens || 3,
     }),
   });
 }

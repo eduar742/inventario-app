@@ -194,9 +194,9 @@ export default function RevisaoContagensScreen({ navigation, route }) {
               juntas (1a + 2a + 3a) daria um total sem sentido */}
           <View style={estilos.totalChip}>
             <Text style={estilos.totalChipTxt}>
-              {valorFinalContagens(grupo.contagens)
+              {valorFinalContagens(grupo.contagens, sessao.max_contagens)
                 ?? (desempatePelaRegraDoSistema(grupo.contagens) ? 'mais prox. do sistema' : 'aguard. desempate')}
-              {valorFinalContagens(grupo.contagens) != null ? ' un' : ''}
+              {valorFinalContagens(grupo.contagens, sessao.max_contagens) != null ? ' un' : ''}
             </Text>
           </View>
         </View>

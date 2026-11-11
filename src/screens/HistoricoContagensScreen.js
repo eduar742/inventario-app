@@ -104,7 +104,7 @@ export default function HistoricoContagensScreen({ navigation, route }) {
     );
     // Valor final pela regra das 3 contagens (soma parcelas da mesma rodada),
     // nao a ultima bipagem — senao uma parcela de outro local vira o "final".
-    const qtdFinal = valorFinalContagens(ordenadas);
+    const qtdFinal = valorFinalContagens(ordenadas, sessao.max_contagens);
     const pelaRegra = desempatePelaRegraDoSistema(ordenadas);
     const aguardandoDesempate = qtdFinal == null && !pelaRegra && ordenadas.length > 0;
 

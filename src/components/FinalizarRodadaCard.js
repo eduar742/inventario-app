@@ -14,13 +14,14 @@ import { avisar, confirmar as confirmarAlerta } from '../utils/alertas';
 
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª' };
 
-export default function FinalizarRodadaCard({ sessaoId, rodadaAtual, itensSemContagem = 0, onFinalizado }) {
+// maxContagens: quantas contagens a sessao tem (1-3, escolhido na criacao)
+export default function FinalizarRodadaCard({ sessaoId, rodadaAtual, maxContagens = 3, itensSemContagem = 0, onFinalizado }) {
   const [finalizando, setFinalizando] = useState(false);
   const rodada = rodadaAtual || 1;
-  const ultima = rodada >= 3;
+  const ultima = rodada >= (maxContagens || 3);
 
   const titulo = ultima
-    ? 'Finalizar 3ª contagem e encerrar'
+    ? `Finalizar ${ORDINAL[rodada]} contagem e encerrar`
     : `Finalizar ${ORDINAL[rodada]} contagem e iniciar a ${ORDINAL[rodada + 1]}`;
 
   async function handleFinalizar() {

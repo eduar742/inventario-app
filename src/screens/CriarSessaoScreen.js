@@ -15,6 +15,14 @@ import { listarLojas, listarNaturezas, listarMesesImportados, listarEstoqueNatur
 import { confirmar } from '../utils/alertas';
 
 
+// Quantas contagens a sessao tera (lista suspensa). Na ultima, o item fecha
+// com o valor contado mesmo divergente.
+const OPCOES_CONTAGENS = [
+  { valor: 1, rotulo: '1 contagem',  descricao: 'Vale a 1ª contagem' },
+  { valor: 2, rotulo: '2 contagens', descricao: 'Se divergir, recontagem; vale a 2ª' },
+  { valor: 3, rotulo: '3 contagens', descricao: 'Recontagem e desempate (padrao)' },
+];
+
 const TIPOS = [
   { id: 'geral',      rotulo: 'Geral',      descricao: 'Todos os produtos da loja' },
   { id: 'parcial',    rotulo: 'Parcial',     descricao: 'Subset de produtos (categorias especificas)' },
@@ -34,6 +42,8 @@ export default function CriarSessaoScreen({ navigation }) {
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
   const [nome, setNome] = useState('');
   const [tipo, setTipo] = useState('geral');
+  const [maxContagens, setMaxContagens] = useState(3);
+  const [modalContagens, setModalContagens] = useState(false);
   const [mesReferencia, setMesReferencia] = useState('');
   const [mesManual, setMesManual] = useState('');
   const [observacoes, setObservacoes] = useState('');
@@ -260,6 +270,7 @@ export default function CriarSessaoScreen({ navigation }) {
         naturezaFiltroId: naturezaFiltroId || null,
         observacoes,
         produtosIds,
+        maxContagens,
       });
 
       // Etapa 3: iniciar (opcional)
@@ -597,6 +608,19 @@ export default function CriarSessaoScreen({ navigation }) {
           </TouchableOpacity>
         ))}
 
+        {/* ── QUANTIDADE DE CONTAGENS (lista suspensa) ── */}
+        <View style={{ height: spacing.lg }} />
+        <Text style={estilos.rotulo}>Quantidade de contagens *</Text>
+        <TouchableOpacity style={estilos.seletor} onPress={() => setModalContagens(true)}>
+          <Text style={estilos.seletorTexto} numberOfLines={1}>
+            {OPCOES_CONTAGENS.find(o => o.valor === maxContagens)?.rotulo}
+          </Text>
+          <Text style={estilos.seletorSeta}>▼</Text>
+        </TouchableOpacity>
+        <Text style={estilos.dica}>
+          {OPCOES_CONTAGENS.find(o => o.valor === maxContagens)?.descricao}
+        </Text>
+
         {/* ── NATUREZA (filtro de contagem) — somente Venda e Quarentena ── */}
         {naturezas.length > 0 && (
           <>
@@ -678,6 +702,40 @@ export default function CriarSessaoScreen({ navigation }) {
         <Button titulo="Cancelar" variante="secondary" onPress={() => navigation.goBack()} desabilitado={criando} />
         <View style={{ height: spacing.lg }} />
       </ScrollView>
+
+      {/* ── MODAL DE QUANTIDADE DE CONTAGENS ── */}
+      <Modal visible={modalContagens} animationType="slide" transparent onRequestClose={() => setModalContagens(false)}>
+        <View style={estilos.modalOverlay}>
+          <View style={[estilos.modalContainer, estilos.modalContainerCurto]}>
+            <View style={estilos.modalHeader}>
+              <Text style={estilos.modalTitulo}>Quantidade de contagens</Text>
+              <TouchableOpacity onPress={() => setModalContagens(false)} style={estilos.modalFechar}>
+                <Text style={estilos.modalFecharTexto}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {OPCOES_CONTAGENS.map(op => {
+              const ativa = maxContagens === op.valor;
+              return (
+                <TouchableOpacity
+                  key={op.valor}
+                  style={[estilos.modalItem, ativa && estilos.modalItemAtivo]}
+                  onPress={() => { setMaxContagens(op.valor); setModalContagens(false); }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[estilos.modalItemBadge, ativa && estilos.modalItemBadgeAtivo]}>
+                    <Text style={[estilos.modalItemCodigo, ativa && { color: colors.white }]}>{op.valor}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[estilos.modalItemNome, ativa && estilos.modalItemNomeAtivo]}>{op.rotulo}</Text>
+                    <Text style={estilos.modalItemCidade}>{op.descricao}</Text>
+                  </View>
+                  {ativa && <Text style={estilos.modalItemCheck}>✓</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
 
       {/* ── MODAL DE SELECAO DE LOJA (rolagem correta) ── */}
       <Modal visible={modalLojas} animationType="slide" transparent onRequestClose={() => setModalLojas(false)}>
@@ -960,6 +1018,8 @@ const estilos = StyleSheet.create({
   modalTitulo:      { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
   modalFechar:      { padding: spacing.xs },
   modalFecharTexto: { fontSize: fontSize.lg, color: colors.textMuted },
+  // Lista curta (quantidade de contagens): altura pelo conteudo
+  modalContainerCurto: { height: 'auto', paddingBottom: spacing.lg },
   // flex: 1 para o ScrollView ocupar todo o espaco restante
   modalLista: { flex: 1 },
 

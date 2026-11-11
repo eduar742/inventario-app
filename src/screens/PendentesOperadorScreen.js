@@ -28,6 +28,13 @@ import { useAtualizacaoPeriodica } from '../hooks/useAtualizacaoPeriodica';
 // contador de operadores ativos (mesmo padrao do AcompanhamentoSessaoScreen).
 const INTERVALO_POLL = 30000;
 
+// Papel Lider so conta na 3a (desempate); sessao com 1 ou 2 contagens nao tem 3a
+function dicaLider(sessao) {
+  return (sessao?.max_contagens || 3) >= 3
+    ? 'Papel Líder realiza apenas a 3ª contagem (desempate).'
+    : 'Nesta sessao nao ha 3ª contagem: o Líder nao conta, apenas finaliza as rodadas.';
+}
+
 export default function PendentesOperadorScreen({ navigation, route }) {
   const { sessao, loja } = route.params;
 
@@ -167,6 +174,7 @@ export default function PendentesOperadorScreen({ navigation, route }) {
           <FinalizarRodadaCard
             sessaoId={sessao.id}
             rodadaAtual={rodadaAtual}
+            maxContagens={sessao.max_contagens}
             itensSemContagem={itensSemContagem}
             onFinalizado={(r) => (r.sessao_encerrada ? navigation.popTo('Sessoes', { loja }) : carregar())}
           />
@@ -196,7 +204,7 @@ export default function PendentesOperadorScreen({ navigation, route }) {
                   ? dica('Serao registrados como 0 (nao encontrado) quando a contagem for finalizada.')
                   : podeContarRodada1e2
                     ? <Button titulo="Bipar itens que faltaram" onPress={() => iniciarContagem(1, naoContados)} />
-                    : dica('Papel Líder realiza apenas a 3ª contagem (desempate). Se o item nao existir no fisico, finalize a 1ª contagem: ele entra como 0.')
+                    : dica(`${dicaLider(sessao)} Se o item nao existir no fisico, finalize a 1ª contagem: ele entra como 0.`)
               }
             />
             <Secao
@@ -208,7 +216,7 @@ export default function PendentesOperadorScreen({ navigation, route }) {
                   ? dica('A 2ª contagem comeca quando o Lider, Gestor ou ADM finalizar a 1ª.')
                   : podeContarRodada1e2
                     ? <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
-                    : dica('Papel Líder realiza apenas a 3ª contagem (desempate).')
+                    : dica(dicaLider(sessao))
               }
             />
             <Secao

@@ -52,6 +52,12 @@ describe('valorFinalContagens (espelha _calcular_status_produto do backend)', ()
     expect(valorFinalContagens(lista)).toBeNull();
     expect(desempatePelaRegraDoSistema(lista)).toBe(true);
   });
+  it('sessao de 2 contagens: 1a e 2a diferentes -> vale a 2a', () => {
+    expect(valorFinalContagens([c(1, 1, 10), c(2, 2, 11)], 2)).toBe(11);
+  });
+  it('sessao de 1 contagem: vale a 1a', () => {
+    expect(valorFinalContagens([c(1, 1, 10)], 1)).toBe(10);
+  });
   it('flag de desempate pela regra so vale com 3 rodadas todas diferentes', () => {
     expect(desempatePelaRegraDoSistema([c(1, 1, 7), c(2, 2, 9)])).toBe(false);
     expect(desempatePelaRegraDoSistema([c(1, 1, 8), c(2, 2, 9), c(3, 3, 8)])).toBe(false);

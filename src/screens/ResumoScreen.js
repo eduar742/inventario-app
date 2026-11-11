@@ -23,6 +23,13 @@ import { avisar } from '../utils/alertas';
 
 const ORDINAL = { 1: '1ª', 2: '2ª', 3: '3ª', 4: '4ª' };
 
+// Papel Lider so conta na 3a (desempate); sessao com 1 ou 2 contagens nao tem 3a
+function dicaLider(sessao) {
+  return (sessao?.max_contagens || 3) >= 3
+    ? 'Papel Líder realiza apenas a 3ª contagem (desempate).'
+    : 'Nesta sessao nao ha 3ª contagem: o Líder nao conta, apenas finaliza as rodadas.';
+}
+
 export default function ResumoScreen({ navigation, route }) {
   const { contagens, sessao, loja } = route.params;
   const rodada = route.params?.rodada ?? 1;
@@ -231,7 +238,7 @@ export default function ResumoScreen({ navigation, route }) {
             ) : podeContarRodada1e2 ? (
               <Button titulo="Bipar itens que faltaram" onPress={() => iniciarContagem(1, naoContados)} />
             ) : (
-              <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
+              <Text style={estilos.dica}>{dicaLider(sessao)}</Text>
             )}
           </View>
         )}
@@ -254,7 +261,7 @@ export default function ResumoScreen({ navigation, route }) {
             ) : podeContarRodada1e2 ? (
               <Button titulo="Iniciar 2ª contagem" onPress={() => iniciarContagem(2, aguardando2)} />
             ) : (
-              <Text style={estilos.dica}>Papel Líder realiza apenas a 3ª contagem (desempate).</Text>
+              <Text style={estilos.dica}>{dicaLider(sessao)}</Text>
             )}
           </View>
         )}
@@ -289,6 +296,7 @@ export default function ResumoScreen({ navigation, route }) {
           <FinalizarRodadaCard
             sessaoId={sessao.id}
             rodadaAtual={rodadaAberta}
+            maxContagens={sessao.max_contagens}
             itensSemContagem={itensSemContagem}
             onFinalizado={(r) => (r.sessao_encerrada ? setSessaoEncerrada(true) : navigation.popTo('Sessoes', { loja }))}
           />

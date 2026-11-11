@@ -271,14 +271,16 @@ Se ainda vai bipar, toque em Cancelar. Se nao ha mais nada para bipar, confirme.
     : Math.max(totalRodada - bipadosRodada, 0);
 
   function handleNadaMaisParaBipar() {
+    // Ultima rodada da sessao (quantidade de contagens escolhida na criacao)
+    const ultima = rodada >= (sessao.max_contagens || 3);
     const titulo = rodada === 4
       ? 'Finalizar 4a contagem'
-      : rodada >= 3 ? 'Finalizar 3a contagem e encerrar' : `Finalizar ${ORDINAL[rodada]} contagem`;
+      : ultima ? `Finalizar ${ORDINAL[rodada]} contagem e encerrar` : `Finalizar ${ORDINAL[rodada]} contagem`;
     const msg =
       `Nao ha mais nada para bipar?\n\nOs ${faltamNaRodada} item(ns) restante(s) entram como 0 (nao encontrado)` +
       (rodada === 4
         ? ' e os itens voltam para a aprovacao do ADM.'
-        : rodada >= 3
+        : ultima
           ? ' e a sessao e encerrada (divergencias seguem para aprovacao).'
           : ` e a ${ORDINAL[rodada + 1]} contagem comeca.`) +
       '\n\nTodos os outros operadores precisam ter saido do Scanner.';

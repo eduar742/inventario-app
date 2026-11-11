@@ -32,17 +32,20 @@ export function agruparPorRodada(contagens) {
  * Valor final das contagens de um produto, pela regra das 3 contagens:
  * - so a 1a rodada: o total dela
  * - 1a e 2a iguais: valor confirmado
- * - 1a e 2a diferentes: null (aguardando desempate)
+ * - 1a e 2a diferentes: null (aguardando desempate); em sessao de 2
+ *   contagens (maxContagens = 2) vale a 2a
+ * - maxContagens = limite de rodadas da sessao (sessao.max_contagens, 1-3)
  * - com 3a rodada: a moda entre as 3. Se as 3 forem diferentes, o backend usa
  *   a mais proxima do saldo do sistema — o app nao conhece o saldo (inventario
  *   cego), entao retorna null; use desempatePelaRegraDoSistema() para o rotulo.
  */
-export function valorFinalContagens(contagens) {
+export function valorFinalContagens(contagens, maxContagens = 3) {
   const rodadas = agruparPorRodada(contagens);
   if (rodadas.length === 0) return null;
   if (rodadas.length === 1) return rodadas[0].total;
   if (rodadas.length === 2) {
-    return rodadas[0].total === rodadas[1].total ? rodadas[0].total : null;
+    if (rodadas[0].total === rodadas[1].total) return rodadas[0].total;
+    return maxContagens <= 2 ? rodadas[1].total : null;
   }
   const [r1, r2, r3] = rodadas.map(r => r.total);
   if (r3 === r1 || r3 === r2) return r3;
