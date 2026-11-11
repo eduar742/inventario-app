@@ -564,6 +564,18 @@ const tb = StyleSheet.create({
 });
 
 // ── Tela principal ────────────────────────────────────────────────────────────
+// Sessoes ativas agrupadas por loja (ordem do codigo L01, L02...), com o nome
+// real da loja no titulo do grupo em vez do codigo
+function agruparPorLoja(sessoes) {
+  const grupos = {};
+  sessoes.forEach(s => {
+    const chave = s.loja_codigo || s.loja_nome || '-';
+    if (!grupos[chave]) grupos[chave] = { chave, nome: s.loja_nome || s.loja_codigo || 'Loja', sessoes: [] };
+    grupos[chave].sessoes.push(s);
+  });
+  return Object.values(grupos).sort((a, b) => a.chave.localeCompare(b.chave, 'pt-BR', { numeric: true }));
+}
+
 export default function DashboardScreen({ navigation }) {
   const [dados, setDados] = useState(null);
   const [papel, setPapel] = useState(null);
@@ -773,7 +785,12 @@ export default function DashboardScreen({ navigation }) {
         {ativas.length > 0 && (
           <View style={es.card}>
             <Text style={es.titulo}>Sessões Ativas ({ativas.length})</Text>
-            {ativas.map(s => {
+            {agruparPorLoja(ativas).map(grupo => (
+              <View key={grupo.chave} style={es.grupoLoja}>
+                <Text style={es.lojaNome} numberOfLines={1}>
+                  {grupo.nome} <Text style={es.lojaQtd}>({grupo.sessoes.length})</Text>
+                </Text>
+            {grupo.sessoes.map(s => {
               // Progresso da RODADA ATUAL (nao soma das 3 rodadas) — mesmo
               // campo usado no painel de acompanhamento ao vivo. Com fallback
               // pros campos antigos caso a API ainda nao tenha os novos.
@@ -784,9 +801,6 @@ export default function DashboardScreen({ navigation }) {
               return (
                 <View key={s.sessao_id} style={es.sessao}>
                   <View style={es.sTop}>
-                    <View style={[es.badge, { backgroundColor: s.status === 'aguardando_aprovacao' ? '#FFFBEB' : '#EFF6FF' }]}>
-                      <Text style={[es.badgeTxt, { color: s.status === 'aguardando_aprovacao' ? '#D97706' : '#3B82F6' }]}>{s.loja_codigo}</Text>
-                    </View>
                     {rodadaAtual > 1 && (
                       <View style={[es.badge, { backgroundColor: rodadaAtual === 3 ? '#FEF3C7' : '#F0F9FF' }]}>
                         <Text style={[es.badgeTxt, { color: rodadaAtual === 3 ? '#D97706' : '#0284C7' }]}>{rodadaAtual}ª contagem</Text>
@@ -805,6 +819,8 @@ export default function DashboardScreen({ navigation }) {
                 </View>
               );
             })}
+              </View>
+            ))}
           </View>
         )}
 
@@ -871,6 +887,9 @@ const gr = StyleSheet.create({
 const es = StyleSheet.create({
   card:     { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', padding: 24, marginBottom: 24 },
   titulo:   { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 12 },
+  grupoLoja:{ marginBottom: 8 },
+  lojaNome: { fontSize: 14, fontWeight: '700', color: '#1E40AF', marginBottom: 6 },
+  lojaQtd:  { fontSize: 12, fontWeight: '500', color: '#6B7280' },
   sessao:   { backgroundColor: '#F9FAFB', borderRadius: 8, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#E5E7EB' },
   sTop:     { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 },
   badge:    { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },

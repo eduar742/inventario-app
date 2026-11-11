@@ -1042,7 +1042,7 @@ const SECOES = [
             legenda: 'Top divergências por valor',
           },
           {
-            texto: '"Sessões Ativas" mostra o progresso de cada sessão em andamento. "Atenção Recorrente" destaca SKUs que divergem em várias sessões (↑ Sobra / ↓ Falta).',
+            texto: '"Sessões Ativas" mostra o progresso de cada sessão em andamento, agrupado por loja (com o nome da loja). "Atenção Recorrente" destaca SKUs que divergem em várias sessões (↑ Sobra / ↓ Falta).',
             imagem: IMG.dash04,
             legenda: 'Sessões ativas e atenção recorrente',
           },
